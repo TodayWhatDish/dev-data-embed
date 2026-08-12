@@ -1,4 +1,4 @@
-# Last updated: 2026-08-11
+# Last updated: 2026-08-12
 # purchases 테이블의 화장품 리뷰를 문장 임베딩 벡터로 변환해 review_vectors 테이블에 저장하는 스크립트
 import json
 import sqlite3
