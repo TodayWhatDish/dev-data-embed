@@ -54,8 +54,7 @@ SCHEMAS = {
         ('target_feeding_purpose', 'TEXT'),   # 관절 / 다이어트 / 피부 / 공용
         ('target_food_form', 'TEXT'),         # 건식 / 습식 / 공용
         ('ingredients', 'TEXT'),              # '|' 로 구분된 원료 목록
-        ('concerns', 'TEXT'),                 # 알레르기 유발 가능 성분('닭고기 함유' 등)
-        ('tags', 'TEXT'),
+        ('tags', 'TEXT'),                     # '|' 로 구분. sub_category + feeding_purpose + 원료 + food_form
         ('description', 'TEXT'),
     ],
     # 구매 이력 + 리뷰. RAG 검색 대상이 되는 핵심 테이블로,
