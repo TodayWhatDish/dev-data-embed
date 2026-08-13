@@ -1,13 +1,9 @@
-# Last Updated: 2026-08-12
+# Last Updated: 2026-08-13
 # data/*.csv 의 반려견 더미데이터를 pet_reco.db(SQLite)로 적재하는 스크립트
 import csv
 import re
 import sqlite3
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parent.parent  # 실행 위치와 무관하게 프로젝트 루트를 기준으로 함
-DATA_DIR = ROOT / 'data'
-DB_PATH = ROOT / 'pet_reco.db'
+from config import DATA_DIR,DB_PATH
 
 # 테이블별 (컬럼명, 타입) 정의. CSV 헤더 순서와 동일해야 하며,
 # 이 정의 하나로 CREATE TABLE 문과 값 변환 규칙을 모두 만들어낸다.
@@ -92,7 +88,6 @@ INDEXES = [
     ('idx_purchases_pet', 'pet_purchases(pet_id)'),
     ('idx_purchases_filter', 'pet_purchases(is_holdout, size_category, age_group)'),
 ]
-
 
 def sql_type(col_type):
     """SCHEMAS의 표시용 타입을 실제 DDL 타입으로 바꾼다. 'ID PRIMARY KEY' -> 'INTEGER PRIMARY KEY'"""

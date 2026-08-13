@@ -1,4 +1,4 @@
-# Last updated: 2026-08-12
+# Last updated: 2026-08-13
 # pet_purchases 의 반려견 리뷰를 문장 임베딩 벡터로 변환해 review_vectors 테이블에 저장하는 스크립트
 #
 # 리뷰 본문만 넣지 않고 "어떤 강아지가 / 어떤 상품에 대해" 남긴 후기인지를 함께 문장으로 붙인다.
@@ -20,17 +20,10 @@ LLM에 이런 형태로 넘기면 되지 않을까
 # 조건이 맞는 리뷰가 의미적으로도 가깝게 걸리도록 하기 위함이다.
 import json
 import sqlite3
-from pathlib import Path
 
 import numpy as np
 from sentence_transformers import SentenceTransformer
-
-ROOT = Path(__file__).resolve().parent.parent  # 실행 위치와 무관하게 프로젝트 루트를 기준으로 함
-DB_PATH = ROOT / 'pet_reco.db'
-
-# 다국어 지원 모델(한국어 포함) - 문장을 고정 차원 벡터로 변환
-MODEL_NAME = 'paraphrase-multilingual-MiniLM-L12-v2'
-
+from config import DB_PATH,MODEL_NAME
 
 def fmt_purchase_id(pid):
     """정수 purchase_id 를 사람이 읽기 쉬운 원래 표기로 되돌린다. 418 -> 'O00418'
