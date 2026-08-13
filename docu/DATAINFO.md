@@ -64,14 +64,13 @@ pet_customers (300)
 | `category` | TEXT | `사료` / `간식` |
 | `sub_category` | TEXT | 사료: `건식사료`/`습식사료`/`실버사료`/`퍼피사료`, 간식: `수제간식`/`트릿`/`덴탈껌`/`동결건조간식` |
 | `brand` | TEXT | 가상 브랜드명 10종 (멍푸드/펫키친/바크앤조이/네이처독/도그밀/헬시포/퍼피랩/와일드포/스노우독/그레인프리랩) |
-| `product_name` | TEXT | `{브랜드} {sub_category} {번호}` |
+| `product_name` | TEXT | `{브랜드} {sub_category}` — 번호가 없어 200개 중 125개가 동명이품. 상품 식별은 `product_id` 로 한다 |
 | `price` | INTEGER | 사료 15,000~89,000원, 간식 2,900~25,000원 |
 | `weight_g` | INTEGER | 사료 400~5,000g, 간식 50~500g |
 | `target_feeding_purpose` | TEXT | `관절`/`다이어트`/`피부`(특정 목적 겨냥, 70%) 또는 `공용`(30%) — `pet_profiles.feeding_purpose`와 같은 값 체계 |
 | `target_food_form` | TEXT | `건식`/`습식`(80%) 또는 `공용`(20%) — `pet_profiles.food_form_preference`와 같은 값 체계 |
 | `ingredients` | TEXT | `\|` 구분 다중값. 14종 성분 풀에서 2~4개 랜덤 조합 (닭고기/소고기/연어/오리/고구마/단호박/스피루리나/글루코사민/프로바이오틱스/오메가3/유산균/홍합추출물/귀리/현미) |
-| `concerns` | TEXT | `\|` 구분. `ingredients`에 `닭고기` 또는 `소고기`가 있으면 각각 `닭고기 함유`/`소고기 함유` 태그 자동 부여, 없으면 빈 문자열 |
-| `tags` | TEXT | `\|` 구분. `sub_category` + (공용이 아니면 `target_feeding_purpose`) |
+| `tags` | TEXT | `\|` 구분. `sub_category` + (공용이 아니면 `target_feeding_purpose`) + `ingredients` 전체 + `target_food_form` |
 | `description` | TEXT | `"{sub_category} 제품으로 {성분1}/{성분2} 성분을 담았습니다."` 형태 자동 생성 문장 |
 
 ---

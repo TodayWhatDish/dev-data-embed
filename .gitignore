@@ -218,3 +218,13 @@ __marimo__/
 .streamlit/secrets.toml
 
 CLAUDE.md
+
+# SQLite DB
+#   data/*.csv 에서 load_db.py + embed.py 로 언제든 재생성되는 산출물이라 추적하지 않는다.
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# 질의 테스트 로그 (query.py가 실행할 때마다 쌓는 개인 기록)
+query_log.jsonl
