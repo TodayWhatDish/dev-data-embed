@@ -2,6 +2,20 @@
 # pet_purchases 의 반려견 리뷰를 문장 임베딩 벡터로 변환해 review_vectors 테이블에 저장하는 스크립트
 #
 # 리뷰 본문만 넣지 않고 "어떤 강아지가 / 어떤 상품에 대해" 남긴 후기인지를 함께 문장으로 붙인다.
+'''
+LLM에 이런 형태로 넘기면 되지 않을까
+[자료]
+임베딩에서 긁어온 추천 근거(리뷰) 자료들
+
+[대상]
+품종: {강아지 품종}
+크기: {강아지 크기}
+... 어떤 정형 데이터
+
+[사용자 추가 요구 및 질문 사항]
+{query}
+'''
+
 # 검색 단계에서 "닭고기 알레르기가 있는 소형견"처럼 프로필을 담은 질의가 들어왔을 때
 # 조건이 맞는 리뷰가 의미적으로도 가깝게 걸리도록 하기 위함이다.
 import json
@@ -33,6 +47,7 @@ def build_doc(row):
     allergy = row['allergy'] or '알레르기 없음'
     health = row['health_condition'] or '건강 특이사항 없음'
     return (
+        "passage:\n"
         f"{row['size_category']}견 {row['age_group']} {row['breed']}, {allergy}, {health}. "
         f"{row['category']}/{row['sub_category']} {row['product_name']} "
         f"({row['target_feeding_purpose']} 목적, {row['target_food_form']}) "
@@ -53,7 +68,7 @@ def fetch_rows(cur):
         JOIN pet_products AS pr ON pr.product_id = p.product_id
         WHERE p.is_holdout = 0
           AND p.review IS NOT NULL
-          AND TRIM(p.review) <> ''
+          AND TRIM(p.review) <> '' -- white space 10개짜리 리뷰 같은거 필터
         ORDER BY p.purchase_id
     """).fetchall()
 
