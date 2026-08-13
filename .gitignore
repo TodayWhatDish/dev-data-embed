@@ -228,3 +228,4 @@ CLAUDE.md
 
 # 질의 테스트 로그 (query.py가 실행할 때마다 쌓는 개인 기록)
 query_log.jsonl
+local/
