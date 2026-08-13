@@ -49,5 +49,9 @@
 `user.db` 재생성, `load_db.py` 재작성, 더미 CSV 재생성, `embed_reviews.py` 포팅.
 상세는 `local/ToDo.md` §9.
 
-## 2026-08-11
->
+## query.py
+
+질문/체급/알레르기를 입력받아 프로필 조건으로 거른 벡터검색 결과를 보여주고 매 질문을 query_log.jsonl에 기록
+
+## embed.py
+config.py로 경로/모델명 분리, build_doc에 e5 전환 대비 "passage:\n" 접두어 추가(질의 쪽 "query:" 접두어는 아직 안 붙음, 모델도 아직 e5 아님).
