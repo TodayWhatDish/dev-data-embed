@@ -17,6 +17,7 @@ data/*.csv ──[load_db.py]──> pet_reco.db ──[build_index.py]──> p
 | --- | --- | --- |
 | `config.py` | 경로·모델명·색인 대상 조건 등 공유 설정 | 표준 라이브러리만 |
 | `load_db.py` | CSV → SQLite 적재 | 표준 라이브러리만, 즉시 완료 |
+| `check_data.py` | 적재된 데이터의 정합성 검사 | 표준 라이브러리만, 즉시 완료 |
 | `build_index.py` | 리뷰 → 벡터 색인 생성 | torch 필요, 20초 남짓 |
 | `search.py` | 저장된 벡터로 검색 (라이브러리) | 실행 진입점 아님 |
 | `query.py` | 대화형 검색 CLI | `search.py` 사용 |
@@ -25,9 +26,15 @@ data/*.csv ──[load_db.py]──> pet_reco.db ──[build_index.py]──> p
 
 ```bash
 python src/load_db.py
+python src/check_data.py  # 정합성 검사 (ERROR 있으면 exit 1)
 python src/build_index.py
-python src/query.py      # 검색 (색인을 다시 만들지 않는다)
+python src/query.py       # 검색 (색인을 다시 만들지 않는다)
 ```
+
+`check_data.py`가 색인 **앞**에 있는 이유는, 데이터가 어긋나도 `build_index.py`가 에러를
+내지 않기 때문이다. 읽은 값을 그대로 문장으로 만들어 인코딩하므로 모순된 행이 아무 경고 없이
+벡터가 되고, 그 벡터가 RAG 근거로 LLM에 넘어간다. 프롬프트 설계로는 못 막는 문제라
+데이터 품질이 선행 조건이다(`docu/DESIGN.md` §2 원칙 2).
 
 VS Code에서는 `.vscode/tasks.json`의 **전체 재구축** 태스크가 앞의 두 개를 순서대로 돌린다.
 
@@ -284,7 +291,11 @@ review_vectors ⋈ pet_purchases  ──WHERE(프로필 조건)──> 후보 �
   더미데이터 규모에서는 충분하지만, 데이터가 커지면 FAISS 같은 벡터 인덱스로 교체해야 한다.
   단 ANN 인덱스는 인덱스가 필터 조건을 모르므로, 지금의 "프로필 선필터 → 벡터 랭킹" 순서를
   그대로 쓸 수 없다. 교체할 때 필터 적용 지점을 다시 설계해야 한다.
-- **더미데이터 불일치는 2026-08-17 기준 해소됐다.** 이전에 적어둔 두 가지를 재확인한 결과다.
+- **더미데이터 불일치 — 아래 두 가지는 해소됐으나, 더 깊은 층위의 문제가 따로 있다.**
+  전수 검사(`check_data.py`) 결과 `pet_purchases`와 `pet_profiles`가 서로 다른 데이터이고
+  (`breed` 1383건 불일치), `size_category` 45건이 체중과 모순이며, 알레르기 값 205건이
+  성분명과 매칭되지 않는다. **상세는 `docu/DATAISSUE.md` 참고.**
+  아래 두 항목은 그 중 리뷰 본문 층위만 다룬 것이다.
   - `건식사료`인데 `target_food_form='습식'` → **0건.** 데이터 갱신 과정에서 이미 고쳐졌다.
     (`덴탈껌`·`트릿`·`실버사료`에 건식/습식/공용이 섞인 것은 정상이다. 실제로 두 형태가 다 나온다.)
   - 리뷰 본문이 행의 `size_category`와 어긋나던 문제 → **30건을 수정했다.**
