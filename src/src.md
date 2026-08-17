@@ -1,25 +1,43 @@
 # src 코드 흐름
 
-> Last updated: 2026-08-12
+> Last updated: 2026-08-17
 
 `data/*.csv`(더미데이터) → `pet_reco.db`(SQLite) → `review_vectors`(임베딩) 까지의 파이프라인.
 RAG 추천에 쓸 리뷰 벡터를 만드는 것이 최종 목표다.
 
 ```
-data/*.csv ──[load_db.py]──> pet_reco.db ──[embed.py]──> pet_reco.db
-                             (4 테이블)              review_vectors
-                                                     embedding_meta
+data/*.csv ──[load_db.py]──> pet_reco.db ──[build_index.py]──> pet_reco.db ──[query.py]──> 검색
+                             (4 테이블)                      review_vectors     └ search.py
+                                                             embedding_meta
 ```
 
-실행 순서는 고정이다. `load_db.py`가 먼저 돌아야 `embed.py`가 읽을 테이블이 생긴다.
+파일은 역할로 나뉜다.
+
+| 파일 | 역할 | 성격 |
+| --- | --- | --- |
+| `config.py` | 경로·모델명·색인 대상 조건 등 공유 설정 | 표준 라이브러리만 |
+| `load_db.py` | CSV → SQLite 적재 | 표준 라이브러리만, 즉시 완료 |
+| `build_index.py` | 리뷰 → 벡터 색인 생성 | torch 필요, 20초 남짓 |
+| `search.py` | 저장된 벡터로 검색 (라이브러리) | 실행 진입점 아님 |
+| `query.py` | 대화형 검색 CLI | `search.py` 사용 |
+
+실행 순서는 고정이다. `load_db.py`가 먼저 돌아야 `build_index.py`가 읽을 테이블이 생긴다.
 
 ```bash
 python src/load_db.py
-python src/embed.py
+python src/build_index.py
+python src/query.py      # 검색 (색인을 다시 만들지 않는다)
 ```
 
-두 스크립트 모두 `ROOT = Path(__file__).resolve().parent.parent` 로 프로젝트 루트를 잡기 때문에
-어느 디렉토리에서 실행해도 같은 `pet_reco.db`를 바라본다.
+VS Code에서는 `.vscode/tasks.json`의 **전체 재구축** 태스크가 앞의 두 개를 순서대로 돌린다.
+
+`load_db.py`를 다시 돌리고 `build_index.py`를 잊으면 `review_vectors`만 옛 데이터를 가리킨 채
+남는다. 조인은 `purchase_id`로 조용히 성립하므로 **에러 없이 엉뚱한 리뷰가 검색된다.**
+그래서 `search.py`의 `check_freshness()`가 검색을 시작할 때 이를 감지해 경고한다
+(아래 "3. search.py" 참고).
+
+모든 스크립트가 `config.py`의 `ROOT = Path(__file__).resolve().parent.parent` 로 프로젝트 루트를
+잡기 때문에 어느 디렉토리에서 실행해도 같은 `pet_reco.db`를 바라본다.
 
 ---
 
@@ -99,33 +117,41 @@ idx_purchases_pet       pet_purchases(pet_id)
 idx_purchases_filter    pet_purchases(is_holdout, size_category, age_group)
 ```
 
-마지막 `idx_purchases_filter`가 아래 embed.py의 "프로필 선필터" 경로를 커버한다.
+마지막 `idx_purchases_filter`가 아래 `search.py`의 "프로필 선필터" 경로를 커버한다.
 
 ---
 
-## 2. embed.py — 리뷰 임베딩
+## 2. build_index.py — 리뷰 색인 생성
+
+이름이 `embed.py`가 아닌 이유는, 임베딩이 이 파일의 전부가 아니기 때문이다.
+`model.encode()` 한 줄을 빼면 나머지는 조회·조립·저장이고, 질의 임베딩은 `search.py`도 한다.
+이 파일을 구별하는 것은 **결과를 DB에 영속화한다**는 점이다.
 
 ### 흐름
 
 ```
 main()
-  ├─ fetch_rows()      대상 리뷰 조회 (holdout 제외 + 상품 조인)  → 1035건
+  ├─ fetch_rows()      대상 리뷰 조회 (holdout 제외 + 상품 조인)  → 1439건
   ├─ build_doc()       행마다 임베딩용 문장 조립
   ├─ model.encode()    문장 → 384차원 벡터 (정규화)
-  ├─ save_vectors()    review_vectors / embedding_meta 저장
-  └─ search()          확인용 검색 2종 출력
+  └─ save_vectors()    review_vectors / embedding_meta 저장
 ```
+
+검색은 이 파일에 없다. `query.py`로 분리되어 있어서, 검색만 확인할 때 색인을 다시 만들지 않는다.
 
 ### fetch_rows — 무엇을 색인하는가
 
 `pet_purchases` ⋈ `pet_products` 조인으로 리뷰와 상품 정보를 한 번에 가져온다.
 
 ```sql
-WHERE p.is_holdout = 0            -- 평가용 404건 제외
+WHERE p.is_holdout = 0            -- 평가용으로 남겨둔 행 제외 (현재는 전량 0)
   AND p.review IS NOT NULL
   AND TRIM(p.review) <> ''        -- 빈 리뷰 제외
 ORDER BY p.purchase_id            -- 재실행 시 순서 고정
 ```
+
+이 `WHERE` 조건은 `config.py`의 `INDEX_FILTER` 상수다. `search.py`가 "색인 이후 데이터가
+바뀌었는지" 판단할 때 **같은 기준**을 봐야 하므로 한 곳에만 적는다.
 
 `cur.row_factory = sqlite3.Row` 를 설정해서 결과를 컬럼명으로 접근한다
 (`row['breed']`). 컬럼이 13개라 인덱스 접근은 실수가 나기 쉽다.
@@ -150,28 +176,43 @@ ORDER BY p.purchase_id            -- 재실행 시 순서 고정
 - `normalize_embeddings=True` → 벡터 길이를 1로 맞춘다.
   이후 코사인 유사도를 **내적만으로** 계산할 수 있다 (`matrix @ q`).
 
+**입력 길이 제한이 있다.** 이 모델의 `max_seq_length`는 **128토큰**이고, 넘으면
+경고 없이 뒷부분이 잘린다. 실측한 `build_doc()` 결과는 아래와 같다.
+
+| 항목 | 값 |
+| --- | --- |
+| 토큰 길이 (최소 / 중앙값 / p90 / 최대) | 64 / 99 / 116 / 141 |
+| 128토큰 초과 (= 잘림) | 11건 (0.8%) |
+| 메타데이터 접두부(`"후기: "` 앞까지) | 중앙값 56, 최대 67 |
+
+메타데이터가 예산의 절반 가까이를 쓰고, 리뷰 본문이 **맨 뒤**에 오므로 넘칠 때
+잘려나가는 쪽은 정작 가장 중요한 본문이다. 지금은 0.8%라 방치 가능하지만 여유가 얇다.
+리뷰가 길어지는 데이터가 들어오면 메타데이터 문구를 줄이거나 모델을 교체해야 한다.
+
 ### save_vectors — 저장 형태
 
 SQLite에는 벡터 타입이 없으므로 `numpy 배열 → list → JSON 문자열`로 저장한다.
 
 ```
 review_vectors(purchase_id PK, doc, vector)
-embedding_meta(key, value)    -- model / dim / count
+embedding_meta(key, value)    -- model / dim / count / source
 ```
 
 `doc`(임베딩에 실제로 들어간 문장)을 함께 저장한다. 검색 결과를 사람이 눈으로 검증할 때와,
 LLM에게 근거로 넘길 때 그대로 쓰기 위함이다.
 
-`embedding_meta`는 어떤 모델·차원으로 만든 벡터인지 기록해둔다. 모델을 교체하면 차원이
-달라지므로, 검색하는 쪽에서 불일치를 감지할 수 있다.
+`embedding_meta`는 색인을 **어떤 모델·차원으로, 어떤 상태의 데이터로** 만들었는지 기록한다.
+`source`는 `config.py`의 `source_fingerprint()`가 만든 지문(`건수:ID합:리뷰길이합`)이고,
+`search.py`가 검색 시작 시 현재 DB와 비교해 재색인 필요를 알린다
+(아래 "3. search.py" 참고).
 
-`DELETE FROM review_vectors` 후 `executemany`로 일괄 삽입 — 재실행 시 중복 방지.
+`DROP TABLE` 후 다시 만들고 `executemany`로 일괄 삽입 — 재실행 시 중복 방지.
 
 ---
 
-## 3. 검색 패턴 — 필터 먼저, 벡터 나중
+## 3. search.py — 필터 먼저, 벡터 나중
 
-`search()`가 보여주는 것이 이 파이프라인의 결론이다.
+색인과 분리된 **읽기 전용** 모듈이다. 실행 진입점은 `query.py`이고, 이 파일은 라이브러리다.
 
 **벡터 유사도만 쓰면 조건이 지켜지지 않는다.**
 질의 `"닭고기 알레르기가 있는 소형견인데 피부 가려움에 괜찮았던 사료"` 의 실제 결과:
@@ -192,9 +233,9 @@ LLM에게 근거로 넘길 때 그대로 쓰기 위함이다.
 
 > 위 `O00418` 은 화면 표기다. DB에는 정수 `418` 로 저장되어 있고,
 > 출력할 때만 `fmt_purchase_id()` 가 접두어를 붙인다.
-> `search()` 는 정수를 그대로 반환하므로 호출하는 쪽에서 조인에 바로 쓸 수 있다.
+> 검색은 정수를 그대로 반환하므로 호출하는 쪽에서 조인에 바로 쓸 수 있다.
 
-그래서 `search(con, model, query, where=..., params=...)` 는 이 순서로 동작한다.
+그래서 `VectorStore.search(query, where=..., params=...)` 는 이 순서로 동작한다.
 
 ```
 review_vectors ⋈ pet_purchases  ──WHERE(프로필 조건)──> 후보 축소
@@ -204,16 +245,49 @@ review_vectors ⋈ pet_purchases  ──WHERE(프로필 조건)──> 후보 �
 **실제 추천 API도 이 순서(프로필 선필터 → 벡터 랭킹)를 따라야 한다.**
 `params`로 값을 바인딩하므로 사용자 입력을 문자열로 이어붙이지 않는다.
 
+### VectorStore — 벡터를 한 번만 읽는다
+
+벡터는 JSON 문자열로 저장되므로 질의마다 다시 읽으면 파싱 비용이 매번 든다.
+1439건 × 384차원이면 질의 한 번에 10MB가 넘는 JSON을 다시 파싱하는 셈이다.
+그래서 `VectorStore`가 생성 시 전부 메모리에 올리고, 이후 질의에서는 `WHERE`로 걸러진
+`purchase_id`만 받아 해당 행을 골라 쓴다. 실측값은 아래와 같다.
+
+| 구간 | 시간 |
+| --- | --- |
+| `VectorStore` 생성 (모델 로드 + 벡터 1439건 파싱) | 6.3초 (시작 시 1회) |
+| 질의 1회 | 0.01 ~ 0.04초 |
+| (참고) 분리 전, 질의마다 벡터를 다시 읽던 비용 | 0.157초 |
+
+### check_freshness — 낡은 색인 감지
+
+`load_db.py`를 다시 돌리면 `pet_purchases`가 통째로 새로 만들어진다. 이때
+`build_index.py`를 잊으면 `review_vectors`만 옛 데이터를 가리키는데, 조인은 `purchase_id`로
+조용히 성립하므로 **에러 없이 엉뚱한 리뷰가 검색된다.**
+
+`VectorStore` 생성 시 `embedding_meta`의 기록과 현재 DB를 비교해 두 가지를 잡는다.
+
+- `model` 불일치 → 벡터 공간이 달라 유사도가 의미를 잃는다
+- `source` 지문 불일치 → 색인 이후 대상 데이터가 바뀌었다
+
+검색을 막지는 않고 경고만 한다. 색인이 조금 낡아도 확인용으로는 쓸 만하고,
+여기서 중단시키면 데이터를 손보는 중에 아무것도 못 하게 되기 때문이다.
+지문은 `건수:ID합:리뷰길이합`이라 **길이가 같은 오타 수정 같은 변경은 놓친다.**
+값싼 안전망이지 검증이 아니다.
+
 ---
 
 ## 알아둘 점
 
 - **최초 실행 시 모델 다운로드**가 발생한다(수백 MB). 이후에는 HF 캐시에서 로드된다.
-- 현재 벡터 검색은 1035건 전체를 메모리에 올려 내적하는 **브루트포스** 방식이다.
+- 현재 벡터 검색은 1439건 전체를 메모리에 올려 내적하는 **브루트포스** 방식이다.
+  인덱스 구조 없이 후보를 전부 훑으므로 정확한 top-k가 보장되는 대신 O(N)이다.
   더미데이터 규모에서는 충분하지만, 데이터가 커지면 FAISS 같은 벡터 인덱스로 교체해야 한다.
+  단 ANN 인덱스는 인덱스가 필터 조건을 모르므로, 지금의 "프로필 선필터 → 벡터 랭킹" 순서를
+  그대로 쓸 수 없다. 교체할 때 필터 적용 지점을 다시 설계해야 한다.
 - **더미데이터 자체에 불일치가 있다.** `건식사료` 상품인데 `target_food_form`이 `습식`이거나,
   `중형견 비글` 리뷰 본문에 "소형견이라..."가 들어있는 행이 존재한다.
   RAG 근거로 쓰면 LLM이 모순된 답을 만들 수 있으므로 데이터 생성 로직 점검이 필요하다.
-- 모델 교체를 검토한다면 `intfloat/multilingual-e5-small`이 한국어 검색 품질은 대체로 낫지만,
-  `query:` / `passage:` 접두어 규약을 지켜야 성능이 나온다. `build_doc()`과 `search()`를
-  함께 고쳐야 한다.
+- 모델 교체를 검토한다면 `intfloat/multilingual-e5-small`이 한국어 검색 품질은 대체로 낫고
+  입력 한도도 512토큰이라 위의 잘림 문제까지 해소된다. 다만 `query:` / `passage:` 접두어
+  규약을 지켜야 성능이 나오므로 `build_doc()`과 `VectorStore.search()`를 함께 고쳐야 한다.
+  모델을 바꾸면 `check_freshness()`가 불일치를 잡아내므로 재색인을 잊을 일은 없다.

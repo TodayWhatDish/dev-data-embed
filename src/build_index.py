@@ -1,5 +1,8 @@
-# Last updated: 2026-08-13
+# Last updated: 2026-08-17
 # pet_purchases 의 반려견 리뷰를 문장 임베딩 벡터로 변환해 review_vectors 테이블에 저장하는 스크립트
+#
+# 이 파일은 색인(벡터 사전 계산)만 한다. 저장된 벡터로 검색하는 쪽은 search.py 에 있다.
+# 인코딩이 십수 초 걸리므로 데이터나 모델이 바뀔 때만 실행하고, 평소 검색은 query.py 를 쓴다.
 #
 # 리뷰 본문만 넣지 않고 "어떤 강아지가 / 어떤 상품에 대해" 남긴 후기인지를 함께 문장으로 붙인다.
 '''
@@ -21,17 +24,8 @@ LLM에 이런 형태로 넘기면 되지 않을까
 import json
 import sqlite3
 
-import numpy as np
 from sentence_transformers import SentenceTransformer
-from config import DB_PATH,MODEL_NAME
-
-def fmt_purchase_id(pid):
-    """정수 purchase_id 를 사람이 읽기 쉬운 원래 표기로 되돌린다. 418 -> 'O00418'
-
-    저장은 INTEGER로 하되(조인/인덱스에 유리) 화면에 찍을 때만 접두어를 붙인다.
-    검색 결과에 ID만 덩그러니 나오면 어느 테이블 것인지 알아보기 어렵기 때문이다.
-    """
-    return f'O{pid:05d}'
+from config import DB_PATH,MODEL_NAME,INDEX_FILTER,source_fingerprint
 
 
 def build_doc(row):
@@ -49,9 +43,13 @@ def build_doc(row):
 
 
 def fetch_rows(cur):
-    """색인 대상 리뷰를 상품 정보와 함께 읽어온다."""
+    """색인 대상 리뷰를 상품 정보와 함께 읽어온다.
+
+    대상 조건(INDEX_FILTER)은 config.py 에 있다. 검색 쪽에서 재색인이 필요한지
+    판단할 때 같은 조건을 봐야 하므로 여기에 직접 적지 않는다.
+    """
     cur.row_factory = sqlite3.Row
-    return cur.execute("""
+    return cur.execute(f"""
         SELECT
             p.purchase_id, p.category, p.breed, p.size_category, p.age_group,
             p.allergy, p.health_condition, p.rating, p.review,
@@ -59,9 +57,7 @@ def fetch_rows(cur):
             pr.target_feeding_purpose, pr.target_food_form
         FROM pet_purchases AS p
         JOIN pet_products AS pr ON pr.product_id = p.product_id
-        WHERE p.is_holdout = 0
-          AND p.review IS NOT NULL
-          AND TRIM(p.review) <> '' -- white space 10개짜리 리뷰 같은거 필터
+        WHERE {INDEX_FILTER}
         ORDER BY p.purchase_id
     """).fetchall()
 
@@ -81,7 +77,8 @@ def save_vectors(con, rows, docs, vectors, dim):
         vector TEXT
     )
     """)
-    # 어떤 모델/차원으로 만든 벡터인지 남겨둔다. 모델을 바꾸면 검색 쪽에서 불일치를 감지할 수 있다.
+    # 어떤 모델/차원으로, 어떤 상태의 데이터로 만든 벡터인지 남겨둔다.
+    # search.py 의 VectorStore 가 시작할 때 이 값과 현재 DB를 비교해 재색인 필요를 알린다.
     cur.execute("""
     CREATE TABLE IF NOT EXISTS embedding_meta (
         key TEXT PRIMARY KEY,
@@ -99,32 +96,14 @@ def save_vectors(con, rows, docs, vectors, dim):
     )
     cur.executemany(
         'INSERT OR REPLACE INTO embedding_meta VALUES (?, ?)',
-        [('model', MODEL_NAME), ('dim', str(dim)), ('count', str(len(rows)))],
+        [
+            ('model', MODEL_NAME),
+            ('dim', str(dim)),
+            ('count', str(len(rows))),
+            ('source', source_fingerprint(con)),
+        ],
     )
     con.commit()
-
-
-def search(con, model, query, where='1=1', params=(), top_k=3):
-    """저장된 벡터로 유사 리뷰를 찾아보는 확인용 검색.
-
-    벡터 유사도만으로는 "소형견", "닭고기 알레르기 없음" 같은 조건이 지켜지지 않는다.
-    (의미가 비슷하기만 하면 대형견 리뷰도 상위에 올라온다.)
-    그래서 where 로 pet_purchases 를 먼저 걸러낸 뒤, 남은 후보만 유사도로 정렬한다.
-    실제 추천 API도 이 순서(프로필 필터 -> 벡터 랭킹)를 따라야 한다.
-    """
-    rows = con.execute(f"""
-        SELECT v.purchase_id, v.doc, v.vector
-        FROM review_vectors AS v
-        JOIN pet_purchases AS p ON p.purchase_id = v.purchase_id
-        WHERE {where}
-    """, params).fetchall()
-    if not rows:
-        return []
-    # 저장할 때 정규화했으므로 내적만으로 코사인 유사도가 된다
-    matrix = np.array([json.loads(r[2]) for r in rows], dtype=np.float32)
-    q = model.encode([query], normalize_embeddings=True)[0]
-    scores = matrix @ q
-    return [(rows[i][0], float(scores[i]), rows[i][1]) for i in np.argsort(-scores)[:top_k]]
 
 
 def main():
@@ -140,26 +119,7 @@ def main():
 
     save_vectors(con, rows, docs, vectors, vectors.shape[1])
     print(f'\n임베딩 {len(rows)}개, 차원 {vectors.shape[1]}, 모델 {MODEL_NAME}')
-
-    # 프로필을 담은 질의가 실제로 관련 리뷰를 찾아오는지 확인
-    #demo = '닭고기 알레르기가 있는 소형견인데 피부 가려움에 괜찮았던 사료'
-    demo = '이빨이 약한 대형견을 위한 사료를 추천해줘.'
-    print(f'\n[확인용 검색] {demo}')
-
-    print('  1) 벡터 유사도만 사용 - 조건이 지켜지지 않음')
-    for pid, score, doc in search(con, model, demo):
-        print(f'     {fmt_purchase_id(pid)} ({score:.3f}) {doc[:70]}...')
-
-    print('  2) 프로필 필터 + 벡터 유사도 - 실제 추천에 쓸 방식')
-    hits = search(
-        con, model, demo,
-        #where="p.size_category = ? AND (p.allergy IS NULL OR p.allergy <> ?)",
-        #params=('소형', '닭고기 알레르기'),
-        where="p.size_category = ? AND (p.allergy IS NULL OR p.allergy <> ?)",
-        params=('대형', '닭고기 알레르기'),
-    )
-    for pid, score, doc in hits:
-        print(f'     {fmt_purchase_id(pid)} ({score:.3f}) {doc[:70]}...')
+    print('검색은 query.py 를 실행하세요.')
 
     con.close()
 

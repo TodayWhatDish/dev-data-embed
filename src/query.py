@@ -1,27 +1,13 @@
+# Last updated: 2026-08-17
+# 프로필 + 질문을 받아 유사 리뷰를 찾아주는 대화형 확인용 CLI
+#
+# 검색 로직 자체는 search.py 에 있다. 여기서는 입력을 받고 결과를 찍고 로그를 남기는 일만 한다.
 import json
 import sqlite3
 from datetime import datetime
 
-from sentence_transformers import SentenceTransformer
-
-from config import DB_PATH,MODEL_NAME,ROOT,LOG_PATH
-from embed import fmt_purchase_id,search
-
-FILTERS = {
-    'size_category': 'p.size_category = ?',
-    'allergy': '(p.allergy IS NULL OR p.allergy <> ?)',
-}
-
-# profile 에 값이 있는 키만 조건절로 바꿈. 
-# 아무것도 없다면 '1=1'(조건없음)을 리턴해서 search()가 받을 수 있도록 함
-def build_where(profile):
-    clauses,params = [],[]
-    for key, clause in FILTERS.items():
-        if profile.get(key):
-            clauses.append(clause)
-            params.append(profile[key])
-
-    return ' AND '.join(clauses) or '1=1', tuple(params)
+from config import DB_PATH,LOG_PATH
+from search import VectorStore,build_where,fmt_purchase_id
 
 
 def log_result(profile, query, hits):
@@ -43,7 +29,8 @@ def log_result(profile, query, hits):
 
 def main():
     con = sqlite3.connect(DB_PATH)
-    model = SentenceTransformer(MODEL_NAME)
+    # 모델 로딩과 벡터 읽기를 여기서 한 번만 치른다. 이후 질문은 이 캐시를 재사용한다.
+    store = VectorStore(con)
 
     print('질문을 입력하세요 (빈 줄 입력 시 종료)')
     while True:
@@ -60,7 +47,7 @@ def main():
             profile['allergy'] = allergy
 
         where, params = build_where(profile)
-        hits = search(con, model, query, where=where, params=params)
+        hits = store.search(query, where=where, params=params)
 
         for pid, score, doc in hits:
             print(f'  - {fmt_purchase_id(pid)} ({score:.3f}) {doc[:80]}...')

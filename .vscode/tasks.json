@@ -1,0 +1,44 @@
+{
+    // 실행 순서가 고정된 파이프라인이라 태스크로 묶어둔다.
+    //   data/*.csv --[load_db]--> pet_reco.db --[build_index]--> review_vectors --[query]--> 검색
+    // load_db 를 돌리면 pet_purchases 가 새로 만들어지므로 build_index 도 다시 돌려야 한다.
+    // 잊더라도 search.py 의 check_freshness() 가 검색 시작 시 경고한다.
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "1. DB 적재 (load_db)",
+            "detail": "data/*.csv 를 pet_reco.db 로 적재한다. 표준 라이브러리만 쓰므로 빠르다.",
+            "type": "shell",
+            "command": "python",
+            "args": ["src/load_db.py"],
+            "problemMatcher": [],
+            "presentation": { "clear": true }
+        },
+        {
+            "label": "2. 색인 생성 (build_index)",
+            "detail": "리뷰를 벡터로 변환해 review_vectors 에 저장한다. 모델 로딩 포함 20초 남짓 걸린다.",
+            "type": "shell",
+            "command": "python",
+            "args": ["src/build_index.py"],
+            "problemMatcher": [],
+            "presentation": { "clear": true }
+        },
+        {
+            "label": "전체 재구축 (적재 -> 색인)",
+            "detail": "CSV 가 바뀌었을 때 쓴다. 1, 2 를 순서대로 실행한다.",
+            "dependsOrder": "sequence",
+            "dependsOn": ["1. DB 적재 (load_db)", "2. 색인 생성 (build_index)"],
+            "problemMatcher": [],
+            "group": { "kind": "build", "isDefault": true }
+        },
+        {
+            "label": "검색 CLI (query)",
+            "detail": "질문을 입력받아 유사 리뷰를 찾는다. 입력을 받아야 하므로 전용 터미널에서 연다.",
+            "type": "shell",
+            "command": "python",
+            "args": ["src/query.py"],
+            "problemMatcher": [],
+            "presentation": { "panel": "dedicated", "clear": true }
+        }
+    ]
+}

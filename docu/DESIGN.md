@@ -10,7 +10,7 @@ LLM 제공자·배포 형태는 미정이라, 교체 가능한 인터페이스�
 flowchart TB
     subgraph L1["1. 데이터 계층 (기존, src/)"]
         CSV["data/*.csv"] --> LOAD["load_db.py"] --> DB[("pet_reco.db\nSQLite")]
-        DB --> EMBED["embed.py"] --> VEC[("review_vectors\n(doc, vector)")]
+        DB --> EMBED["build_index.py"] --> VEC[("review_vectors\n(doc, vector)")]
     end
 
     subgraph L2["2. 검색 계층 (RAG retrieval)"]
@@ -38,7 +38,7 @@ flowchart TB
 ## 2. 이미 검증된 핵심 원칙
 
 1. **hard constraint는 SQL, soft preference는 벡터.**
-   `src/embed.py`의 `search()`에서 이미 확인된 사실: 벡터 유사도만으로는 "닭고기 알레르기 소형견" 같은 조건이 지켜지지 않는다(상위 결과가 대형견 리뷰였음, `docu/WORK.md` §3). 알레르기처럼 틀리면 안 되는 조건은 반드시 SQL 선필터를 거친 뒤에만 벡터 랭킹을 적용한다. 검색 계층은 이 순서를 강제하는 것 자체가 존재 이유다.
+   `src/search.py`의 `VectorStore.search()`에서 이미 확인된 사실: 벡터 유사도만으로는 "닭고기 알레르기 소형견" 같은 조건이 지켜지지 않는다(상위 결과가 대형견 리뷰였음, `docu/WORK.md` §3). 알레르기처럼 틀리면 안 되는 조건은 반드시 SQL 선필터를 거친 뒤에만 벡터 랭킹을 적용한다. 검색 계층은 이 순서를 강제하는 것 자체가 존재 이유다.
 
 2. **LLM은 검색된 근거 밖의 내용을 말하지 않는다.**
    GOAL.md의 차별점("추측하지 않고 근거를 찾는다")을 지키려면, 프롬프트에 근거 리뷰를 구조화해서 넣고 "이 리뷰들 안에서만 근거를 들어 답하라"고 강제해야 한다. 근거 리뷰 자체가 모순되면(아래 3번) LLM도 모순된 답을 낸다 — 프롬프트 설계로 못 막는 문제라 데이터 품질이 선행 조건이다.
