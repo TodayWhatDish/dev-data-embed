@@ -5,8 +5,12 @@ LastUpdated : 2026-08-13
 '오늘 뭐먹냥'의 데이터 계층 설계. 구현은 `src/make_db/create_db_schema.py`이며,
 테이블마다 `-- Comment:`(용도), 컬럼마다 `-- desc:`(설명)이 달려 있다. **이 문서와 그 파일이 어긋나면 파일이 정답이다.**
 
-`docu/GOAL.md`의 요구사항에서 역산했다. `data/*.csv` 4종은 초기 더미 데이터로,
-스키마의 근거가 아니라 앞으로 이 스키마에 맞춰 다시 생성할 대상이다.
+```mermaid
+flowchart TB
+    subgraph L1["1. 데이터 계층 (기존, src/)"]
+        CSV["data/*.csv"] --> LOAD["load_db.py"] --> DB[("pet_reco.db\nSQLite")]
+        DB --> EMBED["build_index.py"] --> VEC[("review_vectors\n(doc, vector)")]
+    end
 
 ---
 
@@ -28,8 +32,8 @@ SQLite에 unsigned 정수 타입은 **없다.** `uint32`/`uint64`는 STRICT에�
 비STRICT에서는 통과하지만 INTEGER로 해석될 뿐 음수도 그대로 들어간다.
 폭 지정도 무의미하다 — SQLite는 INTEGER를 값 크기에 따라 1~8바이트로 가변 저장한다.
 
-조인 성능에서 실제로 이득을 주는 건 타입 폭이 아니라 규칙 1(`INTEGER PRIMARY KEY`)이다.
-PostgreSQL로 이관해도 unsigned는 없으므로 `BIGINT`로 그대로 넘어간다.
+1. **hard constraint는 SQL, soft preference는 벡터.**
+   `src/search.py`의 `VectorStore.search()`에서 이미 확인된 사실: 벡터 유사도만으로는 "닭고기 알레르기 소형견" 같은 조건이 지켜지지 않는다(상위 결과가 대형견 리뷰였음, `docu/WORK.md` §3). 알레르기처럼 틀리면 안 되는 조건은 반드시 SQL 선필터를 거친 뒤에만 벡터 랭킹을 적용한다. 검색 계층은 이 순서를 강제하는 것 자체가 존재 이유다.
 
 ### 인덱스 원칙
 
@@ -46,7 +50,13 @@ PostgreSQL로 이관해도 unsigned는 없으므로 `BIGINT`로 그대로 넘어
 
 ## 2. 테이블 (1단계 — 추천 경로)
 
-**14 테이블 + 4 뷰.** 이 중 `breeds`/`allergens`/`ingredients`/`feeding_purposes`는 정적 마스터.
+`docu/WORK.md`의 "남은 과제"가 그대로 이 파이프라인의 리스크다:
+
+- **더미데이터 정합성** — 견종/체형 모순 행 30건을 2026-08-17에 수정해 현재는 0건(`docu/WORK.md` 2026-08-17 §5). 다만 생성 스크립트가 저장소에 없어 CSV를 직접 고친 것이라, 데이터를 재생성하면 재발한다. → 임베딩 전에 검증 스텝 필요(원칙 2와 직결).
+- **토큰 잘림** — 현재 모델 한도 128토큰, 문서 평균 97토큰, 3% 잘림. 리뷰가 길어질수록 악화, 결론 문장이 잘리는 경우가 많음.
+- **벡터 저장 포맷** — JSON 문자열이라 8.3MB(원래 1.5MB면 될 양). 지금 규모는 무관하나 먼저 손볼 지점으로 기록.
+
+## 5. API 초안
 
 ```
 users ──< pets ──< pet_allergies >── allergens
