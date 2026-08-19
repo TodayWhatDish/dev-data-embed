@@ -8,11 +8,10 @@
 
 import sqlite3
 
-from query import build_where  # 프로필 딕셔너리 -> SQL where절 변환
-from embed import search  # SQL 필터 + 벡터검색
+from app.retrieve import build_where, VectorStore  # 프로필 딕셔너리 -> SQL where절 변환
 
 from sentence_transformers import SentenceTransformer  # 문장을 벡터로 바꿔주는 모델 클래스
-from config import DB_PATH, MODEL_NAME  # DB 경로, 임베딩 모델 이름
+from app.config import DB_PATH, MODEL_NAME  # DB 경로, 임베딩 모델 이름
 
 
 def load_product_map(con):

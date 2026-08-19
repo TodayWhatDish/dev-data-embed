@@ -18,8 +18,14 @@ INDEX_FILTER = """
     AND p.review IS NOT NULL
     AND TRIM(p.review) <> ''
 """
-
-
+"""
+  python -m pip install langchain-text-splitters==1.1.2 transformers==5.14.1
+  python -m pip install langchain-huggingface==1.2.2
+"""
+# 특정 임베딩 모델로 청킹하고 토큰화 했다면 값비교도 무조건 같은 모델로 비교해야함
+EMBED_TOKENIZER = "intfloat/multilingual-e5-small"
+# 해당 모델의 최대 토큰수가 512인데 전달의 문자정보의 토큰갯수가 넘어설떄 512넘어서는 정보값은 짤려서 누락됨
+EMBED_MAX_TOKENS = 512
 def source_fingerprint(con):
     """색인 대상 데이터의 현재 상태를 숫자 몇 개로 요약한다.
 

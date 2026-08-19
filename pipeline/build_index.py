@@ -25,7 +25,7 @@ import json
 import sqlite3
 
 from sentence_transformers import SentenceTransformer
-from config import DB_PATH,MODEL_NAME,INDEX_FILTER,source_fingerprint
+from app.config import DB_PATH,MODEL_NAME,INDEX_FILTER,source_fingerprint
 
 
 def build_doc(row):

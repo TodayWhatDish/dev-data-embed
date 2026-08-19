@@ -1,4 +1,5 @@
-# Last updated: 2026-08-17
+# LastUpdated : 2026-08-19
+
 # review_vectors 에 저장된 벡터로 유사 리뷰를 찾는 검색 모듈
 #
 # 색인(build_index.py)과 파일을 나눈 이유는 두 작업의 수명이 다르기 때문이다.
@@ -8,9 +9,9 @@
 import json
 
 import numpy as np
+from db import dicts
 from sentence_transformers import SentenceTransformer
-
-from config import MODEL_NAME,source_fingerprint
+from app.config import MODEL_NAME,source_fingerprint
 
 # 프로필 키 -> SQL 조건절. 값이 들어온 키만 WHERE 에 붙는다.
 FILTERS = {

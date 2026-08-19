@@ -22,7 +22,7 @@ import sqlite3
 import sys
 from collections import defaultdict
 
-from config import DB_PATH,INDEX_FILTER
+from app.config import DB_PATH,INDEX_FILTER
 
 # 검사 결과의 심각도.
 #   ERROR - 이 상태로 색인하면 잘못된 근거가 만들어진다. 고치기 전에는 진행하면 안 된다.
