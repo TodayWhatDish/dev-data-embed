@@ -13,9 +13,11 @@ from app.core.config import EMBED_MODEL
 
 def save_chunks(con: sqlite3.Connection, chunks : list[dict]):
     """조각을 chunks 테이블에 넣으며, 재실행 시 통째로 다시 만든다."""
+    """[미구현]"""
     pass
 
 def save_vectors(con: sqlite3.Connection, chunks : list[dict], vectors, dim, source : str):
     """chunk_vecttors 테이블을 만들고 벡터에 적재한다. 이때 chunks는 미리 저장되어 있어야 한다."""
+    """[미구현]"""
     pass
 

@@ -16,8 +16,10 @@ _model = None
 
 def get_model():
     """모델을 한 번만 올리고 계속 쓴다."""
+    """[미구현]"""
     pass
 
 def embed_texts(texts: str):
     """벡터 길이를 정규화(1로 맞춰서) 이후 코사인 유사도가 내적만으로 계산되게 할 것"""
+    """[미구현]"""
     pass

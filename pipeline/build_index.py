@@ -1,11 +1,13 @@
 # Last updated: 2026-08-17
-# pet_purchases 의 반려견 리뷰를 문장 임베딩 벡터로 변환해 review_vectors 테이블에 저장하는 스크립트
-#
-# 이 파일은 색인(벡터 사전 계산)만 한다. 저장된 벡터로 검색하는 쪽은 search.py 에 있다.
-# 인코딩이 십수 초 걸리므로 데이터나 모델이 바뀔 때만 실행하고, 평소 검색은 query.py 를 쓴다.
-#
-# 리뷰 본문만 넣지 않고 "어떤 강아지가 / 어떤 상품에 대해" 남긴 후기인지를 함께 문장으로 붙인다.
-'''
+
+""" chunks 테이블의 조각을 문장 임베딩 벡터로 변환해 chunk_vectors 테이블에 저장한다.
+pet_purchases 의 반려견 리뷰를 문장 임베딩 벡터로 변환해 review_vectors 테이블에 저장하는 스크립트
+
+이 파일은 색인(벡터 사전 계산)만 한다. 저장된 벡터로 검색하는 쪽은 search.py 에 있다.
+인코딩이 십수 초 걸리므로 데이터나 모델이 바뀔 때만 실행하고, 평소 검색은 query.py 를 쓴다.
+
+리뷰 본문만 넣지 않고 "어떤 강아지가 / 어떤 상품에 대해" 남긴 후기인지를 함께 문장으로 붙인다.
+
 LLM에 이런 형태로 넘기면 되지 않을까
 [자료]
 임베딩에서 긁어온 추천 근거(리뷰) 자료들
@@ -17,7 +19,7 @@ LLM에 이런 형태로 넘기면 되지 않을까
 
 [사용자 추가 요구 및 질문 사항]
 {query}
-'''
+"""
 
 # 검색 단계에서 "닭고기 알레르기가 있는 소형견"처럼 프로필을 담은 질의가 들어왔을 때
 # 조건이 맞는 리뷰가 의미적으로도 가깝게 걸리도록 하기 위함이다.
@@ -25,8 +27,11 @@ import json
 import sqlite3
 
 from sentence_transformers import SentenceTransformer
-from app.core.config import DB_PATH,EMBED_MODEL,INDEX_FILTER,source_fingerprint
+from app.core.config import DB_PATH,EMBED_MODEL,INDEX_FILTER
+from app.core.db import source_fingerprint
+from pipeline.prep import embedding,storage
 
+## 리펙토링 필요
 
 def build_doc(row):
     """리뷰 한 건을 임베딩용 문장으로 조립한다."""

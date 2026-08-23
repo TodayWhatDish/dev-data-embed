@@ -26,7 +26,7 @@ _splitter = None
 
 
 def get_tokenizer():
-    """토큰을 세는 자. 무거우니 한 번만 올리고 계속 쓴다."""
+    """토큰 카운터. 무거우니 한 번만 올리고 계속 쓴다."""
     global _tokenizer
     if _tokenizer is None:
         _tokenizer = AutoTokenizer.from_pretrained(EMBED_TOKENIZER)
