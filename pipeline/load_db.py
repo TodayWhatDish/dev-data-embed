@@ -3,6 +3,7 @@
 import csv
 import re
 import sqlite3
+import sys
 from app.core.config import DATA_DIR,DB_PATH
 
 # 테이블별 (컬럼명, 타입) 정의. CSV 헤더 순서와 동일해야 하며,

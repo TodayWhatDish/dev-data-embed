@@ -3,12 +3,12 @@
 # 데이터만 적재하는 경로(load_db.py)는 torch 없이도 돌아간다.
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent
 DB_PATH = ROOT / 'pet_reco.db'
 DATA_DIR = ROOT / 'data'
 LOG_PATH = ROOT / 'query_log.jsonl'
 # 다국어 지원 모델(한국어 포함) - 문장을 고정 차원 벡터로 변환
-EMBED_MODEL = 'paraphrase-multilingual-MiniLM-L12-v2'
+EMBED_MODEL = 'intfloat/multilingual-e5-small'
 # 특정 임베딩 모델로 청킹하고 토큰화 했다면 값비교도 무조건 같은 모델로 비교해야함
 EMBED_TOKENIZER = "intfloat/multilingual-e5-small"
 # 해당 모델의 최대 토큰수가 512인데 전달의 문자정보의 토큰갯수가 넘어설떄 512넘어서는 정보값은 짤려서 누락됨
