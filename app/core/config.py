@@ -1,4 +1,5 @@
-# LastUpdated : 2026-08-17
+# Last Updated : 2026-08-23
+
 # 모든 스크립트가 공유하는 설정과 규칙. 표준 라이브러리만 쓰므로
 # 데이터만 적재하는 경로(load_db.py)는 torch 없이도 돌아간다.
 from pathlib import Path

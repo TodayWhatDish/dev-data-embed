@@ -1,12 +1,18 @@
 # Last Updated : 2026-08-23
 
-""" 리뷰(접두어 포함 문서)를 토큰 한도 안 조각으로 자른다. DB를 모른다.
+""" 리뷰(접두어 포함 문서)를 토큰 한도 안 조각으로 자른다. 
 
-    들어오는 것 [(purchase_id, "passage:\n..."), ...]
-    나가는 것  [{"purchase_id", "chunk_index", "body", "n_tokens"}, ...]
+    어떻게 자르는지는 앎 (토큰 한도, 문장과 구두점의 경계)
+    DB는 모른다 : 이게 어디서 왔는지, 어디에 저장할지는 모름.
+    인자로 받은 (purchase_id,doc) 목록만 보고 조각 목록을 돌려줄 뿐이다.
 
- 리뷰는 마크다운 헤더 같은 사람이 만든 절 경계가 없는 자연어라, 
- (MarkdownHeaderTextSplitter)은 안 쓰고 토큰 한도를 넘을 때 문장/구두점 경계에서 자르는 RecursiveCharacterTextSplitter)만 가져온다.
+    Input :  [(purchase_id, "passage:\n..."), ...]       
+    Output :  [{"purchase_id", "chunk_index", "body", "n_tokens"}, ...]
+
+    리뷰는 마크다운 헤더 같은 사람이 만든 절 경계가 딱히 없는 자연어라, 
+    MarkdounHeaderTextSplitter는 쓰지 않고, 문장,구두점 경계에서 자르는 
+    RecursiveCharacterTextSplitter만 사용한다.
+
 """
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -43,7 +49,7 @@ def count_tokens(text):
 
 #  리뷰 하나가 조각 여러 개로 쪼개질 수 있으니(긴 리뷰의 경우), 
 #  쪼갠 뒤에도 "이 조각이 원래 몇 번 리뷰에서 나왔나"를 알아야함.
-def split_review(purchase_id, doc):
+def split_review(purchase_id: int, doc: str):
     """한도 안이면 조각 1개, 넘으면 문장/구두점 경계로 여러 개."""
     n_tokens = count_tokens(doc)
     if n_tokens <= CHUNK_SIZE:
@@ -56,7 +62,7 @@ def split_review(purchase_id, doc):
     ]
 
 
-def split_reviews(docs):
+def split_reviews(docs: str):
     """[(purchase_id, doc), ...] 전체를 조각 목록으로. 부르는 쪽은 이 함수 하나만 알면 된다."""
     chunks = []
     for purchase_id, doc in docs:
