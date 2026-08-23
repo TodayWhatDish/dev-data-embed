@@ -5,7 +5,7 @@
 """
 
 import sqlite3
-from app.core.config import DB_PATH
+from app.core.config import DB_PATH, INDEX_FILTER
 con = sqlite3.connect(DB_PATH)
 
 
@@ -24,3 +24,23 @@ def dicts(sql, params=()):
     cur = con.execute(sql, params)
     columns = [c[0] for c in cur.description]
     return [dict(zip(columns, row)) for row in cur.fetchall()]
+
+def source_fingerprint(con):
+    """색인 대상 데이터의 현재 상태를 숫자 몇 개로 요약한다.
+
+    load_db.py 는 재실행할 때마다 pet_purchases 를 DROP 후 다시 만든다.
+    이때 build_index.py 를 다시 돌리지 않으면 review_vectors 만 옛 데이터를 가리킨 채
+    남는데, 조인은 purchase_id 로 조용히 성립해서 에러 없이 엉뚱한 리뷰가 검색된다.
+    색인 시점의 지문을 embedding_meta 에 남겨두고 검색 시작 시 비교해 이 상황을 잡아낸다.
+
+    건수 / ID 합 / 리뷰 길이 합을 함께 보므로 행 추가·삭제, ID 변경, 본문 수정을 잡는다.
+    (길이가 같은 오타 수정처럼 지문이 그대로인 변경은 놓친다. 값싼 안전망이지 검증은 아니다.)
+    """
+    row = con.execute(f"""
+        SELECT COUNT(*),
+               COALESCE(SUM(p.purchase_id), 0),
+               COALESCE(SUM(LENGTH(p.review)), 0)
+        FROM pet_purchases AS p
+        WHERE {INDEX_FILTER}
+    """).fetchone()
+    return ':'.join(str(v) for v in row)

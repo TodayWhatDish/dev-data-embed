@@ -11,7 +11,8 @@ import json
 import numpy as np
 from app.core.db import dicts
 from sentence_transformers import SentenceTransformer
-from app.core.config import EMBED_MODEL,source_fingerprint
+from app.core.config import EMBED_MODEL
+from app.core.db import source_fingerprint
 
 # 프로필 키 -> SQL 조건절. 값이 들어온 키만 WHERE 에 붙는다.
 FILTERS = {
