@@ -6,8 +6,8 @@ import json
 import sqlite3
 from datetime import datetime
 
-from app.config import DB_PATH,LOG_PATH
-from app.retrieve import VectorStore,build_where,fmt_purchase_id
+from app.core.config import DB_PATH,LOG_PATH
+from app.features.retrieve import VectorStore,build_where,fmt_purchase_id
 
 
 def log_result(profile, query, hits):

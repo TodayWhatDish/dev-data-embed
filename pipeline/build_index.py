@@ -25,7 +25,7 @@ import json
 import sqlite3
 
 from sentence_transformers import SentenceTransformer
-from app.config import DB_PATH,MODEL_NAME,INDEX_FILTER,source_fingerprint
+from app.core.config import DB_PATH,EMBED_MODEL,INDEX_FILTER,source_fingerprint
 
 
 def build_doc(row):
@@ -97,7 +97,7 @@ def save_vectors(con, rows, docs, vectors, dim):
     cur.executemany(
         'INSERT OR REPLACE INTO embedding_meta VALUES (?, ?)',
         [
-            ('model', MODEL_NAME),
+            ('model', EMBED_MODEL),
             ('dim', str(dim)),
             ('count', str(len(rows))),
             ('source', source_fingerprint(con)),
@@ -112,13 +112,13 @@ def main():
     if not rows:
         raise SystemExit('색인할 리뷰가 없습니다. 먼저 load_db.py 를 실행하세요.')
 
-    model = SentenceTransformer(MODEL_NAME)
+    model = SentenceTransformer(EMBED_MODEL)
     docs = [build_doc(row) for row in rows]
     # normalize_embeddings=True -> 벡터 길이를 1로 맞춰서 이후 코사인 유사도 계산이 내적만으로 가능해짐
     vectors = model.encode(docs, batch_size=32, normalize_embeddings=True, show_progress_bar=True)
 
     save_vectors(con, rows, docs, vectors, vectors.shape[1])
-    print(f'\n임베딩 {len(rows)}개, 차원 {vectors.shape[1]}, 모델 {MODEL_NAME}')
+    print(f'\n임베딩 {len(rows)}개, 차원 {vectors.shape[1]}, 모델 {EMBED_MODEL}')
     print('검색은 query.py 를 실행하세요.')
 
     con.close()

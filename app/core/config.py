@@ -8,8 +8,13 @@ DB_PATH = ROOT / 'pet_reco.db'
 DATA_DIR = ROOT / 'data'
 LOG_PATH = ROOT / 'query_log.jsonl'
 # 다국어 지원 모델(한국어 포함) - 문장을 고정 차원 벡터로 변환
-MODEL_NAME = 'paraphrase-multilingual-MiniLM-L12-v2'
+EMBED_MODEL = 'paraphrase-multilingual-MiniLM-L12-v2'
+# 특정 임베딩 모델로 청킹하고 토큰화 했다면 값비교도 무조건 같은 모델로 비교해야함
+EMBED_TOKENIZER = "intfloat/multilingual-e5-small"
+# 해당 모델의 최대 토큰수가 512인데 전달의 문자정보의 토큰갯수가 넘어설떄 512넘어서는 정보값은 짤려서 누락됨
 
+
+EMBED_MAX_TOKENS = 512
 # 색인 대상 리뷰를 고르는 조건. pet_purchases 가 p 로 별칭된 쿼리에서 쓴다.
 # is_holdout=1 은 추천 성능 평가용으로 남겨둔 행이라 색인에서 뺀다.
 # build_index.py 와 search.py 가 같은 기준을 봐야 재색인 필요 여부를 판단할 수 있어 여기 둔다.
@@ -18,14 +23,12 @@ INDEX_FILTER = """
     AND p.review IS NOT NULL
     AND TRIM(p.review) <> ''
 """
-"""
-  python -m pip install langchain-text-splitters==1.1.2 transformers==5.14.1
-  python -m pip install langchain-huggingface==1.2.2
-"""
-# 특정 임베딩 모델로 청킹하고 토큰화 했다면 값비교도 무조건 같은 모델로 비교해야함
-EMBED_TOKENIZER = "intfloat/multilingual-e5-small"
-# 해당 모델의 최대 토큰수가 512인데 전달의 문자정보의 토큰갯수가 넘어설떄 512넘어서는 정보값은 짤려서 누락됨
-EMBED_MAX_TOKENS = 512
+
+
+
+if not Path(DB_PATH).exists():
+    print(f"알림: DB 가 아직 없다 -> {DB_PATH}")
+
 def source_fingerprint(con):
     """색인 대상 데이터의 현재 상태를 숫자 몇 개로 요약한다.
 

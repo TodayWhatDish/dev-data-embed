@@ -8,10 +8,10 @@
 
 import sqlite3
 
-from app.retrieve import build_where, VectorStore  # 프로필 딕셔너리 -> SQL where절 변환
+from app.features.retrieve import build_where, VectorStore  # 프로필 딕셔너리 -> SQL where절 변환
 
 from sentence_transformers import SentenceTransformer  # 문장을 벡터로 바꿔주는 모델 클래스
-from app.config import DB_PATH, MODEL_NAME  # DB 경로, 임베딩 모델 이름
+from app.core.config import DB_PATH, EMBED_MODEL  # DB 경로, 임베딩 모델 이름
 
 
 def load_product_map(con):
@@ -39,7 +39,7 @@ def evaluate(con, model, k=3):
 
     for purchase_id, product_id, size, allergy, review in holdout:  # 문제를 하나씩 꺼냄. product_id가 이 문제의 정답
         where, params = build_where({'size_category': size, 'allergy': allergy})  # 이 손님 프로필로 SQL 조건 생성
-        results = search(con, model, review, where=where, params=params, top_k=k)  # 리뷰를 질의로 검색 -> top-k (구매 번호,유사도 점수, 리뷰 문장)
+        results = VectorStore.search(con, model, review, where=where, params=params, top_k=k)  # 리뷰를 질의로 검색 -> top-k (구매 번호,유사도 점수, 리뷰 문장)
         # r_pid : 어떤 리뷰(구매 건)가 검색됐는지, top-k 중 하나라도 정답 상품과 같으면 
         if any(product_of[r_pid] == product_id for r_pid, _, _ in results):  # 
             hits += 1  # 맞힌 걸로 채점
@@ -51,6 +51,6 @@ def evaluate(con, model, k=3):
 
 if __name__ == '__main__':
     con = sqlite3.connect(DB_PATH)  # DB 연결
-    model = SentenceTransformer(MODEL_NAME)  # 문장을 벡터로 바꿀 모델 로드
+    model = SentenceTransformer(EMBED_MODEL)  # 문장을 벡터로 바꿀 모델 로드
     evaluate(con, model)  # 평가 실행 -> recall@3 출력
     con.close()  # 연결 정리

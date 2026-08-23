@@ -9,9 +9,9 @@
 import json
 
 import numpy as np
-from db import dicts
+from app.core.db import dicts
 from sentence_transformers import SentenceTransformer
-from app.config import MODEL_NAME,source_fingerprint
+from app.core.config import EMBED_MODEL,source_fingerprint
 
 # 프로필 키 -> SQL 조건절. 값이 들어온 키만 WHERE 에 붙는다.
 FILTERS = {
@@ -58,9 +58,9 @@ def check_freshness(con):
     meta = dict(con.execute('SELECT key, value FROM embedding_meta').fetchall())
     problems = []
 
-    if meta.get('model') != MODEL_NAME:
+    if meta.get('model') != EMBED_MODEL:
         problems.append(
-            f"색인은 '{meta.get('model')}' 모델로 만들었는데 지금 설정은 '{MODEL_NAME}' 입니다. "
+            f"색인은 '{meta.get('model')}' 모델로 만들었는데 지금 설정은 '{EMBED_MODEL}' 입니다. "
             '벡터 공간이 달라 유사도가 의미를 잃습니다.'
         )
 
@@ -91,7 +91,7 @@ class VectorStore:
 
     def __init__(self, con, model=None):
         self.con = con
-        self.model = model or SentenceTransformer(MODEL_NAME)
+        self.model = model or SentenceTransformer(EMBED_MODEL)
 
         self.warnings = check_freshness(con)
         for line in self.warnings:
