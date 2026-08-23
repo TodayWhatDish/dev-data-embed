@@ -39,6 +39,15 @@
             "args": ["src/query.py"],
             "problemMatcher": [],
             "presentation": { "panel": "dedicated", "clear": true }
+        },
+        {
+            "label": "의존성 설치 (langchain-text-splitters)",
+            "detail": "청킹에 쓰는 langchain-text-splitters 패키지를 pet-reco 환경에 설치한다. 한 번만 실행하면 됨.",
+            "type": "shell",
+            "command": "pip",
+            "args": ["install", "langchain-text-splitters"],
+            "problemMatcher": [],
+            "presentation": { "clear": true }
         }
     ]
 }
