@@ -21,7 +21,7 @@
 
 실행: `py src/create_schema/execute_schema.py` (repo root 에서)
 
-**현재 15 테이블 + 2 뷰.** C블록(구매/후기)과 D블록(임베딩)은 아직 새 스키마로 포팅되지 않았다.
+**현재 16 테이블 + 2 뷰.** C블록(구매/후기)과 D블록(임베딩)은 아직 새 스키마로 포팅되지 않았다.
 
 ---
 
@@ -32,7 +32,7 @@
 | [common_schema.md](common_schema.md) | **두 도메인이 공유하는 코드표** | `animal_categories`, `allergens` |
 | [user_schema.md](user_schema.md) | 계정 | `users` |
 | [pet_schema.md](pet_schema.md) | 반려동물 | `breeds`, `pets`, `pet_breeds`, `pet_allergies` |
-| [product_schema.md](product_schema.md) | 제품 | `product_categories`, `feeding_purposes`, `products`, `product_animal_categories`, `product_nutrition`, `product_feeding_purposes`, `ingredients`, `product_ingredients` + 뷰 2개 |
+| [product_schema.md](product_schema.md) | 제품 | `product_categories`, `feeding_purposes`, `products`, `product_animal_categories`, `product_nutrition`, `product_feeding_purposes`, `ingredients`, `ingredient_allergens`, `product_ingredients` + 뷰 2개 |
 
 **`common_schema.md` 가 따로 있는 이유** — 이 두 코드표는 반려동물 쪽과 제품 쪽이 **같은 ID 를
 참조해야만** 성립한다. 한쪽 도메인 파일에 넣으면 다른 쪽에서 읽을 때 "왜 저기 있지"가 된다.
@@ -40,7 +40,7 @@
 | 코드표 | 반려동물 쪽 | 제품 쪽 | 같은 ID 를 써야 하는 이유 |
 |---|---|---|---|
 | `animal_categories` | `breeds`, `pets` | `product_animal_categories` | 고양이 제품이 개 후보에 섞이면 안 된다 |
-| `allergens` | `pet_allergies` | `ingredients` | 알러지 배제가 문자열이 아니라 **조인**이 되려면 |
+| `allergens` | `pet_allergies` | `ingredient_allergens` | 알러지 배제가 문자열이 아니라 **조인**이 되려면 |
 
 ---
 
@@ -60,9 +60,11 @@
                                                 │           │      │
                                           allergens         │   products
                                                 │           │    │ │ │ │
-                                          ingredients ──────┘    │ │ │ └─ product_categories
+                                     ingredient_allergens ──┘    │ │ │ └─ product_categories
                                                 │                │ │ │
-                                       product_ingredients ──────┘ │ └─ product_nutrition
+                                          ingredients            │ │ └─ product_nutrition
+                                                │                │ │
+                                       product_ingredients ──────┘ │
                                                                    │
                                        product_feeding_purposes ───┘
                                                 │
@@ -94,7 +96,7 @@ LLM 은 확률적으로 실패하지만 `NOT EXISTS` 는 반드시 배제한다.
 
 **③ 사실을 저장하고 상태는 파생시킨다.**
 나이는 `birth_date` 에서, 휴면은 `last_login_at` 에서, 재구매는 구매 행에서 계산한다.
-`price_per_100g` 는 GENERATED 컬럼이다.
+100g당 가격은 `price_krw` / `weight_g` 에서 나온다.
 
 ---
 

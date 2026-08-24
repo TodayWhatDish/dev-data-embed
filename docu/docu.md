@@ -45,6 +45,10 @@
 - [ ] **계층 재편(`parent_id` 이동)은 서비스 오픈 전에 끝낸다.** 계층을 바꾸면 이미 팬아웃된
       `pet_allergies` 행이 새 계층과 어긋난다. `단백질` 을 고른 사람은 그 시점 기준으로 펼쳐진 행을
       갖고 있어서, 나중에 `가금류` 가 중간에 생겨도 그 사람 행에는 없다.
+- [ ] **원료를 등록할 때 알러지원 매핑을 같은 트랜잭션에서 넣는다.** `allergen_reviewed` 를 뺐으므로
+      (2026-08-24) `ingredient_allergens` 0행은 곧 '알러지원 없음'으로 읽힌다. 매핑을 나중에
+      넣기로 미루면 그 사이에 그 원료가 든 제품이 **`Safe` 로 통과한다** — 에러 없이 조용히.
+      DB 가 못 막는 자리라 등록 UI/로더가 필수값으로 받아야 한다.
 - [ ] **원료 추가 시 백필한다.** 중간 카테고리를 넣을 때는 **위에서부터** 순서대로.
 
 ```sql
@@ -96,7 +100,7 @@ SELECT pet_id, :new_id FROM pet_allergies WHERE allergen_id = :parent_id;
 
 `src/create_schema/` 에 아직 없는 것들. (2026-08-17 기준 15 테이블 + 2 뷰)
 
-- [x] `ingredients` — 원료 마스터. `allergen_id` 가 안전 판정의 연결 고리
+- [x] `ingredients` / `ingredient_allergens` — 원료 마스터와 알러지원 매핑. 안전 판정의 연결 고리
 - [x] `products` / `product_animal_categories` / `product_ingredients` / `product_nutrition`
 - [x] `feeding_purposes` / `product_feeding_purposes` / `product_categories`
 - [x] `v_product_safety` / `v_safe_products` — 알러지 3분법 판정

@@ -18,7 +18,7 @@
 스크립트는 상대 경로를 쓰므로 **저장소 루트에서** 실행합니다.
 
 ```bash
-py src/create_schema/execute_schema.py   # user.db 스키마 생성 (15 테이블 + 2 뷰)
+py src/create_schema/execute_schema.py   # user.db 스키마 생성 (16 테이블 + 2 뷰)
 ```
 
 `python` 이 아니라 `py` 인 이유: 스키마가 STRICT 테이블을 쓰므로 **SQLite 3.37+** 가 필요합니다.

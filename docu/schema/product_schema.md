@@ -11,6 +11,7 @@
 | [`product_nutrition`](#product_nutrition) | 영양성분 (1:1) |
 | [`product_feeding_purposes`](#product_feeding_purposes) | 제품 ↔ 급여목적 (다대다) |
 | [`ingredients`](#ingredients) | 원료 마스터. **알러지 판정의 연결 고리** |
+| [`ingredient_allergens`](#ingredient_allergens) | 원료 ↔ 알러지원 (다대다) |
 | [`product_ingredients`](#product_ingredients) | 제품 ↔ 원료 (다대다) |
 
 | 뷰 | 설명 |
@@ -110,7 +111,6 @@
 | `food_form` | TEXT | CHECK `건식`/`습식`/`동결건조`/`생식`/`공용` | 급여 형태 |
 | `price_krw` | INTEGER | NOT NULL, CHECK `>= 0` | 판매가(원) |
 | `weight_g` | INTEGER | NOT NULL, CHECK `> 0` | 내용량(g) |
-| `price_per_100g` | INTEGER | **GENERATED STORED** | `price_krw * 100 / weight_g`. 예산 비교의 실제 기준 |
 | `kcal_per_100g` | INTEGER | CHECK `> 0` | 100g당 열량. 급여량 계산 |
 | `target_size_min` | INTEGER | NOT NULL, DEFAULT `1`, CHECK `1~5` | 대상 체구 하한. [`pets.size`](pet_schema.md#pets) 와 **같은 코드** |
 | `target_size_max` | INTEGER | NOT NULL, DEFAULT `5`, CHECK `1~5` | 대상 체구 상한 |
@@ -129,7 +129,6 @@
 | 이름 | 컬럼 | 목적 |
 |---|---|---|
 | `idx_products_filter` | (`product_category_id`, `is_active`) | 후보군 1차 필터 + **카테고리 단독 제품 조회**. 선두가 FK 라 부모행 삭제 검사도 겸한다 |
-| `idx_products_ppg` | (`price_per_100g`) | 예산 범위 조회 |
 
 `product_category_id` 단독 인덱스는 두지 않는다. 뒤 컬럼이라 단독 조회는 SEARCH 가 아니라 커버링
 인덱스 SCAN 이지만, 부모([`product_categories`](#product_categories))가 시드 5행이라 삭제 검사가
@@ -162,10 +161,6 @@
 WHERE :pet_size BETWEEN target_size_min AND target_size_max
 ```
 
-**NULL 이 아니라 NOT NULL + DEFAULT 인 이유가 여기 있다.** NULL 을 '제한 없음'으로 쓰면 위 조건이
-`NULL` 로 평가되어 그 제품이 조용히 후보에서 빠진다. 매번 `COALESCE` 를 쓰는 것보다 기본값이
-전 범위(`1`, `5`)인 편이 낫다 — 값을 안 넣으면 자동으로 '전 체구 대상'이 된다.
-
 **연령도 같은 방식이되 단위가 월령이다.** `'퍼피'/'성견'/'시니어'` 를 코드로 두지 않는 이유는
 두 가지다. (1) `pets` 는 나이를 저장하지 않고 `birth_date` 에서 계산하므로 나오는 값이 연속값이다.
 (2) **시니어 기준이 축종·체구마다 다르다** — 대형견은 6세, 소형견은 9세, 고양이는 11세쯤부터다.
@@ -176,12 +171,6 @@ WHERE :pet_size BETWEEN target_size_min AND target_size_max
 
 **`product_category_id` 는 단일 FK 다 — 제품 하나에 분류 하나. `사료 겸 간식`은 두지 않는다.**
 2026-08-17 결정: **간식이면 간식, 사료면 사료로 무조건 하나를 고른다.** 등록하는 사람이 판단한다.
-
-동결건조 큐브처럼 주식으로도 간식으로도 주는 제품이 실제로 있긴 하다. 그래도 다대다로 풀지 않는
-이유는 **그 애매함의 실체가 분류가 아니라 영양 속성**이기 때문이다. 가르고 싶은 건 "간식 진열대에
-있느냐"가 아니라 **"이것만 먹여도 되느냐(완전균형사료냐)"** 이고, 그건
-[`product_nutrition`](#product_nutrition) 옆에 `is_complete_food` 같은 값으로 두어야 할 사실이다.
-분류를 다대다로 만들면 그 질문에는 여전히 답하지 못한 채 후보군 집계만 이중으로 세게 된다.
 
 **대분류(사료/간식) 판정은 한 칸만 올라가면 된다.** 제품은 대분류(`사료`)를 직접 가리킬 수도,
 소분류(`덴탈껌`)를 가리킬 수도 있다. 계층이 **2단계로 고정**이므로 재귀가 필요 없다:
@@ -197,13 +186,6 @@ SELECT COALESCE(c.parent_id, c.product_category_id)
 **2단계 고정은 DB 가 강제하지 않는다** — `product_categories` 에 3단계를 넣으면 위 식이 조용히
 틀린 답을 낸다(손자가 자기 부모를 대분류로 보고한다). 소분류의 소분류를 만들지 않는 것은
 운영 규칙이며 [`../docu.md`](../docu.md) 소관이다.
-
-**`price_per_100g` 는 생성 컬럼이라 값이 어긋날 수 없다.** 총액으로 비교하면 순서가 뒤집힌다:
-
-| 제품 | 총액 | 용량 | 100g당 |
-|---|---|---|---|
-| A | 30,000원 | 1,800g | **1,666원** |
-| B | 60,000원 | 5,000g | **1,200원** |
 
 **브랜드를 테이블로 분리하지 않는다.** 자체 판매 B2C 구조라 브랜드별 정산/제휴 관리가 없다.
 필요해지면 그때 `brands` 로 분리한다.
@@ -242,11 +224,10 @@ FK 단독 인덱스를 따로 만들 이유가 사라졌다.
 | `food_form` | 무의미 (NULL 이면 그만) |
 | `kcal_per_100g` | 무의미 (NULL 이면 그만) |
 | `weight_g` | **NOT NULL** 이라 반드시 값을 넣어야 한다 |
-| `price_per_100g` | **GENERATED** 라 자동으로 계산돼 버린다. 장난감 단가는 개당이지 100g당이 아니다 |
 | `target_age_*` | 뜻이 남는다 (퍼피용 치발기) |
 | `target_size_*` | 뜻이 남는다 (소형견용 장난감) |
 
-즉 걸리는 건 `weight_g` / `price_per_100g` 두 개다. 나머지([`product_nutrition`](#product_nutrition),
+즉 걸리는 건 `weight_g` 하나다. 나머지([`product_nutrition`](#product_nutrition),
 [`product_ingredients`](#product_ingredients), [`product_feeding_purposes`](#product_feeding_purposes))는
 **이미 별도 테이블**이라 행이 0개면 그만이라 아무것도 안 바꿔도 된다.
 
@@ -255,7 +236,7 @@ FK 단독 인덱스를 따로 만들 이유가 사라졌다.
 빼는 비용이 **스크립트 수정 + 재생성**이 전부다. 지금 미리 추상화하면 요구사항도 데이터도 없는
 상태에서 검증되지 않은 구조를 만들게 된다.
 
-나눌 때 옮길 것: `food_form`, `weight_g`, `price_per_100g`, `kcal_per_100g` →
+나눌 때 옮길 것: `food_form`, `weight_g`, `kcal_per_100g` →
 `product_food(product_id PK)`. `product_nutrition` 이 이미 그 패턴이다.
 `target_size_*` / `target_age_*` 는 `products` 에 남는다 — 물품에도 뜻이 있다.
 
@@ -350,6 +331,7 @@ JOIN products pr ON pr.product_id = pac.product_id
 | `crude_protein_pct` | REAL | CHECK `0~100` | 조단백(%). 신장 관리식(고단백 회피) |
 | `crude_fat_pct` | REAL | CHECK `0~100` | 조지방(%). 다이어트/췌장 |
 | `crude_fiber_pct` | REAL | CHECK `0~100` | 조섬유(%). 포만감·배변 |
+| `crude_ash_pct` | REAL | CHECK `0~100` | 조회분(%). 무기물 총량. 신장 관리식 판단에서 인·칼슘과 함께 본다 |
 | `moisture_pct` | REAL | CHECK `0~100` | 수분(%). 건식/습식의 실제 근거 |
 | `calcium_pct` | REAL | CHECK `0~100` | 칼슘(%). 성장기 골격 |
 | `phosphorus_pct` | REAL | CHECK `0~100` | 인(%). 신장 관리식은 인을 제한한다 |
@@ -358,7 +340,7 @@ JOIN products pr ON pr.product_id = pac.product_id
 ### 설계 노트
 
 **1:1 인데도 분리하는 이유는 결측이다.** 사료는 성분표가 있고 간식은 없는 경우가 흔하다.
-`products` 에 NULL 컬럼 7개가 늘어서는 것보다 **값이 있는 제품만 행이 있는** 형태가 낫다.
+`products` 에 NULL 컬럼 8개가 늘어서는 것보다 **값이 있는 제품만 행이 있는** 형태가 낫다.
 
 **수치로 저장한다.** 태그 문자열(`'저인'`)로는 "인 함량 3% 이하"를 고를 수 없다.
 
@@ -387,45 +369,62 @@ JOIN products pr ON pr.product_id = pac.product_id
 
 ## ingredients
 
-원료 마스터. **`allergen_id` 가 이 스키마에서 가장 중요한 연결 고리다.**
+원료 마스터. **알러지 판정의 연결 고리다.** 실제 매핑은
+[`ingredient_allergens`](#ingredient_allergens) 가 갖는다.
 
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | `ingredient_id` | INTEGER | PK | 대리키 |
 | `name_ko` | TEXT | NOT NULL, UNIQUE | 원료명. 예: `'닭가슴살'`, `'계육분'`, `'연어'` |
-| `allergen_id` | INTEGER | FK → [`allergens`](common_schema.md#allergens) (RESTRICT) | 이 원료가 속하는 알러지원. NULL = 해당 없음 |
-| `allergen_reviewed` | INTEGER | NOT NULL, DEFAULT `0`, CHECK `0`/`1` | 알러지 매핑을 사람이 검토했는가 |
 
-**테이블 제약** — `CHECK (allergen_id IS NULL OR allergen_reviewed = 1)`
+### 설계 노트
+
+**이 테이블이 존재하는 이유는 문자열 매칭을 없애기 위해서다.** `'닭가슴살'`·`'계육분'`·`'치킨오일'`
+은 서로 하나도 안 닮았지만 전부 `닭고기` 한 알러지원을 가리킨다. 양쪽이 같은 알러지원 id 를
+참조해야 판정이 문자열 비교가 아니라 **조인**이 된다.
+반대편은 [`pet_allergies`](pet_schema.md#pet_allergies) 다.
+
+**원료 단위 검토 플래그는 두지 않는다 (2026-08-24 결정).** 이전에는 `allergen_reviewed` 로
+"매핑 0행 = 알러지원 없음"과 "매핑 0행 = 아직 안 봄"을 갈라놨지만, 원료마다 사람이 확인하고
+플래그를 올리는 운영 부담이 실익보다 컸다. 지금은 **매핑 0행을 알러지원 없음으로 본다.**
+
+판정불가 판단은 제품 단위 [`products.ingredients_verified`](#products) 하나로만 한다.
+그래서 fail-closed 가 걸리는 층이 원료가 아니라 **제품**이다 — 원료표를 옮겨 적은 제품이라면,
+그 원료의 알러지원 매핑이 비어 있어도 '안전'으로 통과한다.
+매핑 누락을 막는 것은 이제 등록 절차의 책임이다 ([`../docu.md`](../docu.md)).
+
+---
+
+## ingredient_allergens
+
+원료 ↔ 알러지원 (다대다). **알러지 배제 판정이 실제로 조인하는 테이블이다.**
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| `ingredient_id` | INTEGER | PK, FK → [`ingredients`](#ingredients) (CASCADE) | 원료 |
+| `allergen_id` | INTEGER | PK, FK → [`allergens`](common_schema.md#allergens) (RESTRICT) | 알러지원 |
 
 **인덱스**
 
 | 이름 | 컬럼 | 목적 |
 |---|---|---|
-| `idx_ingredients_allergen` | (`allergen_id`) | "이 알러지원에 해당하는 원료 전부" — 배제 필터가 이 방향으로 탄다 |
+| (복합 PK) | (`ingredient_id`, `allergen_id`) | 중복 등록 차단 + "이 원료의 알러지원들" |
+| `idx_ing_allergen_allergen` | (`allergen_id`) | "이 알러지원에 해당하는 원료 전부" — 배제 필터가 이 방향으로 탄다 |
 
 ### 설계 노트
 
-**이 테이블이 존재하는 이유는 문자열 매칭을 없애기 위해서다.** `'닭가슴살'`·`'계육분'`·`'치킨오일'`
-은 서로 하나도 안 닮았지만 전부 `닭고기` 한 알러지원을 가리킨다. 양쪽이 같은 `allergen_id` 를
-참조해야 판정이 문자열 비교가 아니라 **조인**이 된다.
-반대편은 [`pet_allergies`](pet_schema.md#pet_allergies) 다.
+**컬럼 하나(`ingredients.allergen_id`)로 두면 fail-open 이라 분리했다.** 복합 원료는 알러지원을
+여러 개 갖는다 — `'베이커리 부산물'` 은 밀·계란·유제품이다. 컬럼이 하나면 밀만 적히고
+**계란과 유제품은 조용히 '안전'으로 통과한다.**
+[`v_product_safety`](#v_product_safety) 의 '위험' 분기가 그 원료를 못 잡는다.
 
-**`allergen_reviewed` 는 `allergen_id IS NULL` 의 두 가지 뜻을 갈라놓는다.**
-이 플래그가 없으면 NULL 이 아래 두 상태를 뭉갠다:
+**[`allergens`](common_schema.md#allergens) 트리로 접히지도 않는다.** 가금류처럼 공통 조상이 있으면
+상위 노드 하나로 대신할 수 있지만, 밀/계란/유제품은 공통 조상이 루트뿐이라 접으면
+"모든 알러지"가 되어버린다.
 
-| `allergen_id` | `allergen_reviewed` | 뜻 |
-|---|---|---|
-| NULL | `0` | **아직 아무도 안 봤다** ← 이걸 '안전'으로 통과시키면 안 된다 |
-| NULL | `1` | 검토했고 알러지원이 아니다 |
-| `11` | `1` | 검토했고 닭고기다 |
-| `11` | `0` | **CHECK 로 차단** — 매핑을 넣었다는 것 자체가 검토했다는 뜻이다 |
-
-기본값이 `0` 이므로 새로 등록된 원료는 자동으로 미검토에서 시작하고, 확인한 사람만 `1` 로 올린다.
-[`v_product_safety`](#v_product_safety) 가 이 값을 읽어 '판정불가'를 만든다.
-
-**[`products.ingredients_verified`](#products) 와 층이 다르다.** 전자는 "이 **제품**의 원료표를
-다 옮겨 적었나", 후자는 "이 **원료**가 무슨 알러지원인지 판정했나". 둘 다 통과해야 '안전'이다.
+**0행은 '알러지원 없음'으로 읽힌다.** 아직 안 본 원료와 구별되지 않는다 —
+`allergen_reviewed` 를 뺀 대가다(2026-08-24). 매핑을 빠뜨리면 그 원료는 조용히 통과하므로,
+원료 등록 시 매핑을 같이 넣는 것이 절차로 강제돼야 한다.
 
 ---
 
@@ -461,7 +460,7 @@ JOIN products pr ON pr.product_id = pac.product_id
 |---|---|
 | `pet_id` | 반려동물 |
 | `product_id` | 제품 |
-| `verdict` | `위험` / `판정불가` / `안전` |
+| `verdict` | `WARN`(위험) / `None`(판정불가) / `Safe`(안전) |
 
 **행의 범위** — 판매중(`is_active = 1`)이고 대상 축종이 맞는 제품 × 활동중(`inactive_at IS NULL`)인
 반려동물 조합. 축종은 [`product_animal_categories`](#product_animal_categories) 에 이 아이의 축종이
@@ -475,12 +474,13 @@ JOIN products pr ON pr.product_id = pac.product_id
 
 | 판정 | 조건 | 처리 |
 |---|---|---|
-| `위험` | 제품 원료 중 이 아이의 알러지원이 확인됨 | 후보에서 **완전히 제외**(감점이 아니다) |
-| `판정불가` | ① [`products.ingredients_verified`](#products) `= 0` — 원료표를 옮겨 적은 적이 없다<br>② 원료 중 [`ingredients.allergen_reviewed`](#ingredients) `= 0` 인 것이 있다 | 모르는 것을 안전으로 처리하지 않는다 |
-| `안전` | 원료표 확인 완료 + 전 원료 검토 완료 + 알러지원 없음 | 통과 |
+| `WARN` | 제품 원료 중 이 아이의 알러지원이 확인됨 | 후보에서 **완전히 제외**(감점이 아니다) |
+| `None` | [`products.ingredients_verified`](#products) `= 0` — 원료표를 옮겨 적은 적이 없다 | 모르는 것을 안전으로 처리하지 않는다 |
+| `Safe` | 원료표 확인 완료 + 알러지원 없음 | 통과 |
 
-조건 ②가 2026-08-17에 추가된 부분이다. ①만 있을 때는 "원료는 다 옮겨 적었지만 그중 `'계육분'`이
-무슨 알러지원인지는 아무도 안 봤다"는 상태가 조용히 '안전'으로 통과했다.
+**fail-closed 가 걸리는 층은 제품 하나뿐이다 (2026-08-24).** 원료 단위 검토 플래그
+`ingredients.allergen_reviewed` 를 뺐으므로, "원료표는 다 옮겨 적었지만 `'계육분'`의 알러지원
+매핑이 비어 있다"는 상태는 이제 `Safe` 로 통과한다. 그 구멍은 등록 절차가 막는다.
 
 **배제를 LLM 이 아니라 SQL 이 하는 이유는 결정성이다.** LLM 은 확률적으로 실패하지만
 `NOT EXISTS` 는 반드시 배제한다. 임베딩 텍스트에 알러지 정보를 넣어도 벡터 유사도는
@@ -490,12 +490,12 @@ JOIN products pr ON pr.product_id = pac.product_id
 
 ## v_safe_products
 
-추천 후보군. [`v_product_safety`](#v_product_safety) 에서 `verdict = '안전'` 만 통과시킨다.
+추천 후보군. [`v_product_safety`](#v_product_safety) 에서 `verdict = 'Safe'` 만 통과시킨다.
 
 | 컬럼 | 설명 |
 |---|---|
 | `pet_id` | 반려동물 |
 | `product_id` | 통과한 제품 |
 
-**'판정불가'를 경고와 함께 후보에 넣는 정책으로 바꾸려면 이 뷰만 고친다.**
+**`None`(판정불가)을 경고와 함께 후보에 넣는 정책으로 바꾸려면 이 뷰만 고친다.**
 판정 로직 자체는 `v_product_safety` 한 곳에만 있다.

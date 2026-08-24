@@ -1,5 +1,99 @@
 ## 작업일지
 
+## 2026-08-24
+
+### `ingredients.allergen_reviewed` 제거 — 판정불가를 제품 한 층으로 줄였다
+
+2026-08-17 에 넣었던 원료 단위 검토 플래그를 뺐다. `v_product_safety` 의 ③분기
+("원료 중 `allergen_reviewed = 0` 인 것이 있으면 판정불가")도 같이 사라졌다.
+
+**뺀 이유.** 이 플래그가 값을 하려면 원료 하나하나를 사람이 열어 보고 매핑을 넣은 뒤
+플래그를 올려야 한다. 안 올리면 그 원료가 든 제품 전부가 영영 후보에서 빠지므로,
+운영이 밀리는 순간 추천 결과가 통째로 비는 구조였다. 안전을 얻는 대신 **서비스가 안 도는**
+쪽으로 실패하는 값이고, 그 운영 부담을 감당할 인력 계획이 없다.
+
+**대신 잃은 것 (fail-open 이 생긴 자리).** `ingredient_allergens` 0행이 이제
+'알러지원 없음'으로 읽힌다. 원료표는 다 옮겨 적었지만(`ingredients_verified = 1`)
+그중 `'계육분'`의 알러지원 매핑을 아직 안 넣은 제품은 **`Safe` 로 통과한다.**
+CLAUDE.md 도메인 규칙 2번("모르는 것을 안전으로 처리하지 않는다")이 원료 층에서는
+더 이상 성립하지 않는다 — 제품 층(`ingredients_verified`)에만 남았다.
+막는 책임은 DB 에서 등록 절차로 넘어갔고 `docu/docu.md` §1 에 적었다.
+
+되돌릴 때는 컬럼 + ③분기 + 백필(`UPDATE ingredients SET allergen_reviewed = 1
+WHERE ingredient_id IN (SELECT ingredient_id FROM ingredient_allergens)`) 세 가지가 필요하다.
+
+**같이 고친 것** — 편집 중이던 `product_schema.py` 가 깨져 있었다.
+
+- `WHERE ... IS NULL - 판매 물품` 의 `-` 가 `--` 여야 했다. `CREATE VIEW` 가 문법 오류로 실패했다.
+- verdict 값을 `위험/판정불가/안전` → `WARN/None/Safe` 로 바꿨는데 `v_safe_products` 는
+  `verdict = '안전'` 그대로였다. 에러 없이 **항상 0행**이 되는 상태였다.
+  `'Safe'` 로 맞추고 `docu/schema/product_schema.md` 의 값 표기도 새 값으로 갱신했다.
+
+**검증**
+
+- `py src/create_schema/execute_schema.py` → 16 테이블 + 2 뷰 + 12 인덱스. `check_fk_targets()` 통과.
+- 펫 10,000 × 제품 5,000 합성 데이터로 `v_safe_products` 조회:
+  `WHERE pet_id = ?` 5.89ms / 필터 없음 56초 — 뷰는 `pet_id` 를 반드시 걸고 써야 한다
+  (옵티마이저가 `pets` PK 로 푸시다운하는 것을 `EXPLAIN QUERY PLAN` 으로 확인).
+  ③분기가 제품마다 도는 상관 서브쿼리였으므로 제거로 이 5.89ms 도 같이 줄었다.
+
+### `src/sqlbench.py` 추가 — 변형 대조 벤치
+
+위 5.89ms 를 더 줄일 수 있는지 보려고 쿼리를 몇 가지로 고쳐 썼는데, **매번 결과가 같은지
+눈으로 대조하는 게 실수의 원인**이었다. 결과가 다른 쿼리를 "빠르다"고 고르면 벤치가 통째로 무의미하다.
+stdlib `timeit` 은 시간만 재고 결과는 안 본다. 그래서 그 한 가지만 하는 모듈을 만들었다.
+
+- `compare(con, variants, ...)` — 첫 변형의 결과를 기준으로 나머지를 `sorted()` 비교,
+  다르면 `AssertionError` 로 멈춘다. 통과한 것만 시간을 잰다.
+- 대표값은 **중앙값**이다. 평균은 첫 실행의 캐시 미스 한 번에 통째로 끌려간다.
+- `elapsed_time` 컨텍스트 매니저는 `__exit__` 가 `False` 를 반환한다 — 블록에서 난 예외를
+  삼키면 실패한 벤치가 성공으로 보인다. self-check 가 이 한 가지를 직접 검사한다.
+
+**측정** (펫 10,000 × 제품 5,000, `pet_id` 지정, n=50 중앙값)
+
+| 변형 | 중앙값 |
+|---|---|
+| `v_safe_products` | 5.62 ms |
+| 비상관 서브쿼리 버전 | 2.20 ms |
+
+(위 5.89ms 와는 별도 실행이라 뷰 숫자가 조금 다르다. 비교는 같은 실행 안에서만 유효하다.)
+
+뷰가 느린 이유는 `EXISTS` 안에 `pa.pet_id = pt.pet_id` 가 있어서다 — 상관 서브쿼리라
+후보 제품마다 알러지 조인을 새로 돈다. 펫 쪽 조건을 바깥 행을 참조하지 않는 서브쿼리로 빼면
+SQLite 가 각각 한 번만 평가하고 결과에 자동 인덱스를 붙인다
+(`EXPLAIN QUERY PLAN` 에 `CREATE BLOOM FILTER` 가 뜬다).
+
+**최적화 쿼리는 커밋하지 않는다.** 같은 판정 로직의 두 번째 사본이라 CLAUDE.md 도메인 규칙
+1번("판정 로직은 `v_product_safety` 한 군데뿐")과 정면으로 어긋난다. 쓰는 앱 코드도 아직 없고,
+3.4ms 차이가 지금 아픈 데가 없다. 뷰가 실제로 병목이 됐을 때 아래를 꺼내 쓰고,
+그때 뷰와 대조하는 테스트를 같이 넣는다.
+
+```sql
+SELECT pac.product_id
+  FROM product_animal_categories pac
+  JOIN products pr ON pr.product_id = pac.product_id
+ WHERE pac.animal_category_id = (SELECT animal_category_id
+                                   FROM pets
+                                  WHERE pet_id = ?1 AND inactive_at IS NULL)
+   AND pr.is_active            = 1
+   AND pr.ingredients_verified = 1
+   AND pr.product_id NOT IN (
+       SELECT pi.product_id
+         FROM product_ingredients pi
+         JOIN ingredient_allergens ia ON ia.ingredient_id = pi.ingredient_id
+        WHERE ia.allergen_id IN (SELECT allergen_id
+                                   FROM pet_allergies
+                                  WHERE pet_id = ?1))
+```
+
+`?1` 은 번호 파라미터다. 같은 값을 두 군데 쓰므로 바인딩은 `(pet_id,)` 하나로 끝난다.
+
+**경계 케이스** — 폐기 전에 뷰와 결과가 같음을 확인한 것들: 알러지 0건 펫(`IN (빈 집합)` 이
+FALSE 라 `NOT IN` 이 전부 TRUE), 축종 미등록 제품(`product_animal_categories` 0행 → 제외),
+`ingredients_verified = 0`, `is_active = 0`, `inactive_at` 이 찍힌 펫. 모두 뷰와 일치했다.
+앱에서 `allergen_id` 목록을 꺼내 f-string 으로 `IN (?,?,?)` 를 조립하는 방식은 알러지 0건에서
+`IN ()` 이 되어 문법 오류가 난다 — 목록을 앱으로 가져오지 않는 이유다.
+
 ## 2026-08-17
 
 ### B블록(제품) 스키마 추가 — `src/create_schema/create_schema.py`

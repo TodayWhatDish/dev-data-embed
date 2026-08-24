@@ -79,14 +79,22 @@ product 가 맨 뒤인 이유는 뷰(v_product_safety)가 pets/pet_allergies 까
   5) 금액은 INTEGER(원 단위). REAL 은 반올림 오차가 생긴다.
 
   6) 불리언은 INTEGER + CHECK IN (0,1). SQLite 에 BOOL 이 없다.
-     현재 대상: pets.neutered, products.ingredients_verified, products.is_active,
-     ingredients.allergen_reviewed. (reviews.is_holdout 은 C블록 이관 후)
+     현재 대상: pets.neutered, products.ingredients_verified, products.is_active.
+     (reviews.is_holdout 은 C블록 이관 후)
 
-  7) STRICT 테이블 — 선언한 타입과 다른 값은 INSERT 가 거부된다. 끄지 않는다.
-     CSV 로더는 문자열을 int()/float() 로 캐스팅해서 넣어야 하는데, 이건 부담이 아니라
-     의도한 결과다. 캐스팅이 실패하는 값은 애초에 그 컬럼에 들어가면 안 되는 값이라
-     로딩 시점에 드러나는 편이 낫다. STRICT 가 없으면 '삼만원' 같은 값이 INTEGER
-     컬럼에 TEXT 로 조용히 앉아 있다가 나중에 비교·정렬에서 틀린 답을 낸다.
+  7) STRICT 테이블 — 손실 없이 변환되지 않는 값은 INSERT 가 거부된다. 끄지 않는다.
+     "타입이 다르면 거부"가 아니다. INTEGER 컬럼 기준으로 실측하면:
+
+         '30000'    -> 통과 (integer 30000 으로 저장)
+         '30000.0'  -> 통과
+         3.0        -> 통과
+         '삼만원'    -> 거부: cannot store TEXT value in INTEGER column
+         3.5        -> 거부: cannot store REAL value in INTEGER column
+
+     그래서 CSV 로더가 문자열을 int()/float() 로 미리 캐스팅할 필요는 없다 —
+     숫자로 읽히는 문자열은 그대로 넣어도 선언한 타입으로 들어간다.
+     막아주는 것은 그대로다: STRICT 가 없으면 '삼만원' 이 INTEGER 컬럼에 TEXT 로
+     조용히 앉아 있다가 나중에 비교·정렬에서 틀린 답을 낸다.
      끄는 스위치를 두지 않으므로 상수로 빼지 않고 DDL 에 그대로 적는다.
 
 실행: py src/create_schema/execute_schema.py   (repo root 에서, SQLite 3.37+ 필요)

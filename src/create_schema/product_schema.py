@@ -43,7 +43,6 @@ CREATE TABLE products (
     food_form            TEXT    CHECK (food_form IN ('건식', '습식', '동결건조', '생식', '공용')),
     price_krw            INTEGER NOT NULL CHECK (price_krw >= 0),
     weight_g             INTEGER NOT NULL CHECK (weight_g > 0),
-    price_per_100g       INTEGER GENERATED ALWAYS AS (price_krw * 100 / weight_g) STORED,
     kcal_per_100g        INTEGER CHECK (kcal_per_100g > 0),
 
     -- 대상 범위. '전체'라는 마법값을 두지 않고 범위의 양 끝으로 표현한다.
@@ -84,6 +83,7 @@ CREATE TABLE product_nutrition (
     crude_protein_pct REAL CHECK (crude_protein_pct BETWEEN 0 AND 100),
     crude_fat_pct     REAL CHECK (crude_fat_pct     BETWEEN 0 AND 100),
     crude_fiber_pct   REAL CHECK (crude_fiber_pct   BETWEEN 0 AND 100),
+    crude_ash_pct     REAL CHECK (crude_ash_pct     BETWEEN 0 AND 100),
     moisture_pct      REAL CHECK (moisture_pct      BETWEEN 0 AND 100),
     calcium_pct       REAL CHECK (calcium_pct       BETWEEN 0 AND 100),
     phosphorus_pct    REAL CHECK (phosphorus_pct    BETWEEN 0 AND 100),
@@ -105,14 +105,20 @@ CREATE TABLE product_feeding_purposes (
 # ingredients — 원료 마스터. 컬럼 설명은 docu/schema/product_schema.md#ingredients
 '''
 CREATE TABLE ingredients (
-    ingredient_id     INTEGER NOT NULL PRIMARY KEY,
-    name_ko           TEXT    NOT NULL UNIQUE,
-    allergen_id       INTEGER REFERENCES allergens(allergen_id) ON DELETE RESTRICT,
-    allergen_reviewed INTEGER NOT NULL DEFAULT 0 CHECK (allergen_reviewed IN (0, 1)),
-
-    -- 매핑을 넣었다는 것 자체가 검토했다는 뜻이다. 미검토인데 매핑이 있는 상태를 막는다.
-    CHECK (allergen_id IS NULL OR allergen_reviewed = 1)
+    ingredient_id INTEGER NOT NULL PRIMARY KEY,
+    name_ko       TEXT    NOT NULL UNIQUE
 ) STRICT
+''',
+
+# ingredient_allergens — 원료 ↔ 알러지원 (다대다). 컬럼 설명은 docu/schema/product_schema.md#ingredient_allergens
+'''
+CREATE TABLE ingredient_allergens (
+    ingredient_id INTEGER NOT NULL
+        REFERENCES ingredients(ingredient_id) ON DELETE CASCADE,
+    allergen_id   INTEGER NOT NULL
+        REFERENCES allergens(allergen_id)     ON DELETE RESTRICT,
+    PRIMARY KEY (ingredient_id, allergen_id)
+) STRICT, WITHOUT ROWID
 ''',
 
 # product_ingredients — 제품 ↔ 원료 (다대다). 컬럼 설명은 docu/schema/product_schema.md#product_ingredients
@@ -142,7 +148,6 @@ INDEXES = [
     # 잃는 것은 is_active 단독 조회뿐인데, 그건 활성 제품 전부를 뽑는 것이라 인덱스가 무의미하다.
     # 선두 컬럼이 FK 라 product_categories 부모행 삭제 검사도 이 인덱스가 겸한다.
     'CREATE INDEX idx_products_filter      ON products(product_category_id, is_active)',
-    'CREATE INDEX idx_products_ppg         ON products(price_per_100g)',
 
     # 역방향 조회: "이 축종에게 줄 수 있는 제품 전부" — 후보군 필터가 이 방향으로 탄다.
     # 정방향("이 제품의 대상 축종들")은 복합 PK 의 선두 컬럼이 그대로 처리한다.
@@ -150,7 +155,7 @@ INDEXES = [
 
     # -- 역방향 조회: "이 알러지원을 가진 제품 전부" (배제 필터가 이 방향으로 탄다) --
     # 정방향("이 제품의 원료들")은 복합 PK 의 선두 컬럼이 그대로 처리한다.
-    'CREATE INDEX idx_ingredients_allergen ON ingredients(allergen_id)',
+    'CREATE INDEX idx_ing_allergen_allergen ON ingredient_allergens(allergen_id)',
     'CREATE INDEX idx_prod_ing_ingredient  ON product_ingredients(ingredient_id)',
     'CREATE INDEX idx_prod_fp_purpose      ON product_feeding_purposes(feeding_purpose_id)',
 ]
@@ -188,32 +193,28 @@ SELECT
     pr.product_id,
     CASE
         -- ① 알러지원이 확인됨 -> 배제(감점이 아니다)
-        WHEN EXISTS (
+        WHEN EXISTS ( -- 225line 결과중에, 알러지 문제 없는거만 필터링
                 SELECT 1
-                  FROM product_ingredients pi
-                  JOIN ingredients   i  ON i.ingredient_id = pi.ingredient_id
-                  JOIN pet_allergies pa ON pa.allergen_id  = i.allergen_id
-                 WHERE pi.product_id = pr.product_id
-                   AND pa.pet_id     = pt.pet_id
-             ) THEN '위험'
+                  FROM product_ingredients pi --제품 원료가 가지는 알러지
+                  JOIN ingredient_allergens ia
+                  ON ia.ingredient_id = pi.ingredient_id
+
+                  JOIN pet_allergies pa -- 그 알러지 중에, 가지고 있다면
+                  ON pa.allergen_id = ia.allergen_id
+
+                 WHERE pi.product_id = pr.product_id AND pa.pet_id = pt.pet_id -- 물품에 있고 그 알러지 있는 펫이라면
+             ) THEN 'WARN' --
         -- ② 원료표를 사람이 확인한 적이 없음
-        WHEN pr.ingredients_verified = 0 THEN '판정불가'
-        -- ③ 원료표는 등록됐지만 그중 알러지 검토가 안 끝난 원료가 있음
-        WHEN EXISTS (
-                SELECT 1
-                  FROM product_ingredients pi
-                  JOIN ingredients i ON i.ingredient_id = pi.ingredient_id
-                 WHERE pi.product_id = pr.product_id
-                   AND i.allergen_reviewed = 0
-             ) THEN '판정불가'
-        ELSE '안전'
+        WHEN pr.ingredients_verified = 0 THEN 'None'
+        ELSE 'Safe'
     END AS verdict
-FROM pets pt
--- 대상 축종에 이 아이의 축종이 등록된 제품만. 미등록(0행)은 후보에 뜨지 않는다.
-JOIN product_animal_categories pac ON pac.animal_category_id = pt.animal_category_id
-JOIN products                  pr  ON pr.product_id          = pac.product_id
-WHERE pr.is_active   = 1
-  AND pt.inactive_at IS NULL
+FROM pets AS pt
+JOIN product_animal_categories AS pac
+ON pac.animal_category_id = pt.animal_category_id -- pet에 맞는 물품들 join
+-- 1. pet 종에 맞는 물품들
+JOIN products AS pr
+ON pr.product_id = pac.product_id -- 2. 종에 맞는 물품 디테일 정보
+WHERE pr.is_active = 1 AND pt.inactive_at IS NULL -- 3. 판매 물품 + 활성화 펫
 ''',
 
     # v_safe_products — 추천 후보군. '판정불가'를 통과시키는 정책으로 바꾸려면 이 뷰만 고친다.
@@ -221,6 +222,6 @@ WHERE pr.is_active   = 1
 CREATE VIEW v_safe_products AS
 SELECT pet_id, product_id
 FROM v_product_safety
-WHERE verdict = '안전'
+WHERE verdict = 'Safe'
 ''',
 ]
