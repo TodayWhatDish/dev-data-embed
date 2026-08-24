@@ -50,7 +50,7 @@ def main():
         hits = store.search(query, where=where, params=params)
 
         for pid, score, doc in hits:
-            print(f'  - {fmt_purchase_id(pid)} ({score:.3f}) {doc[:80]}...')
+            print(f'  - {fmt_purchase_id(pid)} ({score:.3f}) {doc}...')
 
         log_result(profile, query, hits)
 
