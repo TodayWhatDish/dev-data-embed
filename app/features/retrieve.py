@@ -7,16 +7,18 @@
 # 검색은 그 결과를 읽기만 한다. 한 파일에 두면 검색만 확인하고 싶을 때도
 # 임베딩을 통째로 다시 만들게 된다.
 import json
-
+import sqlite3
+from sentence_transformers import SentenceTransformer
 import numpy as np
 from app.core.embedder import get_embeddings
 from app.core.config import EMBED_MODEL
 from app.core.db import source_fingerprint
+from collections import defaultdict
 
 # 프로필 키 -> SQL 조건절. 값이 들어온 키만 WHERE 에 붙는다.
 FILTERS = {
-    'size_category': 'p.size_category = ?',
-    'allergy': '(p.allergy IS NULL OR p.allergy <> ?)',
+    "size_category": "p.size_category = ?",
+    "allergy": "(p.allergy IS NULL OR p.allergy <> ?)",
 }
 
 
@@ -26,7 +28,7 @@ def fmt_purchase_id(pid):
     저장은 INTEGER로 하되(조인/인덱스에 유리) 화면에 찍을 때만 접두어를 붙인다.
     검색 결과에 ID만 덩그러니 나오면 어느 테이블 것인지 알아보기 어렵기 때문이다.
     """
-    return f'O{pid:05d}'
+    return f"O{pid:05d}"
 
 
 def build_where(profile):
@@ -41,7 +43,7 @@ def build_where(profile):
             clauses.append(clause)
             params.append(profile[key])
 
-    return ' AND '.join(clauses) or '1=1', tuple(params)
+    return " AND ".join(clauses) or "1=1", tuple(params)
 
 
 def check_freshness(con):
@@ -55,24 +57,24 @@ def check_freshness(con):
     검색을 막지는 않는다. 색인이 조금 낡아도 확인용으로는 여전히 쓸 만하고,
     여기서 SystemExit 를 내면 데이터를 만지는 중에 아무것도 못 하게 되기 때문이다.
     """
-    meta = dict(con.execute('SELECT key, value FROM embedding_meta').fetchall())
+    meta = dict(con.execute("SELECT key, value FROM embedding_meta").fetchall())
     problems = []
 
-    if meta.get('model') != EMBED_MODEL:
+    if meta.get("model") != EMBED_MODEL:
         problems.append(
             f"색인은 '{meta.get('model')}' 모델로 만들었는데 지금 설정은 '{EMBED_MODEL}' 입니다. "
-            '벡터 공간이 달라 유사도가 의미를 잃습니다.'
+            "벡터 공간이 달라 유사도가 의미를 잃습니다."
         )
 
     # 'source' 키는 이 검사를 넣기 전에 만든 색인에는 없다. 그때는 판단을 보류한다.
-    indexed = meta.get('source')
+    indexed = meta.get("source")
     if indexed is not None and indexed != source_fingerprint(con):
         problems.append(
-            f'색인 이후 pet_purchases 가 바뀌었습니다 (색인 시점 {indexed} -> 현재 {source_fingerprint(con)}).'
+            f"색인 이후 pet_purchases 가 바뀌었습니다 (색인 시점 {indexed} -> 현재 {source_fingerprint(con)})."
         )
 
     if problems:
-        problems.append('build_index.py 를 다시 실행하세요.')
+        problems.append("build_index.py 를 다시 실행하세요.")
     return problems
 
 
@@ -89,13 +91,15 @@ class VectorStore:
     FAISS 같은 벡터 인덱스로 옮겨야 한다.
     """
 
-    def __init__(self, con, model=None):
+    def __init__(
+        self, con: sqlite3.Connection, model: SentenceTransformer | None = None
+    ):
         self.con = con
         self.model = model or get_embeddings()
 
         self.warnings = check_freshness(con)
         for line in self.warnings:
-            print(f'[경고] {line}')
+            print(f"[경고] {line}")
 
         rows = con.execute("""
             SELECT purchase_id, doc, vector
@@ -103,7 +107,9 @@ class VectorStore:
             ORDER BY purchase_id
         """).fetchall()
         if not rows:
-            raise SystemExit('review_vectors 가 비어 있습니다. 먼저 build_index.py 를 실행하세요.')
+            raise SystemExit(
+                "review_vectors 가 비어 있습니다. 먼저 build_index.py 를 실행하세요."
+            )
 
         self.ids = [r[0] for r in rows]
         self.docs = [r[1] for r in rows]
@@ -111,19 +117,22 @@ class VectorStore:
         # purchase_id -> matrix 행 번호. WHERE 결과를 행 번호로 바꿀 때 쓴다.
         self.row_of = {pid: i for i, pid in enumerate(self.ids)}
 
-    def search(self, query, where='1=1', params=(), top_k=3):
+    def search(self, query, where="1=1", params=(), top_k=3):
         """프로필 조건으로 후보를 먼저 줄인 뒤, 남은 후보만 유사도로 정렬한다.
 
         벡터 유사도만으로는 "소형견", "닭고기 알레르기 없음" 같은 조건이 지켜지지 않는다.
         (의미가 비슷하기만 하면 대형견 리뷰도 상위에 올라온다.)
         실제 추천 API도 이 순서(프로필 필터 -> 벡터 랭킹)를 따라야 한다.
         """
-        picked = self.con.execute(f"""
+        picked = self.con.execute(
+            f"""
             SELECT v.purchase_id
             FROM review_vectors AS v
             JOIN pet_purchases AS p ON p.purchase_id = v.purchase_id
             WHERE {where}
-        """, params).fetchall()
+        """,
+            params,
+        ).fetchall()
 
         # 색인 이후 pet_purchases 가 바뀌었을 수 있으므로 캐시에 있는 id 만 남긴다
         idx = [self.row_of[r[0]] for r in picked if r[0] in self.row_of]
@@ -132,9 +141,37 @@ class VectorStore:
 
         # 저장할 때 정규화했으므로 내적만으로 코사인 유사도가 된다.
         # 질의 한 건마다 진행 바가 뜨면 대화형 출력이 지저분해져서 끈다.
-        q = self.model.encode([query], normalize_embeddings=True, show_progress_bar=False)[0]
+        q = self.model.encode(
+            [query], normalize_embeddings=True, show_progress_bar=False
+        )[0]
         scores = self.matrix[idx] @ q
         return [
             (self.ids[idx[i]], float(scores[i]), self.docs[idx[i]])
             for i in np.argsort(-scores)[:top_k]
         ]
+
+'''
+class VectorStore:
+    def __init__(self, con: sqlite3.Connection, model: SentenceTransformer | None = None):
+        """chunk_vectors를 chunks 와 JOIN해서 한 번만 읽어 메모리에 들고 있는 검색기."""
+        self.con = con
+        self.model = model
+        self.warnings = check_freshness(con)
+        for line in self.warnings:
+            print(f"[경고] {line}")
+
+        # TODO: chunk_vectors + chunks JOIN해서 purchase_id, chunk_index, body, vector 읽기
+        # TODO: self.purchase_ids, self.docs, self.matrix 채우기
+        # TODO: self.rows_of = defaultdict(list) 로 purchase_id -> 행번호 목록 만들기
+        pass
+
+    def search(self,query: str, where: str = "1=1", params: tuple = (), top_k:int = 3) -> list[tuple[int,float,str]]:
+        """프로필 조건으로 구매 건을 먼저 줄이고, 그 조각들 중 최고 점수로 구매 건을 순위 매긴다."""
+        # TODO: pet_purchases 에서 프로필 조건(where)에 맞는 purchase_id 목록(picked) 조회
+        # TODO: picked -> self.rows_of 로 조각 행번호(idx) 펼치기
+        # TODO: 빈 idx면 [] 리턴
+        # TODO: 질의 벡터 만들고 idx 행들과 내적(scores) 계산
+        # TODO: purchase_id 단위로 최고 점수 조각만 남기기 (best딕셔너리)
+        # TODO: 점수 내림차순 top_k개 잘라서 (purchase_id, score, doc) 튜플 목록으로 리턴
+        pass
+'''
