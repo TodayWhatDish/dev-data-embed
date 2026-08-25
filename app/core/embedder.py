@@ -8,13 +8,13 @@
     from app.core.embedder import get_embeddings
 """
 
-
 from sentence_transformers import SentenceTransformer
 from app.core.config import EMBED_MODEL
 
 _model = None
 
-def get_embeddings():
+
+def get_embeddings() -> SentenceTransformer:
     """모델을 한 번만 올리고 계속 쓴다."""
     global _model
     if _model is None:

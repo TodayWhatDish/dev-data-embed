@@ -9,13 +9,13 @@
 import sqlite3
 
 from app.features.retrieve import build_where, VectorStore  # 프로필 딕셔너리 -> SQL where절 변환
-from app.core.config import DB_PATH  # DB 경로, 임베딩 모델 이름
+from app.core.config import DB_PATH  # DB 경로
 from app.core.embedder import get_embeddings
 from sentence_transformers import SentenceTransformer
 
 
-def load_product_map(con: sqlite3.Connection):
-    # purchase_id -> product_id 사전. 검색 결과를 상품으로 해석할 때 씀
+def load_product_map(con: sqlite3.Connection)->dict[int,int]:
+    """purchase_id -> product_id 사전을 만든다 검색 결과(purchase_id)를 상품으로 해석할 때 쓴다."""
     rows = con.execute('SELECT purchase_id, product_id FROM pet_purchases').fetchall()  # 전체 구매의 (purchase_id, product_id) 쌍을 가져옴
     return dict(rows)  # {purchase_id, product_id}
 
@@ -31,7 +31,7 @@ def load_holdout(con: sqlite3.Connection):
     """).fetchall()  # 원본 테이블에서 is_holdout=1(색인에서 빠진 것)이고 리뷰가 있는 행만
 
 
-def evaluate(con : sqlite3.Connection, model:SentenceTransformer, k:int=3):
+def evaluate(con : sqlite3.Connection, model:SentenceTransformer, k:int=3)->float:
     """홀드아웃 리뷰 하나하나를 질의로 넣어 recall@k를 잰다.
     VectorStore는 생성 비용(모델 로딩 + 벡터로딩)이 크므로 루프 밖에서 한 번만 만들고, 404건의 질의는 그 인스턴스를 재사용한다."""
     store = VectorStore(con,model)
