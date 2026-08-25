@@ -21,7 +21,7 @@ def load_product_map(con):
 
 
 def load_holdout(con):
-    # review_vectors에 빠진, 정답(product_id)을 이미 아는 평가용 표본을 가져온다
+    # 색인(chunks / chunk_vectors)에서 빠진, 정답(product_id)을 이미 아는 평가용 표본을 가져온다
     return con.execute("""
     SELECT purchase_id, product_id, size_category, allergy, review
     FROM pet_purchases

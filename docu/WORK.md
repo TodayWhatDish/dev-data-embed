@@ -245,7 +245,89 @@ CSV를 통째로 다시 쓰면 인용 방식이 달라져 diff가 전체로 번�
 한편 §5에서 고친 체급 자기지칭 문장은 **0건으로 유지되고 있다.** 참조 무결성, 나이대↔나이,
 상품 분류↔급여 형태도 통과했다.
 
+---
+
+## 2026-08-26
+## 작업일지
+> 색인 단위를 리뷰에서 조각으로 옮겼다. `review_vectors`를 없애고
+> `chunks` + `chunk_vectors`로 전환한 뒤, 검색기를 그 구조에 맞게 다시 설계했다.
+
+### 1. build_index.py — 지휘만 남기고 비웠다 (133줄 → 52줄)
+
+`build_doc`/`fetch_rows`는 `prepare.py`에, `save_vectors`는 `prep/storage.py`에 이미
+옮겨져 있어 중복이었다. `main()` 하나만 남겨 `prepare.py`와 대칭 구조로 만들었다.
+
+```
+prepare.py     : pet_purchases 읽기 → build_doc → split_reviews → save_chunks
+build_index.py : load_chunks       →            → embed_texts   → save_vectors
+```
+
+삭제하지 않고 남긴 이유는 `save_vectors(con, chunks, vectors, dim, source)`의 인자를
+완성해 넘길 자리가 필요해서다. `source` 지문 계산은 부르는 쪽 몫이다.
+
+### 2. storage.load_chunks() 신설
+
+`chunks`를 읽는 코드가 저장소 어디에도 없었다. `chunks` 스키마를 아는 SQL을
+CREATE/INSERT와 한 파일에 모으려고 `storage.py`에 뒀다. 읽은 순서를 그대로 넘겨야
+한다 — `save_vectors`가 조각과 벡터를 자리로 zip 하므로 재정렬하면 어긋난다.
+
+### 3. embedding.py — 두 겹으로 깨져 있었다
+
+`get_model()`이 `if _model is None:` 안에서 지역변수에 대입하고 `return _model`(항상
+None)이었다. 그걸 고쳐도 `HuggingFaceEmbeddings`엔 `.encode()`가 없어 `embed_texts()`가
+`AttributeError`로 죽는다. `SentenceTransformer`로 되돌렸다 — 시그니처가 원래 그쪽용이고,
+numpy를 돌려줘 `.shape[1]`/`.tolist()`가 그대로 되며, 래퍼는 `encode_kwargs`를 생성
+시점에 고정해서 질의 1건마다 진행 바를 끌 수 없다.
+
+### 4. VectorStore 재설계
+
+| 문제 | 처리 |
+|---|---|
+| `FROM review_vectors` | `chunk_vectors JOIN chunks` (본문은 `chunks.body`) |
+| `row_of = {pid: i}` | `rows_of = defaultdict(list)` |
+| `search()`의 벡터 테이블 조인 | 제거. 조인하면 리뷰 1건이 조각 수만큼 중복된다 |
+| `argsort[:top_k]` | `purchase_id`별 최고점으로 접은 뒤 자른다 |
+
+`row_of`를 그대로 뒀다면 리뷰당 마지막 조각만 남아 **4,172개 중 2,733개(65%)가 조용히
+사라졌을 것이다** (리뷰 1,439건 중 1,359건이 조각 2개 이상).
+
+집계는 평균이 아니라 최댓값이다. 조각들이 `CHUNK_OVERLAP`만큼 겹쳐 있어 평균은 신호를
+희석시키고, 찾는 것은 "이 리뷰의 어느 한 대목이 질문과 맞는다"이기 때문이다.
+
+### 5. review_vectors 제거 · tasks.json 수리
+
+코드 참조 0건을 확인하고 테이블 DROP + VACUUM (`48.1MB → 36.0MB`). `db.py`/`eval.py`
+주석도 갱신했다.
+
+`tasks.json`은 문구가 아니라 실행이 깨져 있었다. `args`가 `src/build_index.py`인데 파일은
+`pipeline/`으로 옮겨졌고, 파일 경로로 실행하면 `app.core` import가 깨진다. `-m` 모듈
+실행으로 바꾸고 빠져 있던 `prepare`를 넣어 3단계로 만들었다.
+
+### 측정
+
+```
+리뷰 1,439건 → 조각 4,172개 (토큰 평균 36.5 / 중앙값 33 / 최대 77)
+chunk_vectors 4,172행 384차원, chunks와 1:1 (고아 0 / 누락 0), L2 노름 1.0
+VectorStore 기동 경고 0건
+```
+
+---
+
 ### 남은 과제 (누적)
+
+- **`"passage:"` 단독 조각이 1,359개(전체의 32.6%)다.** (2026-08-26 확인) 문서가 `passage:\n`
+  으로 시작하는데 분할기 구분자에 `"\n"`이 있어 첫 줄바꿈에서 잘린다. 정작 내용이 든 조각
+  2,813개에는 접두어가 없다. 아래 `passage:` 접두어 항목과 같은 뿌리다.
+- **프로필 정보가 랭킹에 거의 기여하지 않는다.** (2026-08-26 확인) 질의 300건 기준 상위 10위
+  조각의 96.6%가 `chunk_index=2`(품종·체급·상품명이 떨어져 나간 리뷰 꼬리)였다. `build_doc()`이
+  앞에 붙인 맥락은 `chunk_index=1`에 갇혀 거의 안 뽑힌다. `CHUNK_SIZE=75`가 문서 길이에 비해 작다.
+- **중복 제거는 현재 데이터에서 거의 발동하지 않는다.** 질의 300건 × top_k=10에서 4건(1.3%)뿐.
+  위 두 항목이 고쳐지면 실제로 일하게 될 코드라 남겨뒀다.
+- `check_freshness()`가 조각 재생성을 못 잡는다. 지문은 `pet_purchases`만 보므로 `CHUNK_SIZE`만
+  바꿔 `prepare`를 다시 돌려도 경고가 없다. SQLite는 FK 검사가 기본 꺼짐이라 `DROP`도 안 막는다.
+- `eval.py:42`가 `VectorStore.search(con, model, …)`로 인스턴스 없이 부른다 (이전부터 깨져 있음).
+- `retrieve.py`가 `embedding.get_model()`을 안 쓰고 `SentenceTransformer`를 직접 만든다.
+  모델을 바꿀 때 고칠 자리가 둘이다.
 
 - **데이터 재생성이 선행 과제가 됐다.** `docu/DATAISSUE.md` §1~§3을 고쳐
   `check_data.py`가 `ERROR 0건`을 낼 때까지. 이게 정리되기 전에는 모델 A/B 비교를 해도

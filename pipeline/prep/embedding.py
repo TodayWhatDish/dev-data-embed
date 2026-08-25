@@ -12,20 +12,18 @@ from sentence_transformers import SentenceTransformer
 
 from app.core.config import EMBED_MODEL,BATCH_SIZE
 
-from langchain_huggingface import HuggingFaceEmbeddings
 _model = None
 
 def get_model():
     """모델을 한 번만 올리고 계속 쓴다."""
     
     # chunking.py 의 토크나이저와 같은 이유로 전역에 한 번만 담아둔다.
+    # langchain 의 HuggingFaceEmbeddings 대신 SentenceTransformer 를 직접 쓴다.
+    # 래퍼는 encode_kwargs 를 생성 시점에 고정해서 호출마다 진행 바를 끌 수 없고,
+    # 결과도 numpy 가 아니라 리스트로 나와 차원 확인과 저장에 변환이 한 번 더 든다.
     global _model
     if _model is None:
-        model = HuggingFaceEmbeddings(
-        model_name="intfloat/multilingual-e5-small",
-        model_kwargs={"device": "cpu"},
-        encode_kwargs={"normalize_embeddings": True, "batch_size": BATCH_SIZE}
-        )
+        _model = SentenceTransformer(EMBED_MODEL)
     return _model
 
 def embed_texts(texts: list[str], batch_size: int = BATCH_SIZE, show_progress_bar: bool = True):
