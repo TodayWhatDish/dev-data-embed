@@ -1,4 +1,4 @@
-# Last updated: 2026-08-17
+# Last updated: 2026-08-25
 
 """ chunks 테이블의 조각을 문장 임베딩 벡터로 변환해 chunk_vectors 테이블에 저장한다.
 pet_purchases 의 반려견 리뷰를 문장 임베딩 벡터로 변환해 review_vectors 테이블에 저장하는 스크립트
@@ -25,11 +25,10 @@ LLM에 이런 형태로 넘기면 되지 않을까
 # 조건이 맞는 리뷰가 의미적으로도 가깝게 걸리도록 하기 위함이다.
 import json
 import sqlite3
-
-from sentence_transformers import SentenceTransformer
+import numpy as np
+from app.core.embedder import get_embeddings
 from app.core.config import DB_PATH,EMBED_MODEL,INDEX_FILTER
 from app.core.db import source_fingerprint
-from pipeline.prep import embedding,storage
 
 ## 리펙토링 필요
 
@@ -47,7 +46,7 @@ def build_doc(row):
     )
 
 
-def fetch_rows(cur):
+def fetch_rows(cur : sqlite3.Cursor)->list[sqlite3.Row]:
     """색인 대상 리뷰를 상품 정보와 함께 읽어온다.
 
     대상 조건(INDEX_FILTER)은 config.py 에 있다. 검색 쪽에서 재색인이 필요한지
@@ -67,13 +66,19 @@ def fetch_rows(cur):
     """).fetchall()
 
 
-def save_vectors(con, rows, docs, vectors, dim):
+def save_vectors(con: sqlite3.Connection, 
+                 rows: list[sqlite3.Row], 
+                 docs:list[str], 
+                 vectors:np.ndarray, 
+                 dim:int) -> None:
     cur = con.cursor()
+    """리뷰 벡터와 색인 메타데이터를 review_vectors / embedding_meta 테이블에 저장한다.
 
-    # purchase_id -> 임베딩 문장 + 벡터(JSON 문자열) 매핑 테이블
-    # purchase_id 는 pet_purchases 와 같은 INTEGER 여야 조인이 성립한다.
-    # IF NOT EXISTS 로 두면 예전 실행이 만든 TEXT 컬럼이 그대로 남아
-    # 정수 418 이 문자열 '418' 로 저장되고 조인이 조용히 실패한다. 그래서 매번 다시 만든다.
+    review_vectors 는 색인할 때마다 DROP 후 다시 만든다 - IF NOT EXISTS 로 두면
+    예전 실행이 만든 TEXT 컬럼이 남아 purchase_id 조인이 조용히 실패할 수 있어서다.
+    embedding_meta 에는 어떤 모델/차원/데이터 상태로 만든 벡터인지 남겨서,
+    검색 쪽(VectorStore)이 재색인 필요 여부를 판단할 수 있게 한다.
+    """
     cur.execute('DROP TABLE IF EXISTS review_vectors')
     cur.execute("""
     CREATE TABLE review_vectors (
@@ -117,7 +122,7 @@ def main():
     if not rows:
         raise SystemExit('색인할 리뷰가 없습니다. 먼저 load_db.py 를 실행하세요.')
 
-    model = SentenceTransformer(EMBED_MODEL)
+    model = get_embeddings()
     docs = [build_doc(row) for row in rows]
     # normalize_embeddings=True -> 벡터 길이를 1로 맞춰서 이후 코사인 유사도 계산이 내적만으로 가능해짐
     vectors = model.encode(docs, batch_size=32, normalize_embeddings=True, show_progress_bar=True)

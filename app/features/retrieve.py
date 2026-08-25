@@ -1,4 +1,4 @@
-# LastUpdated : 2026-08-19
+# LastUpdated : 2026-08-25
 
 # review_vectors 에 저장된 벡터로 유사 리뷰를 찾는 검색 모듈
 #
@@ -9,8 +9,7 @@
 import json
 
 import numpy as np
-from app.core.db import dicts
-from sentence_transformers import SentenceTransformer
+from app.core.embedder import get_embeddings
 from app.core.config import EMBED_MODEL
 from app.core.db import source_fingerprint
 
@@ -92,7 +91,7 @@ class VectorStore:
 
     def __init__(self, con, model=None):
         self.con = con
-        self.model = model or SentenceTransformer(EMBED_MODEL)
+        self.model = model or get_embeddings()
 
         self.warnings = check_freshness(con)
         for line in self.warnings:
