@@ -36,8 +36,8 @@ def save_chunks(con: sqlite3.Connection, chunks : list[dict]):
     )
     con.commit()
 
-"""chunk_vectors 테이블을 만들고 벡터에 적재한다. save_chunks가 선행되어야 함"""
 def save_vectors(con: sqlite3.Connection, chunks : list[dict], vectors, dim, source : str):
+    """chunk_vectors 테이블을 만들고 벡터에 적재한다. save_chunks가 선행되어야 함"""
     
     # 청크와 벡터의 수가 다를 시 방어 로직
     if len(chunks) != len(vectors):
