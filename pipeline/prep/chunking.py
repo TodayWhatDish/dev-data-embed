@@ -19,7 +19,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from transformers import AutoTokenizer
 
 from app.core.config import EMBED_TOKENIZER,CHUNK_OVERLAP, CHUNK_SIZE
-#from pipeline.prep.options import CHUNK_OVERLAP, CHUNK_SIZE
+from pipeline.prep.options import CHUNK_OVERLAP, CHUNK_SIZE, SEPARATORS
 
 _tokenizer = None
 _splitter = None
@@ -40,7 +40,7 @@ def get_splitter():
         _splitter = RecursiveCharacterTextSplitter.from_huggingface_tokenizer(
             get_tokenizer(), chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP,
             # separators는 많이 늘릴수록 유지보수 부담이 늘어나기도 하고 효과 체감이 크지않다. (트레이드오프 발생)
-            separators=["\n\n", "\n", "다. ", "요. ", ". ", " ", ""], keep_separator="end")
+            separators=SEPARATORS, keep_separator="end")
     return _splitter
 
 
