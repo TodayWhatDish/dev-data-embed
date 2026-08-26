@@ -6,26 +6,28 @@
 
 import sqlite3
 from app.core.config import DB_PATH, INDEX_FILTER
+
 con = sqlite3.connect(DB_PATH)
 
 
-def query(sql, params=()):
+def query(sql, params=()) -> list[tuple]:
     """여러 줄을 꺼낸다. 튜플의 목록이 온다."""
     return con.execute(sql, params).fetchall()
 
 
-def one(sql, params=()):
+def one(sql, params=()) -> tuple | None:
     """한 줄만 꺼낸다. 없으면 None 이 온다."""
     return con.execute(sql, params).fetchone()
 
 
-def dicts(sql, params=()):
+def dicts(sql, params=()) -> list[dict]:
     """컬럼 이름이 붙은 딕셔너리 목록으로 꺼낸다."""
     cur = con.execute(sql, params)
     columns = [c[0] for c in cur.description]
     return [dict(zip(columns, row)) for row in cur.fetchall()]
 
-def source_fingerprint(con):
+
+def source_fingerprint(con) -> str:
     """색인 대상 데이터의 현재 상태를 숫자 몇 개로 요약한다.
 
     load_db.py 는 재실행할 때마다 pet_purchases 를 DROP 후 다시 만든다.
@@ -44,4 +46,4 @@ def source_fingerprint(con):
         FROM pet_purchases AS p
         WHERE {INDEX_FILTER}
     """).fetchone()
-    return ':'.join(str(v) for v in row)
+    return ":".join(str(v) for v in row)

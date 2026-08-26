@@ -1,8 +1,8 @@
 # Last Updated : 2026-08-24
 
-""" 리뷰를 임베딩용 문서로 조립하고 토큰 한도에 맞게 자른다. 벡터는 안 만든다 - build_index.py가 한다.
+"""리뷰를 임베딩용 문서로 조립하고 토큰 한도에 맞게 자른다. 벡터는 안 만든다 - build_index.py가 한다.
 
-    자르는 건 몇 초, 임베딩은 모델 로딩 포함 수십 초 - 값이 다른 작업이라 나눴다.
+자르는 건 몇 초, 임베딩은 모델 로딩 포함 수십 초 - 값이 다른 작업이라 나눴다.
 """
 
 import sqlite3
@@ -19,13 +19,19 @@ sys.stdout.reconfigure(errors="replace")
 # 중요한 에러 문구는 그대로 출력 처리
 hf_logging.set_verbosity_error()
 
-from app.core.config import DB_PATH,EMBED_MAX_TOKENS,INDEX_FILTER
+from app.core.config import DB_PATH, EMBED_MAX_TOKENS, INDEX_FILTER
 from pipeline.prep import chunking, storage
 
-def build_doc(row:str):
-    """리뷰 한 건에 대해서 임베딩용 문장으로 조립한다."""    
-    allergy = row['allergy'] or '알레르기 없음'
-    health = row['health_condition'] or '건강 특이사항 없음'
+
+def build_doc(row: sqlite3.Row) -> str:
+    """리뷰 한 건을 임베딩용 문장으로 조립한다.
+
+    자를 대상을 읽는 fetch_rows 바로 옆에 둔다. 컬럼 이름을 아는 코드가
+    한자리에 모여 있어야 스키마가 바뀔 때 고칠 데가 한 파일이다.
+    """
+    # 알레르기/건강 이상이 없는 경우 CSV가 빈 값이라 NULL로 들어온다 -> 명시적인 한국어로 바꿔준다
+    allergy = row["allergy"] or "알레르기 없음"
+    health = row["health_condition"] or "건강 특이사항 없음"
     return (
         "passage:\n"
         f"{row['size_category']}견 {row['age_group']} {row['breed']}, {allergy}, {health}. "
@@ -34,7 +40,8 @@ def build_doc(row:str):
         f"별점 {row['rating']}점 후기: {row['review']}"
     )
 
-def fetch_rows(cur:sqlite3.Row):
+
+def fetch_rows(cur: sqlite3.Cursor):
     """자를 대상 리뷰를 상품 정보와 함께 읽어온다. (대상 조건인 INDEX_FILTER는 config.py에 명시)"""
     # 컬럼 이름으로 꺼내야 build_doc 이 row['breed'] 처럼 읽을 수 있다.
     cur.row_factory = sqlite3.Row
@@ -50,31 +57,39 @@ def fetch_rows(cur:sqlite3.Row):
         ORDER BY p.purchase_id
     """).fetchall()
 
+
 def main():
     con = sqlite3.connect(DB_PATH)
     rows = fetch_rows(con.cursor())
     if not rows:
-        raise SystemExit('자를 리뷰가 없습니다. 먼저 load_db.py 를 실행하세요.')
+        raise SystemExit("자를 리뷰가 없습니다. 먼저 load_db.py 를 실행하세요.")
 
     # (purchase_id, 문서) 쌍으로 넘긴다. 한 리뷰가 조각 여러 개로 쪼개져도
     # 그 조각이 원래 어느 리뷰에서 나왔는지 따라붙어야 하기 때문이다.
-    docs = [(row['purchase_id'], build_doc(row)) for row in rows]
+    docs = [(row["purchase_id"], build_doc(row)) for row in rows]
     chunks = chunking.split_reviews(docs)
     storage.save_chunks(con, chunks)
 
     # 자른 결과가 멀쩡한지는 눈으로 봐야 안다. 토큰 분포를 요약해 남긴다.
-    tokens = [chunk['n_tokens'] for chunk in chunks]
-    print(f'\n리뷰 {len(rows)}건 -> 조각 {len(chunks)}개 (쪼개지며 늘어난 조각 {len(chunks) - len(rows)}개)')
-    print(f'토큰 평균 {statistics.mean(tokens):.1f} / 중앙값 {statistics.median(tokens):.0f} / 최대 {max(tokens)}')
+    tokens = [chunk["n_tokens"] for chunk in chunks]
+    print(
+        f"\n리뷰 {len(rows)}건 -> 조각 {len(chunks)}개 (쪼개지며 늘어난 조각 {len(chunks) - len(rows)}개)"
+    )
+    print(
+        f"토큰 평균 {statistics.mean(tokens):.1f} / 중앙값 {statistics.median(tokens):.0f} / 최대 {max(tokens)}"
+    )
 
     # CHUNK_SIZE 안으로 잘랐으니 여기 걸리면 안 된다. 걸린다면 자르기가 제 몫을 못 한 것이고,
     # 그대로 두면 임베딩 때 뒤가 조용히 잘려나간다.
     over = sum(1 for n in tokens if n > EMBED_MAX_TOKENS)
     if over:
-        print(f'주의: 모델 한도({EMBED_MAX_TOKENS} 토큰)를 넘는 조각 {over}개 - 뒤가 잘려 누락된다')
+        print(
+            f"주의: 모델 한도({EMBED_MAX_TOKENS} 토큰)를 넘는 조각 {over}개 - 뒤가 잘려 누락된다"
+        )
 
-    print('벡터는 여기서 만들지 않는다. 이어서 build_index.py 를 실행하세요.')
+    print("벡터는 여기서 만들지 않는다. 이어서 build_index.py 를 실행하세요.")
     con.close()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

@@ -62,8 +62,25 @@ f'''
 CREATE TABLE users (
     user_id       INTEGER NOT NULL PRIMARY KEY,
         -- desc: 대리키. rowid 별칭이라 조회/조인이 가장 빠르다.
+        --       하위 테이블(pets/purchases/reviews)이 참조하는 소유자 키는 오직 이 값이다.
+        --       외부 인증 ID(auth_uid)를 FK 로 쓰지 않는 이유는 아래 auth_uid 주석 참고.
+    auth_provider TEXT    NOT NULL DEFAULT 'google'
+                          CHECK (auth_provider IN ('google', 'firebase', 'kakao', 'apple', 'local')),
+        -- desc: 신원을 확인해 준 주체. 현재 구글 로그인만 쓴다.
+        --       Firebase Auth 를 경유하면 'firebase'(uid 는 Firebase UID),
+        --       구글 OAuth 를 직접 붙이면 'google'(uid 는 ID token 의 sub)이다.
+        --       CHECK 목록에 미사용 값을 미리 넣어둔 이유: SQLite 는 CHECK 를 바꾸려면
+        --       테이블을 재생성해야 한다. 값을 넓게 잡아두는 건 공짜고, 안 쓰면 그만이다.
+    auth_uid      TEXT    NOT NULL,
+        -- desc: 제공자가 준 불변 고유 ID. 이메일이 아니라 이 값으로 계정을 찾는다 —
+        --       이메일은 사용자가 바꿀 수 있지만 이 값은 안 바뀐다.
+        --       로그인 순간에만 읽힌다. 로그인 이후 요청은 토큰에서 복원한 user_id 만 쓴다.
+        --       하위 테이블이 이 컬럼을 참조하면 (1) 조인이 문자열 비교가 되어 느려지고
+        --       (2) 인증 방식을 바꿀 때 전 테이블을 갱신해야 하므로, 참조는 user_id 로만 한다.
     email         TEXT    NOT NULL UNIQUE,
-        -- desc: 로그인 식별자. 계정당 1개이므로 UNIQUE.
+        -- desc: 연락/표시용 이메일. 구글은 항상 검증된 이메일을 주므로 NOT NULL 이 성립한다.
+        --       이메일을 안 주거나 미검증으로 주는 제공자(카카오는 선택 동의)를 붙이는 날
+        --       이 제약은 반드시 완화해야 한다. 로그인 식별자는 auth_uid 지 이 컬럼이 아니다.
     name          TEXT    NOT NULL,
         -- desc: 보호자 이름(표시용).
     phone         TEXT,
@@ -498,6 +515,12 @@ INDEXES = [
 # ===========================================================================
 
 UNIQUE_INDEXES = [
+    # 같은 외부 계정이 두 유저에 붙는 것을 DB 레벨에서 차단한다.
+    # 로그인 처리는 이 인덱스를 그대로 타는 조회 하나로 끝난다:
+    #   SELECT user_id FROM users WHERE auth_provider = ? AND auth_uid = ?
+    # (부모, 자식) 순서 규칙에 맞춰 provider 를 앞에 둔다.
+    'CREATE UNIQUE INDEX uq_users_auth     ON users(auth_provider, auth_uid)',
+
     # 같은 반려견에 같은 알러지원을 두 번 등록할 수 없다.
     'CREATE UNIQUE INDEX uq_pet_allergen   ON pet_allergies(pet_id, allergen_id)',
     'CREATE UNIQUE INDEX uq_product_feeding_purpose ON product_feeding_purposes(product_id, feeding_purpose_id)',

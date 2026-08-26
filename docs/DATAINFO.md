@@ -41,7 +41,6 @@ pet_customers (300)
 | `account_type` | TEXT | `B2C`(일반 견주, 95%) / `B2B`(입점 업체, 5%) |
 | `joined_at` | DATE | 2023-01-01 ~ 2026-08-11 |
 
-*ㄱㄷ
 
 ---
 
