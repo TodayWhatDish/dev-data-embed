@@ -63,16 +63,15 @@ def compare_recommendations(
     """[미구현]"""
     pass
 
-
-def inspect_search_results(
+def search_any(
     con: sqlite3.Connection,
-    chunk_ids: list[int],                   # 청크 ID 리스트 (chunk_vectors 행 순서)
-    chunk_vectors: NDArray[np.float32],     # (n_chunks, dim)
-    questions: list[str],                   # 테스트 질문들
-) -> dict[str, list[str]]:                  # {question: [top3_section_names]}
+    kind: str,
+    questions: list,
+    top_k: int=3,
+    wosk: bool=False,
+):
     """[미구현]"""
     pass
-
 
 def print_final_result(problems: list[str]) -> None:
     """여섯 단계에서 발견된 문제를 마지막에 모아서 출력하는 함수"""
