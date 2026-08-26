@@ -2,6 +2,12 @@
 
 > Last updated: 2026-08-12
 
+> **[2026-08-25] 아래는 옛 4테이블 경로다.** 16테이블 스키마의 적재 경로는 따로 있다 —
+> `data/master/*.csv` + `src/make_data/gen_seed.py` → `data/seed/*.csv` → `src/load_csv.py` → `user.db`.
+> 설명은 [`../data/README.md`](../data/README.md).
+> `load_db.py` / `pet_reco.db` 는 `embed.py` 가 아직 옛 `pet_purchases` 를 읽기 때문에 남아 있다.
+> 구매·리뷰(C블록)가 새 스키마로 포팅되면 `embed.py` 와 함께 정리한다.
+
 `data/*.csv`(더미데이터) → `pet_reco.db`(SQLite) → `review_vectors`(임베딩) 까지의 파이프라인.
 RAG 추천에 쓸 리뷰 벡터를 만드는 것이 최종 목표다.
 

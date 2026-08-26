@@ -1,0 +1,50 @@
+allergen_id,parent_id,name_ko,name_eng
+1,,단백질,protein
+2,1,육류,meat
+3,2,가금류,poultry
+4,3,닭고기,chicken
+5,3,오리,duck
+6,3,칠면조,turkey
+7,2,적색육,red meat
+8,7,소고기,beef
+9,7,돼지고기,pork
+10,7,양고기,lamb
+11,1,어류,fish
+12,11,연어,salmon
+13,11,참치,tuna
+14,11,대구,cod
+15,1,갑각류,shellfish
+16,15,새우,shrimp
+17,15,게,crab
+18,15,홍합,mussel
+19,1,유제품,dairy
+20,19,우유,milk
+21,19,치즈,cheese
+22,19,요거트,yogurt
+23,1,난류,egg
+24,23,계란,chicken egg
+25,1,곤충단백,insect protein
+26,,곡물,grain
+27,26,글루텐곡물,gluten grain
+28,27,밀,wheat
+29,27,보리,barley
+30,27,호밀,rye
+31,26,무글루텐곡물,gluten-free grain
+32,31,옥수수,corn
+33,31,쌀,rice
+34,31,귀리,oat
+35,31,수수,sorghum
+36,,콩류,legume
+37,36,대두,soy
+38,36,완두,pea
+39,36,병아리콩,chickpea
+40,,견과류,nut
+41,40,땅콩,peanut
+42,,채소,vegetable
+43,42,감자,potato
+44,42,고구마,sweet potato
+45,,첨가물,additive
+46,45,인공색소,artificial color
+47,45,인공보존료,artificial preservative
+48,42,도라지,
+49,42,더덕,
