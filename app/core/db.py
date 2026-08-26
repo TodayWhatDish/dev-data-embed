@@ -31,8 +31,9 @@ def source_fingerprint(con) -> str:
     """색인 대상 데이터의 현재 상태를 숫자 몇 개로 요약한다.
 
     load_db.py 는 재실행할 때마다 pet_purchases 를 DROP 후 다시 만든다.
-    이때 build_index.py 를 다시 돌리지 않으면 review_vectors 만 옛 데이터를 가리킨 채
-    남는데, 조인은 purchase_id 로 조용히 성립해서 에러 없이 엉뚱한 리뷰가 검색된다.
+    이때 prepare.py / build_index.py 를 다시 돌리지 않으면 chunks 와 chunk_vectors 만
+    옛 데이터를 가리킨 채 남는데, 조인은 purchase_id 로 조용히 성립해서
+    에러 없이 엉뚱한 리뷰가 검색된다.
     색인 시점의 지문을 embedding_meta 에 남겨두고 검색 시작 시 비교해 이 상황을 잡아낸다.
 
     건수 / ID 합 / 리뷰 길이 합을 함께 보므로 행 추가·삭제, ID 변경, 본문 수정을 잡는다.

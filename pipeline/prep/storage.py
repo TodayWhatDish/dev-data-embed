@@ -44,6 +44,26 @@ def save_chunks(con: sqlite3.Connection, chunks: list[dict]):
     con.commit()
 
 
+# 적재한 조각을 다시 꺼낸다. build_index.py 가 벡터로 바꿀 대상을 읽는 자리.
+def load_chunks(con: sqlite3.Connection):
+    """chunks 테이블의 조각 전체를 (purchase_id, chunk_index, body) 로 읽어온다.
+
+    읽기는 이 파일의 역할("적재")을 조금 넘지만, chunks 의 컬럼 이름을 아는 코드를
+    save_chunks 와 한자리에 모아두려고 여기 둔다. 스키마가 바뀌면 고칠 데가 한 파일이다.
+
+    조각 순서(purchase_id, chunk_index)는 save_vectors 가 벡터와 자리 맞춰 zip 하므로,
+    읽은 목록을 그대로 넘겨야 한다. 중간에 걸러내거나 재정렬하면 벡터가 어긋난다.
+    """
+    cur = con.cursor()
+    # 컬럼 이름으로 꺼내야 부르는 쪽이 chunk['body'] 처럼 읽을 수 있다.
+    cur.row_factory = sqlite3.Row
+    return cur.execute("""
+        SELECT purchase_id, chunk_index, body
+        FROM chunks
+        ORDER BY purchase_id, chunk_index
+    """).fetchall()
+
+
 def save_vectors(
     con: sqlite3.Connection, chunks: list[dict], vectors: np.ndarray, dim, source: str
 ):

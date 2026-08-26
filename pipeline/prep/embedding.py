@@ -1,11 +1,13 @@
-# Last Updated : 2026-08-25
+# Last Updated : 2026-08-26
 
-"""리뷰 한 건을 임베딩용 문장으로 조립한다.
+""" 문서 목록을 벡터로 바꾼다.
 
 리뷰+펫 프로필 + 제품 정보를 임베딩용 단일 문장으로 조립한다. 이 문장이 벡터화 되어 review_vector에 저장되고, 검색 시 쿼리와 비교한다.
 """
 
 import sqlite3
+from app.core.config import BATCH_SIZE
+from app.core.embedder import get_embeddings
 
 
 def build_review_doc(row: sqlite3.Row) -> str:
