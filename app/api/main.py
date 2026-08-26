@@ -9,10 +9,25 @@
     FAST API 코드자체는 요청에 따른 함수 콜백만 정의할 뿐, 소켓을 열 능력이 없다.
 
 """
-
+import sqlite3
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 app = FastAPI()
+
+from app.core.config import DB_PATH
+from app.features.retrieve import VectorStore
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """uvicorn이 요청을 받기 전/후에 앱에게 보내는 ASGI lifespan 이벤트를 처리, yield 앞은 시작 시, 뒤는 종료 시 1회씩 실행"""
+    """[미구현]"""
+    yield
+    con = sqlite3.connect(DB_PATH,check_same_thread=False)
+    app.state.store = VectorStore
+    yield
+    con.clost()
 
 @app.get("/health")
 def health():
