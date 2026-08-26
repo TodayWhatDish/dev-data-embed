@@ -4,6 +4,118 @@
 > 화장품 도메인으로 되어 있던 임베딩 파이프라인을 애견 도메인으로 전환.
 > 코드 상세는 `src/src.md` 참고.
 
+## 2026-08-25
+
+### C블록을 최소 형태로 확정했다 — 넣었던 컬럼을 대부분 도로 뺐다
+
+하루 동안 `purchases`/`reviews` 에 컬럼을 여러 개 넣었다가 뺐다. 최종은 이거다.
+
+    purchases  purchase_id, pet_id, product_id, purchased_at, quantity, unit_price_krw
+    reviews    purchase_id, rating, body, is_holdout, reviewed_at
+
+전부 NOT NULL. `purchases` 는 append-only(UPDATE 없음), `reviews` 는 `is_holdout` 만 UPDATE 된다.
+
+뺀 것과 **다시 넣게 되는 조건**을 남긴다. 근거 없이 다시 논쟁하지 않으려고 쓴다.
+
+| 뺀 것 | 왜 | 다시 넣을 때 |
+|---|---|---|
+| `size_at_purchase` / `age_month_at_purchase` | 반정규화인데 **측정을 안 했다** | 조인 비용·드리프트를 재고 나서. `docu.md` §3 |
+| `weight_kg` / `neutered` 스냅샷 | `products` 에 대응 필터가 없다 | 체중대별·중성화별 후기 비교를 하기로 할 때 |
+| `pet_allergies.recorded_at` | 알러지를 **배제 전용**으로 좁혔다 | 후기 코호트(`GOAL.md` 128행)를 살릴 때 |
+| `reviews.allergy_reaction` | 층이 틀렸다(아래) | 원인 원료를 지목하는 구조라면 |
+| `purchases.created_at` | UPDATE 가 없으니 `purchased_at` 과 같은 값 | 환불을 다루면 `refunded_at`(플래그 아님) |
+| `reviews.created_at` / `updated_at` | 후기 수정·삭제 기능을 안 넣기로 | 실험 재현이 필요해지면 D블록에서 |
+
+**관통하는 규칙 하나 — 소비자 없는 컬럼은 두지 않는다.** 스냅샷을 고를 때도 같은 기준이었다:
+`products` 의 필터 컬럼(`target_size_*`, `target_age_*`)에 직접 물리느냐. 그래서 `weight_kg` 과
+`neutered` 가 먼저 떨어졌고, 결국 측정 없이는 나머지 둘도 안 넣기로 했다.
+
+### `allergy_reaction` 은 층이 틀린 컬럼이었다
+
+"이 제품 먹고 반응이 났다"는 결국 **이 아이에게 알러지가 있다**는 사실이다. 그러면 갈 자리는
+후기가 아니라 `pet_allergies` 고, 거기 들어가야 `v_product_safety` 가 다음부터 그 원료를 배제한다.
+후기에 0/1 로 적어두면 기록만 남고 아무도 보호받지 못한다.
+한 제품에 유발 원료가 여럿이면 0/1 로 지목도 못 하는데, 보호자는 애초에 원인 원료를 모른다.
+
+신호는 `body` 에서 읽는다 — `GOAL.md` 121행이 "리뷰 텍스트 속에서 알레르기 반응을 읽어내어"를
+D블록 임베딩의 일로 이미 정해뒀다. 체크박스가 그 설계와 중복이었다.
+
+### 인덱스를 안 늘렸다 (실측)
+
+`purchases.purchased_at` 단독 인덱스와 `reviews(reviewed_at)` 부분 인덱스를 검토하고 둘 다 뺐다.
+
+`purchased_at` 은 `idx_purchases_pet(pet_id, purchased_at)` /
+`idx_purchases_product(product_id, purchased_at)` 의 두 번째 컬럼이라 정렬까지 처리된다
+(`ORDER BY purchased_at DESC` 에 temp b-tree 가 안 붙는다). 못 타는 건 "전체 최근순"뿐인데
+추천 경로가 전부 `pet_id`/`product_id` 에서 출발해서 그런 쿼리가 없다.
+
+임베딩 배치용 `reviews(reviewed_at) WHERE is_holdout = 0` 은 후기 20만 건으로 재봤다.
+**선택도가 갈림길이었다:**
+
+    최근 1개월  22,418행 (11.2%)   스캔 24.18 ms   인덱스 52.84 ms   <- 인덱스가 2배 느리다
+    최근 1개월   9,238행 ( 4.6%)   스캔 42.06 ms   인덱스 35.48 ms
+    최근 2주     5,110행 ( 2.6%)   스캔 39.75 ms   인덱스 20.52 ms
+    최근 1일     1,872행 ( 0.9%)   스캔 35.56 ms   인덱스  7.17 ms
+
+10% 넘게 뽑으면 인덱스가 진다 — 행 위치를 찾아도 `body` 를 읽으러 테이블 페이지를 건건이
+뒤져야 하는데, 그럴 바엔 순차로 다 읽는 게 싸다. 5% 아래면 이기지만 42→35ms 라
+임베딩 배치에서는 모델 인코딩 수십 초에 묻히는 차이다.
+
+**임베딩 주기·윈도우도 지금은 정하지 않는다.** 슬라이딩 윈도우(오래된 후기 버림)와
+누적+증분 둘 다 검토했는데, `review_embeddings` 를 `purchase_id` PK + BLOB 으로 잡으면
+`INSERT OR REPLACE` 하나로 어느 쪽이든 되므로 지금 정할 필요가 없다.
+현재 `embed.py` 는 매번 `DROP TABLE` 후 전량 재계산이고 이 규모에선 그걸로 충분하다.
+
+**검증** — 18 테이블 + 2 뷰 + 14 인덱스. `check_fk_targets()` 통과.
+되돌린 컬럼들은 코드·문서 양쪽에 잔재가 없는지 grep 으로 확인했다.
+
+## 2026-08-24 (2)
+
+### 삭제 사슬을 끊었다 — CASCADE -> RESTRICT, 그리고 구매 시점 스냅샷
+
+C블록(`purchase_schema`)을 붙이니 삭제 사슬이 4단이 됐다. 실측으로 확인:
+
+    삭제 전:         {'users': 1, 'pets': 1, 'purchases': 1, 'reviews': 1}
+    users DELETE 후: {'users': 0, 'pets': 0, 'purchases': 0, 'reviews': 0}
+
+`DELETE FROM users` 한 줄이 후기까지 지운다. `docu.md` §1 이 "탈퇴는 DELETE 가 아니다"라고
+적어만 뒀지 DB 는 아무것도 막지 않고 있었다.
+
+**바꾼 것** — `pets.user_id`, `purchases.pet_id` 를 CASCADE -> RESTRICT.
+
+    users 삭제   -> 차단: FOREIGN KEY constraint failed
+    pets 삭제    -> 차단: FOREIGN KEY constraint failed
+    products삭제 -> 차단: FOREIGN KEY constraint failed
+    구매 삭제    -> 후기도 같이: 0 행   (이 경로만 CASCADE 로 남김)
+
+`products` 가 이미 RESTRICT 였으므로 패턴이 같아졌다 — **이력이 달린 마스터 행은 못 지운다.**
+`reviews.purchase_id` 만 CASCADE 로 뒀다. 구매 오등록을 정정하면 그 후기는 근거를 잃는다.
+
+`pet_breeds`/`pet_allergies` 는 CASCADE 유지다. 그건 이력이 아니라 pet 의 속성이라
+pet 이 사라지면 같이 사라지는 게 맞다.
+
+**대가.** GDPR 삭제권 행사는 이제 `reviews` -> `purchases` -> `pets` -> `users` 순서로
+직접 지워야 한다. 한 줄로 안 된다. 그게 안전장치다 — 되돌릴 수 없는 작업이 한 줄이면 안 된다.
+
+### `purchases` 에 체중·나이 스냅샷 추가
+
+    weight_kg_at_purchase  REAL    CHECK (> 0)     -- NULL 허용
+    age_month_at_purchase  INTEGER CHECK (>= 0)    -- NULL 허용
+
+**개인정보와 무관하게 이미 있던 버그를 고친다.** `pets.weight_kg` 는 시간이 지나면 바뀐다.
+후기를 읽을 때 `pets` 를 조인하면 **지금** 값이 나오므로, 3년 전 소형견 시절에 쓴 후기가
+오늘 대형견 후기로 해석된다. 세그먼트 추천이 에러 없이 조용히 틀려진다.
+
+같은 테이블의 `unit_price_krw` 가 이미 같은 원칙이다 — 그때 얼마였는지는 사실이지 파생값이 아니다.
+체중도 같다. 규칙 3(사실 저장, 상태 파생)의 예외가 아니라 같은 규칙의 적용이다:
+파생의 기준점이 "지금"이 아니라 "구매 시점"인데 그 시점은 이 행에만 있다.
+
+`size` 는 넣지 않았다. `weight_kg` 에서 나오고, 1~5 척도가 바뀌면 다시 계산할 수 있어야 한다.
+체구 구간은 앱의 판단이지 사실이 아니다.
+
+**검증** — 18 테이블 + 2 뷰 + 14 인덱스. `check_fk_targets()` 통과.
+RESTRICT 3종 차단과 `reviews` CASCADE 를 임시 DB 에서 직접 확인했다(위 출력).
+
 ## 2026-08-24
 
 ### `ingredients.allergen_reviewed` 제거 — 판정불가를 제품 한 층으로 줄였다

@@ -176,4 +176,4 @@ WHERE allergen_id = '가금류'의 id
 | `pet_allergies` | 이 아이가 무엇에 알러지가 있는가 | [pet_schema.md](pet_schema.md#pet_allergies) |
 | `ingredients` | 이 원료가 무슨 알러지원인가 | [product_schema.md](product_schema.md#ingredients) |
 
-두 테이블이 만나는 지점이 [`v_product_safety`](product_schema.md#v_product_safety) 다.
+두 테이블이 만나는 지점이 [`safe_products.py`](../../src/safe_products.py) 다.

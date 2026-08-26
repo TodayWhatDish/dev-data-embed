@@ -16,8 +16,6 @@
 
 | 뷰 | 설명 |
 |---|---|
-| [`v_product_safety`](#v_product_safety) | 반려동물 × 제품 알러지 판정 (3분법) |
-| [`v_safe_products`](#v_safe_products) | 추천 후보군 |
 
 축종(`animal_categories`)과 알러지원(`allergens`)은 반려동물 도메인과 공유하므로
 [common_schema.md](common_schema.md) 에 있다.
@@ -416,7 +414,7 @@ JOIN products pr ON pr.product_id = pac.product_id
 **컬럼 하나(`ingredients.allergen_id`)로 두면 fail-open 이라 분리했다.** 복합 원료는 알러지원을
 여러 개 갖는다 — `'베이커리 부산물'` 은 밀·계란·유제품이다. 컬럼이 하나면 밀만 적히고
 **계란과 유제품은 조용히 '안전'으로 통과한다.**
-[`v_product_safety`](#v_product_safety) 의 '위험' 분기가 그 원료를 못 잡는다.
+[`safe_products.py`](../../src/safe_products.py) 의 '위험' 분기가 그 원료를 못 잡는다.
 
 **[`allergens`](common_schema.md#allergens) 트리로 접히지도 않는다.** 가금류처럼 공통 조상이 있으면
 상위 노드 하나로 대신할 수 있지만, 밀/계란/유제품은 공통 조상이 루트뿐이라 접으면
@@ -452,50 +450,19 @@ JOIN products pr ON pr.product_id = pac.product_id
 
 ---
 
-## v_product_safety
+## 알러지 판정은 여기 없다
 
-반려동물 × 제품 알러지 판정. **추천 파이프라인의 첫 단계이자, 판정 로직이 있는 유일한 곳이다.**
+**`src/safe_products.py` 의 `SAFE_PRODUCTS_SQL` 한 곳에 있다 (2026-08-25).**
+원래 `safe_products.SAFE_PRODUCTS_SQL` 뷰였는데 뺐다.
 
-| 컬럼 | 설명 |
-|---|---|
-| `pet_id` | 반려동물 |
-| `product_id` | 제품 |
-| `verdict` | `WARN`(위험) / `None`(판정불가) / `Safe`(안전) |
+뷰의 `EXISTS` 안에 `pa.pet_id = pt.pet_id` 가 있어 **상관 서브쿼리**가 된다 —
+후보 제품마다 알러지 조인을 새로 돈다. 펫 1만 × 제품 5천 실측으로 **5.62ms 대 2.20ms** 였다.
+펫 쪽 조건을 비상관 서브쿼리로 빼면 배제 집합을 한 번만 만든다.
 
-**행의 범위** — 판매중(`is_active = 1`)이고 대상 축종이 맞는 제품 × 활동중(`inactive_at IS NULL`)인
-반려동물 조합. 축종은 [`product_animal_categories`](#product_animal_categories) 에 이 아이의 축종이
-등록돼 있어야 통과한다 (미등록 제품은 아예 행이 생기지 않는다).
+판정 3분법(`WARN` / `None` / `Safe`)과 그 근거는 그대로다 — **모르는 것을 안전으로 처리하지 않는다.**
+`ingredients_verified = 0` 인 제품은 원료표를 옮긴 적이 없으므로 배제한다.
+[`product_animal_categories`](#product_animal_categories) 0행도 같은 원칙으로 아무에게도 안 뜬다.
 
-### 판정이 2분법이 아니라 3분법인 이유
-
-`NOT EXISTS` 하나로 안전/위험을 가르면 **"알러지원이 없다"와 "확인한 적이 없다"가 같아진다.**
-원료가 등록되지 않은 제품이 `NOT EXISTS` 를 그냥 통과해 '안전'이 되므로,
-**데이터가 부실할수록 더 안전해 보이는** — 방향이 반대인 실패가 생긴다.
-
-| 판정 | 조건 | 처리 |
-|---|---|---|
-| `WARN` | 제품 원료 중 이 아이의 알러지원이 확인됨 | 후보에서 **완전히 제외**(감점이 아니다) |
-| `None` | [`products.ingredients_verified`](#products) `= 0` — 원료표를 옮겨 적은 적이 없다 | 모르는 것을 안전으로 처리하지 않는다 |
-| `Safe` | 원료표 확인 완료 + 알러지원 없음 | 통과 |
-
-**fail-closed 가 걸리는 층은 제품 하나뿐이다 (2026-08-24).** 원료 단위 검토 플래그
-`ingredients.allergen_reviewed` 를 뺐으므로, "원료표는 다 옮겨 적었지만 `'계육분'`의 알러지원
-매핑이 비어 있다"는 상태는 이제 `Safe` 로 통과한다. 그 구멍은 등록 절차가 막는다.
-
-**배제를 LLM 이 아니라 SQL 이 하는 이유는 결정성이다.** LLM 은 확률적으로 실패하지만
-`NOT EXISTS` 는 반드시 배제한다. 임베딩 텍스트에 알러지 정보를 넣어도 벡터 유사도는
-하드 조건을 보장하지 못한다.
-
----
-
-## v_safe_products
-
-추천 후보군. [`v_product_safety`](#v_product_safety) 에서 `verdict = 'Safe'` 만 통과시킨다.
-
-| 컬럼 | 설명 |
-|---|---|
-| `pet_id` | 반려동물 |
-| `product_id` | 통과한 제품 |
-
-**`None`(판정불가)을 경고와 함께 후보에 넣는 정책으로 바꾸려면 이 뷰만 고친다.**
-판정 로직 자체는 `v_product_safety` 한 곳에만 있다.
+**한 군데에 두는 이유는 성능이 아니라 정책이다.** 판정 기준이 바뀔 때 두 군데 중 한쪽만 고치면
+에러 없이 조용히 어긋난다. 벡터DB를 도입해도 알러지 메타데이터를 복제하지 않고
+이 함수가 뱉은 **id 목록만** 넘긴다.

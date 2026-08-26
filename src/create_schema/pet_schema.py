@@ -25,8 +25,11 @@ CREATE TABLE breeds (
 '''
 CREATE TABLE pets (
     pet_id             INTEGER NOT NULL PRIMARY KEY,
+    -- RESTRICT 다. CASCADE 면 계정 삭제 한 줄이 pets -> purchases -> reviews 를 타고
+    -- 후기까지 지운다. 탈퇴는 users.withdrawn_at, 파기는 익명화 UPDATE 이므로
+    -- 계정 행을 지우는 경로 자체를 DB 가 막는다(docu.md §1).
     user_id            INTEGER NOT NULL
-        REFERENCES users(user_id) ON DELETE CASCADE,
+        REFERENCES users(user_id) ON DELETE RESTRICT,
     animal_category_id INTEGER NOT NULL
         REFERENCES animal_categories(animal_category_id) ON DELETE RESTRICT,
     name               TEXT    NOT NULL,

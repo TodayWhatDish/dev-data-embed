@@ -83,6 +83,9 @@
 
 반려동물 프로필. 추천의 정형 입력이 여기 모인다. **유저가 소유한 개체**이며
 [`users`](user_schema.md#users) 를 `user_id` FK 로 참조한다(1 보호자 : N 반려동물).
+**RESTRICT 다 (2026-08-24).** CASCADE 면 계정 삭제가 `pets` → `purchases` → `reviews` 로
+번져 후기까지 지운다. 탈퇴는 `users.withdrawn_at`, 파기는 익명화 UPDATE 이므로
+계정 행을 지우는 경로 자체를 DB 가 막는다 ([`../docu.md`](../docu.md) §1).
 
 **오래 변하지 않는 속성만 넣는다.** 그때그때 달라지는 상태("요즘 변이 무르다", "이가 안 좋아져서
 습식으로 바꿨다")는 요청 단위 자연어로 받고 프로필에 저장하지 않는다. 프로필에 두면 다음 입력이
@@ -91,7 +94,7 @@
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | `pet_id` | INTEGER | PK | 대리키 |
-| `user_id` | INTEGER | NOT NULL, FK → [`users`](user_schema.md#users) (CASCADE) | 보호자. 1 보호자 : N 반려동물 |
+| `user_id` | INTEGER | NOT NULL, FK → [`users`](user_schema.md#users) (**RESTRICT**) | 보호자. 1 보호자 : N 반려동물 |
 | `animal_category_id` | INTEGER | NOT NULL, FK → [`animal_categories`](common_schema.md#animal_categories) | 축종 |
 | `name` | TEXT | NOT NULL | 이름. LLM 응답에서 이름을 불러주는 데 쓴다 |
 | `gender` | TEXT | CHECK `M`/`F` | 성별 |
@@ -144,7 +147,7 @@ TEXT 였다면 `'대형' > '소형'` 이 사전순 비교가 되어 무의미해
 않는다. 불리언이면 "떠났다"만 남지만 시각이면 **언제** 떠났는지가 남아, 오래된 후기의 가중치를
 조정하거나 "최근 1년 내 활동한 반려동물" 같은 집계를 할 수 있다. 비용은 같다.
 '사망'이 아니라 `inactive` 인 이유는 파양·입양보냄도 포함하기 때문이다.
-[`v_product_safety`](product_schema.md#v_product_safety) 는 `inactive_at IS NULL` 인 개체만 다룬다.
+[`safe_products.py`](../../src/safe_products.py) 는 `inactive_at IS NULL` 인 개체만 다룬다.
 
 **연결 테이블로 참조하는 것** — 한 마리가 여러 개를 가질 수 있어 컬럼으로 담기지 않는다.
 
@@ -230,6 +233,11 @@ UNIQUE 인덱스 두 개가 늘어 지금은 채택하지 않았다.
 |---|---|---|
 | 초코 | 가금류 | ← 고른 것 |
 | 초코 | 닭고기 | ← 펼친 것 |
+
+**시작 날짜를 두지 않는다 (2026-08-25 결정).** 알러지는 **못 먹는 제품을 거르는 데만** 쓴다
+([`safe_products.py`](../../src/safe_products.py)). 배제는 언제나 **현재** 알러지 기준이므로
+"언제부터 있었나"를 물어볼 곳이 없다. 후기 코호트("닭고기 알러지가 있는 보호자 N명의 후기")를
+하기로 하면 그때 `recorded_at TEXT` 한 컬럼을 더한다 — [`../GOAL.md`](../GOAL.md) 는 그 문장을 갖고 있다.
 | 초코 | 오리 | ← 펼친 것 |
 
 카테고리 행이 남아 있어야 나중에 `거위` 가 추가됐을 때 대상을 찾을 수 있다.
@@ -240,7 +248,7 @@ SELECT pet_id, :new_id FROM pet_allergies WHERE allergen_id = :parent_id;
 ```
 
 **제품 배제 필터의 입력이다.** 여기 있는 알러지원은 쿼리에서 예외 없이 배제된다.
-실제 판정은 [`v_product_safety`](product_schema.md#v_product_safety) 가
+실제 판정은 [`safe_products.py`](../../src/safe_products.py) 가
 [`ingredients.allergen_id`](product_schema.md#ingredients) 와 조인해서 내린다 — 문자열 비교가 아니다.
 
 **심각도(`severity`)를 두지 않는다.** 보호자가 알러지를 안다는 것 자체가 이미 겪어봤다는 뜻이므로

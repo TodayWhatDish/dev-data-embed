@@ -66,6 +66,21 @@ INSERT OR IGNORE INTO pet_allergies(pet_id, allergen_id)
 SELECT pet_id, :new_id FROM pet_allergies WHERE allergen_id = :parent_id;
 ```
 
+### 나이
+
+- [ ] **`purchases.age_month_at_purchase` 는 앱이 `petcalc.age_months()` 로 계산해 넣는다.**
+      SQL 로 하면 `julianday` 차이를 30.44 로 나눠야 하는데 근사라 생일 근처에서 틀린다.
+- [ ] **`pets.birth_date` 를 나중에 입력받으면 그 아이의 기존 구매를 백필한다.**
+      안 하면 그 행들은 영영 NULL 이라 나이 기반 집계에서 빠진다.
+
+### 체구
+
+- [ ] **`pets.size` 를 고칠 때 그 이유를 구별해서 처리한다.** DB 는 못 구별한다.
+      - **자랐다** (기본) → `pets.size` 만 UPDATE. 과거 `purchases.size_at_purchase` 는 그대로 둔다
+      - **잘못 봤다가 정정** → 그 아이의 기존 `purchases.size_at_purchase` 도 같이 UPDATE
+      구별이 필요하면 수정 UI 에 버튼이 두 개여야 한다. 하나뿐이면 '자랐다'로 처리한다 —
+      모든 강아지가 자라고 오판은 일부다.
+
 ### 인증
 
 - [ ] **`user_id` 는 검증된 토큰에서만 꺼낸다.** 요청 body·쿼리스트링으로 받지 않는다.
@@ -75,8 +90,15 @@ SELECT pet_id, :new_id FROM pet_allergies WHERE allergen_id = :parent_id;
 ### 개인정보
 
 - [ ] **탈퇴는 `withdrawn_at` 갱신이다. `DELETE` 가 아니다.**
-- [ ] **보관기간 경과분 파기도 `DELETE` 가 아니라 익명화 `UPDATE` 로 한다.** `users` 행을 지우면
-      `ON DELETE CASCADE` 로 `pets` 와 그 아이가 남긴 후기까지 사라진다. 후기는 이 저장소의 핵심 자산이다.
+- [ ] **보관기간 경과분 파기도 `DELETE` 가 아니라 익명화 `UPDATE` 로 한다.**
+      2026-08-24 부터 `pets.user_id` 와 `purchases.pet_id` 가 **RESTRICT** 라 `users`/`pets` 행 삭제를
+      DB 가 거부한다. 실수로 후기 전체를 날리는 경로가 막혔다.
+- [ ] **익명화 대상은 사람으로 되돌아가는 값뿐이다.** `users.email`/`name`/`phone`/`auth_uid`/`region`,
+      그리고 `pets.name`. 품종·체구·체중·알러지는 개인정보가 아니고 세그먼트 추천의 근거다 — 지우지 않는다.
+- [ ] **`reviews.body` 를 따로 본다.** 자유 텍스트라 스키마가 통제하지 못한다.
+      가족관계·지역·연락처가 본문에 그냥 들어온다. 파기 검토가 실제로 필요한 자리는 여기다.
+- [ ] **삭제권(GDPR 17조) 행사는 별개 경로다.** RESTRICT 때문에 `reviews` → `purchases` → `pets` → `users`
+      순서로 직접 지워야 한다. 여러 단계를 밟아야 하는 것이 안전장치다 — 한 줄로 되면 안 되는 작업이다.
 
 ---
 
@@ -108,19 +130,20 @@ SELECT pet_id, :new_id FROM pet_allergies WHERE allergen_id = :parent_id;
 
 ## 3. 스키마 남은 작업
 
-`src/create_schema/` 에 아직 없는 것들. (2026-08-17 기준 15 테이블 + 2 뷰)
+**2026-08-26 기준 18 테이블 + 뷰 0개.** A·B·C블록 완료, D블록 미완.
 
-- [x] `ingredients` / `ingredient_allergens` — 원료 마스터와 알러지원 매핑. 안전 판정의 연결 고리
-- [x] `products` / `product_animal_categories` / `product_ingredients` / `product_nutrition`
-- [x] `feeding_purposes` / `product_feeding_purposes` / `product_categories`
-- [x] `v_product_safety` / `v_safe_products` — 알러지 3분법 판정
-- [ ] **C블록** `purchases`
-- [ ] **C블록** `reviews`
-- [ ] **D블록** `review_embeddings`
-- [ ] 남은 뷰 (`v_pet_context`, `v_review_docs`) — C블록 이후에나 만들 수 있다
-
-C·D블록이 들어갈 자리는 `src/create_schema/` 에 모듈을 하나씩 더 만들고
-`execute_schema.MODULES` 끝에 붙이면 된다 (예: `purchase_schema.py`).
+- [x] A블록 — `users` / `pets` / `breeds` / `pet_breeds` / `pet_allergies` / 코드표
+- [x] B블록 — `products` 외 8테이블, 알러지 판정
+- [x] `safe_products.SAFE_PRODUCTS_SQL` — 알러지 3분법 판정 (2026-08-25 뷰에서 옮김)
+- [x] C블록 — `purchases` / `reviews` (2026-08-25)
+- [x] 구매 시점 스냅샷 — `age_month_at_purchase`(SQL 산술 회피), `size_at_purchase`(복원 불가)
+      `weight_kg`(급여량은 현재 값), `neutered`(추천 입력이 아님)는 안 넣는다.
+- [ ] **`idx_pets_segment`** — `pets(animal_category_id, size)`.
+      세그먼트 조회("나랑 비슷한 애들이 뭘 샀나")의 선두 인덱스다. 실측(펫 10만 × 구매 200만):
+      **97.76ms → 0.31ms.** `purchases` 가 없던 시절 미뤄뒀는데 이제 생겼다.
+- [ ] **D블록** `review_embeddings` — `purchase_id` PK + 벡터 BLOB, `INSERT OR REPLACE`
+- [ ] `v_pet_context` / `v_review_docs` — **뷰로 만들지 재검토.**
+      판정 뷰를 뺀 이유(상관 서브쿼리, 로직 이원화)가 여기도 걸리는지 보고 정한다.
 
 ## 4. 이관 마무리
 
@@ -130,3 +153,8 @@ C·D블록이 들어갈 자리는 `src/create_schema/` 에 모듈을 하나씩 �
 - [ ] `src/make_db/` 제거
 - [x] `README.md` / `CLAUDE.md` 경로 참조 정리 (2026-08-17)
 - [ ] `DESIGN.md` 본문 갱신 — 경로뿐 아니라 내용이 코드와 어긋난다 (`WORK.md` 참조)
+- [ ] CSV 의 `age`(정수) → `birth_date` 역산 규칙 정하기.
+      기준일을 오늘로 잡느냐 `updated_at` 으로 잡느냐에 따라 최대 1년 어긋나고,
+      그렇게 만든 생일은 추정값인데 정확한 값과 구별되지 않는다.
+- [ ] `docu/schema/*.md` 문단 구조 정리 — `purchase_schema.md` 는 컬럼별 `####` 로 나눴다(2026-08-26).
+      나머지 넷은 굵은 문단이 평평하게 이어진다 (`product_schema.md` 47개, `pet_schema.md` 29개).

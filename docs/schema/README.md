@@ -71,14 +71,8 @@
                                         feeding_purposes
 ```
 
-**뷰**
-
-| 뷰 | 걸치는 도메인 | 문서 |
-|---|---|---|
-| `v_product_safety` | 반려동물 × 제품 | [product_schema.md](product_schema.md#v_product_safety) |
-| `v_safe_products` | 반려동물 × 제품 | [product_schema.md](product_schema.md#v_safe_products) |
-
-둘 다 제품 필터링이 목적이라 `product_schema.md` 에 둔다.
+**뷰 없음 (2026-08-25).** 알러지 판정 뷰 2개를 빼고 `src/safe_products.py` 로 옮겼다 —
+뷰의 `EXISTS` 가 상관 서브쿼리라 후보 제품마다 알러지 조인을 다시 돌았다(5.62ms → 2.20ms).
 
 ---
 
@@ -88,10 +82,11 @@
 
 **① 알러지 배제는 SQL 이 한다. LLM 이 아니다.**
 LLM 은 확률적으로 실패하지만 `NOT EXISTS` 는 반드시 배제한다.
-판정 로직이 있는 곳은 `v_product_safety` **한 군데**다.
+판정 로직이 있는 곳은 `src/safe_products.py` 의 `SAFE_PRODUCTS_SQL` **한 군데**다.
 
 **② 모르는 것을 안전으로 처리하지 않는다.**
-데이터가 부실할수록 더 안전해 보이는 실패를 막기 위해, 판정은 `위험`/`판정불가`/`안전` 3분법이다.
+데이터가 부실할수록 더 안전해 보이는 실패를 막기 위해, 판정은 `WARN`/`None`/`Safe` 3분법이다.
+판정 로직은 뷰가 아니라 `src/safe_products.py` 에 있다 (2026-08-25).
 같은 원칙이 `product_animal_categories` 의 0행(= 아무에게도 안 뜸)에도 적용된다.
 
 **③ 사실을 저장하고 상태는 파생시킨다.**

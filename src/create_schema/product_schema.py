@@ -225,3 +225,7 @@ FROM v_product_safety
 WHERE verdict = 'Safe'
 ''',
 ]
+
+# 뷰를 두지 않는다 (2026-08-25). 알러지 판정은 src/safe_products.py 의
+# SAFE_PRODUCTS_SQL 한 곳에 있다. 뷰로 두면 EXISTS 가 상관 서브쿼리가 되어
+# 후보 제품마다 알러지 조인을 다시 돈다 - 실측 해봐야함.
