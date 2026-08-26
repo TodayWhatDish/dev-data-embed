@@ -8,6 +8,8 @@
 후기는 구매에 매달린다(reviews.purchase_id 가 PK 이자 FK). 구매 없이 쓴 후기는 받지 않는다 —
 "실제 후기에서만 근거를 찾는다"가 서비스의 근거이므로 그 전제를 DB 가 지킨다.
 
+알러지 반응 컬럼과 created_at/updated_at 을 왜 안 두는지는 md 에 있다.
+
 설계 규칙 전문은 execute_schema.py, 컬럼 설명은 docu/schema/purchase_schema.md.
 """
 
@@ -16,38 +18,34 @@ TABLES = [
 # purchases — 구매 이력. 컬럼 설명은 docu/schema/purchase_schema.md#purchases
 '''
 CREATE TABLE purchases (
-    purchase_id    INTEGER NOT NULL PRIMARY KEY,
-    pet_id         INTEGER NOT NULL
+    purchase_id           INTEGER NOT NULL PRIMARY KEY,
+    pet_id                INTEGER NOT NULL
         REFERENCES pets(pet_id)         ON DELETE RESTRICT,
-    product_id     INTEGER NOT NULL
+    product_id            INTEGER NOT NULL
         REFERENCES products(product_id) ON DELETE RESTRICT,
-    purchased_at   TEXT    NOT NULL CHECK (datetime(purchased_at) IS NOT NULL),
-    quantity       INTEGER NOT NULL DEFAULT 1 CHECK (quantity > 0),
-    unit_price_krw INTEGER NOT NULL CHECK (unit_price_krw >= 0),
+    quantity              INTEGER NOT NULL DEFAULT 1 CHECK (quantity > 0),
 
-    -- 구매 시점의 아이 상태 스냅샷. pets 를 조인하면 '지금'의 값이 나와서
-    -- 3년 전 후기가 지금 프로필로 해석된다 - 강아지가 크면 소형견 시절 후기가
-    -- 대형견 후기로 둔갑한다. 사실은 변하고 이력은 안 변하므로 여기 박아둔다.
-    -- 앱이 INSERT 때 채운다. pets.weight_kg / birth_date 가 NULL 일 수 있어 NULL 허용.
-    weight_kg_at_purchase  REAL    CHECK (weight_kg_at_purchase > 0),
-    age_month_at_purchase  INTEGER CHECK (age_month_at_purchase >= 0),
+    -- 구매 시점의 값들. pets/products 를 조인하면 '지금' 값이 나온다. 근거는 md.
+    unit_price_krw        INTEGER NOT NULL CHECK (unit_price_krw >= 0),      -- 그때 개당 가격
+    age_month_at_purchase INTEGER CHECK (age_month_at_purchase >= 0),        -- 그때 나이. petcalc.age_months()
+    size_at_purchase      INTEGER CHECK (size_at_purchase BETWEEN 1 AND 5),  -- 그때 체구. 정정 시 백필
 
-    created_at     TEXT    NOT NULL DEFAULT (datetime('now'))
+    purchased_at          TEXT    NOT NULL CHECK (datetime(purchased_at) IS NOT NULL)
 ) STRICT
 ''',
+
+# purchases 에 created_at / updated_at 은 없다 - UPDATE 가 없어 purchased_at 과 같은 값이 된다.
 
 # reviews — 후기. 구매 1건당 최대 1건. 컬럼 설명은 docu/schema/purchase_schema.md#reviews
 '''
 CREATE TABLE reviews (
-    purchase_id      INTEGER NOT NULL PRIMARY KEY
+    purchase_id INTEGER NOT NULL PRIMARY KEY
         REFERENCES purchases(purchase_id) ON DELETE CASCADE,
-    rating           INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
-    body             TEXT    NOT NULL CHECK (length(trim(body)) > 0),
-    allergy_reaction INTEGER CHECK (allergy_reaction IN (0, 1)),
-    is_holdout       INTEGER NOT NULL DEFAULT 0 CHECK (is_holdout IN (0, 1)),
-    reviewed_at      TEXT    NOT NULL CHECK (datetime(reviewed_at) IS NOT NULL),
-    created_at       TEXT    NOT NULL DEFAULT (datetime('now')),
-    updated_at       TEXT    NOT NULL DEFAULT (datetime('now'))
+    rating      INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    body        TEXT    NOT NULL CHECK (length(trim(body)) > 0),
+
+    is_holdout  INTEGER NOT NULL DEFAULT 0 CHECK (is_holdout IN (0, 1)),  -- 1 = 평가셋. 임베딩 제외
+    reviewed_at TEXT    NOT NULL CHECK (datetime(reviewed_at) IS NOT NULL)
 ) STRICT
 ''',
 

@@ -9,6 +9,7 @@ DDL 은 도메인별 모듈에 있고, 이 파일은 그것을 **모아서 순�
     user_schema.py     users
     pet_schema.py      breeds, pets, pet_breeds, pet_allergies
     product_schema.py  제품 8테이블 + 뷰 2개
+    purchase_schema.py purchases, reviews
 
 모듈 계약 — 각 모듈은 아래 이름을 **있는 것만** 모듈 수준 리스트로 노출한다.
 없으면 빈 리스트로 친다.
@@ -23,7 +24,8 @@ DROP 목록은 모듈이 갖지 않는다 — 이유는 drop_all() 주석 참고
 
 MODULES 의 순서가 곧 생성 순서다. 의존이 있는 쪽이 뒤에 온다:
     common (의존 없음) -> user (의존 없음) -> pet (common, user) -> product (common, pet)
-product 가 맨 뒤인 이유는 뷰(v_product_safety)가 pets/pet_allergies 까지 읽기 때문이다.
+    -> purchase (pet, product)
+purchase 가 맨 뒤인 이유는 pets 와 products 를 둘 다 참조하기 때문이다.
 테이블의 FK 는 참조 대상이 아직 없어도 CREATE 가 되지만, 뷰는 안 된다.
 순서가 틀어지면 check_fk_targets() 가 잡는다.
 
@@ -79,8 +81,8 @@ product 가 맨 뒤인 이유는 뷰(v_product_safety)가 pets/pet_allergies 까
   5) 금액은 INTEGER(원 단위). REAL 은 반올림 오차가 생긴다.
 
   6) 불리언은 INTEGER + CHECK IN (0,1). SQLite 에 BOOL 이 없다.
-     현재 대상: pets.neutered, products.ingredients_verified, products.is_active.
-     (reviews.is_holdout 은 C블록 이관 후)
+     현재 대상: pets.neutered, products.ingredients_verified, products.is_active,
+     reviews.is_holdout. reviews.allergy_reaction 은 NULL 을 더 허용한다(= 후기에 언급 없음).
 
   7) STRICT 테이블 — 손실 없이 변환되지 않는 값은 INSERT 가 거부된다. 끄지 않는다.
      "타입이 다르면 거부"가 아니다. INTEGER 컬럼 기준으로 실측하면:
@@ -112,11 +114,12 @@ import common_schema
 import user_schema
 import pet_schema
 import product_schema
+import purchase_schema
 
 DB_PATH = 'user.db'
 
 # 순서가 곧 생성 순서다. 의존이 있는 쪽이 뒤.
-MODULES = (common_schema, user_schema, pet_schema, product_schema)
+MODULES = (common_schema, user_schema, pet_schema, product_schema, purchase_schema)
 
 # 모듈에서 걷어오는 이름. 실행 순서이기도 하다 —
 # 테이블이 다 생긴 뒤에 인덱스, 그 다음 뷰, 시드는 맨 마지막(FK 검증을 켜고 넣는다).

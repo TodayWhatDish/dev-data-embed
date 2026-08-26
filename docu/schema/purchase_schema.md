@@ -24,12 +24,11 @@
 | `purchase_id` | INTEGER | PK | 대리키 |
 | `pet_id` | INTEGER | NOT NULL, FK → [`pets`](pet_schema.md#pets), ON DELETE **RESTRICT** | **누구를 위해 샀는지** |
 | `product_id` | INTEGER | NOT NULL, FK → [`products`](product_schema.md#products), ON DELETE RESTRICT | 산 제품 |
-| `purchased_at` | TEXT | NOT NULL, ISO-8601 | 구매 시각 |
 | `quantity` | INTEGER | NOT NULL, DEFAULT 1, > 0 | 수량 |
 | `unit_price_krw` | INTEGER | NOT NULL, >= 0 | **구매 시점의** 개당 가격(원) |
-| `weight_kg_at_purchase` | REAL | > 0, **NULL 허용** | **구매 시점의** 체중. NULL = 그때 미입력 |
 | `age_month_at_purchase` | INTEGER | >= 0, **NULL 허용** | **구매 시점의** 개월 나이. NULL = `birth_date` 미입력 |
-| `created_at` | TEXT | NOT NULL, DEFAULT now | 행 생성 시각 |
+| `size_at_purchase` | INTEGER | `1~5`, **NULL 허용** | **구매 시점의** 체구. NULL = 그때 미입력 |
+| `purchased_at` | TEXT | NOT NULL, ISO-8601 | 구매 시각 |
 
 **인덱스**
 
@@ -40,21 +39,67 @@
 
 ### 설계 노트
 
-**`user_id` 를 두지 않는다.** 보호자는 `pets.user_id` 를 조인하면 나온다. 구매 행에 다시 적으면
-아이를 다른 계정으로 옮길 때 두 곳을 맞춰야 하고, 빠뜨리면 조용히 어긋난다.
-"보호자가 아이를 지정하지 않고 구매"는 이 서비스에 없다 — 추천 단위가 개체이기 때문이다.
+#### `unit_price_krw` — 그때 가격을 적는다
 
-**`unit_price_krw` 를 저장한다. `products.price_krw` 를 조인하지 않는다.**
-`products.price_krw` 는 **현재가**라서 시간이 지나면 변한다. 조인해서 쓰면 작년 구매의 총액이
-오늘 가격으로 바뀐다. 규칙 3(사실을 저장하고 상태는 파생)의 반대 방향처럼 보이지만 같은 원칙이다 —
-**그때 얼마였는지는 사실이지 파생값이 아니다.**
+`products.price_krw` 는 **현재가**라 시간이 지나면 변한다. 조인해서 쓰면 작년 구매의 총액이
+오늘 가격으로 바뀐다. **그때 얼마였는지는 사실이지 파생값이 아니다.**
 
-**총액 컬럼을 두지 않는다.** `quantity * unit_price_krw` 로 나온다. 저장하면 둘을 고칠 때마다
-같이 고쳐야 하는 세 번째 값이 생긴다.
+#### `age_month_at_purchase` — 앱이 계산해서 넣는다
 
-**재구매 여부를 컬럼으로 두지 않는다.** 같은 `(pet_id, product_id)` 구매가 2건 이상이면 재구매다.
+SQL 로 내려면 `julianday` 차이를 `30.44`(평균 일수)로 나눠야 하는데 근사라
+**생일 근처에서 틀린다** — 2023-03-15 생 아이의 만 4년 나이가 47개월로 나온다.
+[`petcalc.age_months()`](../../src/petcalc.py) 가 달력으로 센다.
+
+조회할 때마다 계산하지 않는다. 저장해두면 행마다 시점이 다른 집계에서도 SQL 은 컬럼을 읽기만 한다.
+
+```python
+from petcalc import age_months          # 애완동물 나이 계산
+con.execute("INSERT INTO purchases(..., age_month_at_purchase) VALUES (..., ?)",
+            (..., age_months(pet_birth_date, purchased_at)))
+```
+
+필터는 여전히 SQL 이 한다 — 계산만 앱으로 온 것이다:
+`WHERE ?1 BETWEEN pr.target_age_min_month AND pr.target_age_max_month`
+
+**대가**: `birth_date` 를 나중에 입력받으면 이미 쌓인 행이 NULL 로 남는다.
+**`pets.birth_date` 를 UPDATE 할 때 같은 트랜잭션에서 그 아이의 기존 구매를 백필해야 한다.**
+
+#### `size_at_purchase` — `pets.size` 와 둘 다 있다
+
+`unit_price_krw` 와 같은 구조다. 다른 질문에 답한다.
+
+| | 답하는 질문 | 쓰임 |
+|---|---|---|
+| `size_at_purchase` | 그때 어땠나 | 후기 해석, 세그먼트 집계 |
+| [`pets.size`](pet_schema.md#pets) | 지금 어떤가 | 추천 필터 (`target_size_min`/`max`) |
+
+**나이와 다르다.** 나이는 `birth_date` 로 다시 계산되지만 `pets.size` 는 UPDATE 로 덮어써져
+**원본이 사라진다.** 여기 없으면 복원할 방법이 없다.
+
+기본 가정은 "자랐다"라서 과거 행은 그대로 둔다. 초보 견주가 잘못 본 값을 고친 **정정**이면
+소급돼야 하므로 앱이 과거 행도 같이 고친다 ([`../docu.md`](../docu.md) §1). DB 는 둘을 구별 못 한다.
+
+#### 삭제는 위아래 모두 RESTRICT
+
+구매 이력이 있으면 제품도 반려동물도 지울 수 없다.
+단종은 `products.is_active = 0`, 반려동물은 `pets.inactive_at` 이다.
+
+`pet_id` 는 원래 CASCADE 였다. 그러면 계정 파기 한 줄이
+`users` → `pets` → `purchases` → `reviews` 4단을 타고 **후기까지 지운다.**
+`reviews.purchase_id` 만 CASCADE 로 남겼다 — 구매 오등록을 정정하면 그 후기는 근거를 잃는다.
+
+#### 두지 않는 컬럼
+
+| | 왜 | 대신 |
+|---|---|---|
+| `user_id` | **애완동물** 정보로 추천하는 시스템이다. 아이를 다른 계정으로 옮길 때 두 곳을 맞춰야 한다 | `pets.user_id` 조인 |
+| 총액 | 고칠 값이 하나 더 생긴다 | `quantity * unit_price_krw` |
+| 재구매 플래그 | 두 번째 구매 때 첫 행을 UPDATE 해야 하고, 한 건이 사라지면 플래그가 남는다 | 아래 쿼리 |
+| `created_at` / `updated_at` | append-only 라 `purchased_at` 과 같은 값이 된다. 둘이 나란히 있으면 **적재 순서**로 정렬하는 사고가 난다 | `purchased_at` |
+| 환불 | 결제자가 아니라 추천자라 환불 이벤트가 들어올 경로가 없다 | 다루게 되면 `refunded_at TEXT` (플래그 아님, 규칙 3) |
 
 ```sql
+-- 재구매: 같은 (pet_id, product_id) 가 2건 이상
 SELECT product_id, count(*) AS times
   FROM purchases
  WHERE pet_id = ?1
@@ -62,39 +107,8 @@ SELECT product_id, count(*) AS times
 HAVING count(*) > 1
 ```
 
-플래그로 두면 두 번째 구매를 넣을 때 첫 번째 행을 UPDATE 해야 하고, 환불로 한 건이 사라지면
-플래그가 남는다. `idx_purchases_pet` 이 이 집계를 그대로 커버한다.
-
-**체중·나이 스냅샷을 저장한다. `pets` 를 조인하지 않는다 (2026-08-24).**
-바로 위 `unit_price_krw` 와 **같은 원칙이다** — 그때 몇 kg 이었는지는 사실이지 파생값이 아니다.
-`pets.weight_kg` / `birth_date` 를 조인해서 쓰면 **지금**의 값이 나오고, 강아지는 자란다.
-3년 전 소형견 시절에 쓴 후기가 오늘 대형견 후기로 해석되어 세그먼트 추천이 조용히 틀려진다.
-
-나이를 `age_month` 로 박는 것은 [`pets.birth_date`](pet_schema.md#pets) 에서 파생하라는
-규칙 3의 예외처럼 보이지만 아니다. 파생의 기준점이 "지금"이 아니라 "구매 시점"인데,
-그 시점은 이 행에만 있다. 계산은 앱이 INSERT 때 한 번 한다:
-
-```sql
-INSERT INTO purchases(..., weight_kg_at_purchase, age_month_at_purchase)
-SELECT ..., p.weight_kg,
-       CAST((julianday(:purchased_at) - julianday(p.birth_date)) / 30.44 AS INTEGER)
-  FROM pets p WHERE p.pet_id = :pet_id
-```
-
-`size` 는 안 넣는다. `weight_kg` 에서 나오고, 척도가 바뀌면 다시 계산할 수 있어야 한다.
-체구 구간은 앱의 판단이지 사실이 아니다.
-
-**삭제는 위아래 모두 RESTRICT 다 (2026-08-24).** 구매 이력이 있으면 제품도 반려동물도 지울 수 없다.
-단종은 `products.is_active = 0`, 반려동물은 `pets.inactive_at` 으로 비활성 처리한다.
-
-`pet_id` 는 원래 CASCADE 였다. 그러면 계정 파기 한 줄이
-`users` → `pets` → `purchases` → `reviews` 4단을 타고 **후기까지 지운다.**
-후기는 이 저장소의 핵심 자산이라 그 경로를 DB 가 막는다. 파기는 삭제가 아니라
-익명화 UPDATE 다 ([`../docu.md`](../docu.md) §1).
-
-`reviews.purchase_id` 만 CASCADE 로 남겼다. 구매 오등록을 정정하면 그 후기는 근거를 잃으므로
-같이 사라지는 게 맞다. 구매 자체가 RESTRICT 로 보호되니 이 경로가 열리는 건
-운영자가 의도적으로 구매 행을 지울 때뿐이다.
+`idx_purchases_pet` 이 이 집계를 그대로 커버한다.
+`refunded_at` 을 넣게 되면 **모든 집계에 `AND refunded_at IS NULL` 이 붙어야 한다.**
 
 ---
 
@@ -107,36 +121,40 @@ SELECT ..., p.weight_kg,
 | `purchase_id` | INTEGER | **PK**, FK → [`purchases`](#purchases), ON DELETE CASCADE | 어느 구매에 대한 후기인지 |
 | `rating` | INTEGER | NOT NULL, 1~5 | 별점 |
 | `body` | TEXT | NOT NULL, 공백만은 거부 | 후기 본문. **임베딩 대상** |
-| `allergy_reaction` | INTEGER | 0/1, **NULL 허용** | 알러지 반응 여부. NULL = 후기에 언급 없음 |
 | `is_holdout` | INTEGER | NOT NULL, DEFAULT 0, 0/1 | 1 = 추천 정확도 평가용으로 떼어둔 행. **임베딩 색인에서 제외** |
 | `reviewed_at` | TEXT | NOT NULL, ISO-8601 | 작성 시각 |
-| `created_at` / `updated_at` | TEXT | NOT NULL, DEFAULT now | 행 생성/수정 시각 |
-
-**인덱스 없음.** 후기 조회는 항상 제품이나 반려동물에서 출발해 `purchases` 를 거치므로
-`idx_purchases_product` / `idx_purchases_pet` 이 이미 진입점을 덮는다. `is_holdout` 단독 인덱스는
-값이 두 가지뿐이라 옵티마이저가 어차피 안 탄다.
 
 ### 설계 노트
 
-**`review_id` 를 따로 두지 않고 `purchase_id` 를 PK 로 쓴다.** 구매 1건에 후기 1건이므로
-별도 번호는 아무도 참조하지 않는다. PK 로 잡아두면 **"같은 구매에 후기 두 번"이 그냥 막힌다** —
-번호를 PK 로 두면 이걸 막는 UNIQUE 인덱스를 따로 챙겨야 하고, 빠뜨리면 중복이 조용히 들어간다.
-`product_nutrition` 이 `product_id` 를 PK 로 쓰는 것과 같은 패턴이다.
+#### `purchase_id` 를 PK 로 쓴다 (`review_id` 대리키 없음)
 
-**구매 없는 후기는 받지 않는다.** FK 가 이걸 강제한다. "지어내지 않고 실제 후기에서 찾아온다"가
-서비스의 근거인데, 구매와 끊어진 후기를 허용하면 그 문장이 성립하지 않는다.
-체험단·미구매 후기를 받게 되면 이 PK 를 `review_id` 대리키로 바꾸고 `purchase_id` 를 NULL 허용
-FK 로 내려야 한다 — **초안 단계에서 되돌리기 가장 쉬운 결정이므로 지금은 좁게 잡는다.**
+구매 1건에 후기 1건이라 별도 번호는 아무도 참조하지 않는다. PK 로 잡으면
+**"같은 구매에 후기 두 번"이 그냥 막힌다** — 대리키를 두면 UNIQUE 인덱스를 따로 챙겨야 하고,
+빠뜨리면 중복이 조용히 들어간다. `product_nutrition` 이 `product_id` 를 PK 로 쓰는 것과 같다.
 
-**`allergy_reaction` 만 NULL 을 허용한다.** 0(반응 없었음)과 NULL(후기에 언급 없음)은 다르다.
-둘을 0 으로 뭉개면 "언급이 없다"가 "괜찮았다"로 읽히고, 이건 도메인 규칙 2
-(모르는 것을 안전으로 처리하지 않는다)를 정면으로 어긴다.
-다만 **이 값은 추천의 하드 필터가 아니다.** 알러지 배제는 `v_product_safety` 한 군데서만 한다 —
-후기의 자기 보고를 배제 근거로 쓰면 판정 로직이 두 군데가 된다. 여기 값은 근거 문장을 고를 때
-쓰는 신호이지 필터가 아니다.
+**구매 없는 후기는 받지 않는다.** "지어내지 않고 실제 후기에서 찾아온다"가 서비스의 근거라
+FK 가 그 전제를 강제한다. 체험단·미구매 후기를 받게 되면 PK 를 대리키로 바꾸고
+`purchase_id` 를 NULL 허용 FK 로 내린다 — 초안 단계에서 되돌리기 가장 쉬운 결정이라 좁게 잡는다.
 
-**`is_holdout` 은 후기에 붙지 구매에 붙지 않는다.** 떼어놓는 대상이 "평가용 정답 텍스트"이기
-때문이다. 구매 이력 자체는 프로필 문맥으로 계속 쓴다.
+#### `is_holdout` — 구매가 아니라 후기에 붙는다
+
+떼어놓는 대상이 "평가용 정답 텍스트"이기 때문이다. 구매 이력 자체는 프로필 문맥으로 계속 쓴다.
+
+#### 두지 않는 컬럼
+
+| | 왜 | 대신 |
+|---|---|---|
+| `allergy_reaction` | **층이 틀렸다.** "먹고 반응이 났다"는 결국 이 아이에게 알러지가 있다는 사실이라 [`pet_allergies`](pet_schema.md#pet_allergies) 자리다. 거기 들어가야 [`safe_products.py`](../../src/safe_products.py) 가 다음부터 **배제**한다 — 후기에 0/1 로 적으면 기록만 남고 아무도 보호받지 못한다. 원료가 여럿이면 원인 지목도 못 한다 | `body` 에서 읽는다. [`../GOAL.md`](../GOAL.md) 가 "리뷰 텍스트 속에서 알레르기 반응을 읽어내어"를 D블록 임베딩의 일로 정해뒀다 |
+| `created_at` / `updated_at` | 수정·삭제 기능이 없어 `rating`/`body` 가 불변이다. `created_at` 은 `reviewed_at` 과 같은 값이 된다. 유일한 UPDATE 인 `is_holdout` 은 운영 작업이라 시각을 읽을 사람이 없다 | `reviewed_at` |
+
+**NULL 허용 컬럼이 없다.** 다섯 컬럼 전부 NOT NULL — 후기가 있다는 것 자체가
+"보호자가 별점과 본문을 남겼다"는 뜻이라 빠질 값이 없다.
+
+#### 인덱스 없음
+
+후기 조회는 항상 제품이나 반려동물에서 출발해 `purchases` 를 거치므로
+`idx_purchases_product` / `idx_purchases_pet` 이 이미 진입점을 덮는다.
+`is_holdout` 단독 인덱스는 값이 두 가지뿐이라 옵티마이저가 어차피 안 탄다.
 
 ### 남은 것
 
