@@ -1,0 +1,37 @@
+breed_id,animal_category_id,name_ko,name_eng
+1,1,말티즈,Maltese
+2,1,포메라니안,Pomeranian
+3,1,비숑프리제,Bichon Frise
+4,1,푸들,Poodle
+5,1,시츄,Shih Tzu
+6,1,치와와,Chihuahua
+7,1,웰시코기,Welsh Corgi
+8,1,시바견,Shiba Inu
+9,1,진돗개,Korean Jindo
+10,1,비글,Beagle
+11,1,코카스파니엘,Cocker Spaniel
+12,1,골든리트리버,Golden Retriever
+13,1,래브라도리트리버,Labrador Retriever
+14,1,보더콜리,Border Collie
+15,1,요크셔테리어,Yorkshire Terrier
+16,1,닥스훈트,Dachshund
+17,1,미니어처슈나우저,Miniature Schnauzer
+18,1,프렌치불독,French Bulldog
+19,1,시베리안허스키,Siberian Husky
+20,1,저먼셰퍼드,German Shepherd
+21,1,사모예드,Samoyed
+22,1,삽살개,
+23,1,풍산개,
+24,2,코리안숏헤어,Korean Shorthair
+25,2,러시안블루,Russian Blue
+26,2,페르시안,Persian
+27,2,샴,Siamese
+28,2,스코티시폴드,Scottish Fold
+29,2,브리티시숏헤어,British Shorthair
+30,2,먼치킨,Munchkin
+31,2,노르웨이숲,Norwegian Forest Cat
+32,2,벵갈,Bengal
+33,2,아메리칸숏헤어,American Shorthair
+34,2,터키시앙고라,Turkish Angora
+35,2,랙돌,Ragdoll
+36,2,아비시니안,Abyssinian
