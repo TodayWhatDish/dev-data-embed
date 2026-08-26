@@ -6,8 +6,19 @@
 
 
 ## [실행 순서]
-0. Python : Select Interpriter 설정.
-1. Task : Task Run에서 의존성 설치 (설정된 인터프리터에 설치됨.)
+### 1. DB 로드
+> python -m pipeline.load_db
+
+### 2. 청킹 (리뷰 → 문장 조립 → 토큰 한도 내 조각)
+> python -m pipeline.chunk
+
+### 3. 임베딩 (조각 → 벡터 저장)
+> python -m pipeline.embed_reviews
+
+### 4. 검색 테스트
+> python -m app.query "소형견 다이어트 사료 추천해줘"
+
+
 # TODO
 
 스키마(`schema/`)에는 담기지 않지만 지켜야 하는 것들. **DB 가 강제하지 못하므로 앱·운영이 책임진다.**

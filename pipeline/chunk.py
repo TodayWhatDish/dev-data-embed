@@ -48,18 +48,14 @@ def main():
 
     # (purchase_id, 문서) 쌍으로 넘긴다. 한 리뷰가 조각 여러 개로 쪼개져도
     # 그 조각이 원래 어느 리뷰에서 나왔는지 따라붙어야 하기 때문이다.
-    docs = [(row["purchase_id"], embedding.build_doc(row)) for row in rows]
+    docs = [(row["purchase_id"], embedding.build_review_doc(row)) for row in rows]
     chunks = chunking.split_reviews(docs)
     storage.save_chunks(con, chunks)
 
     # 자른 결과가 멀쩡한지는 눈으로 봐야 안다. 토큰 분포를 요약해 남긴다.
     tokens = [chunk["n_tokens"] for chunk in chunks]
-    print(
-        f"\n리뷰 {len(rows)}건 -> 조각 {len(chunks)}개 (쪼개지며 늘어난 조각 {len(chunks) - len(rows)}개)"
-    )
-    print(
-        f"토큰 평균 {statistics.mean(tokens):.1f} / 중앙값 {statistics.median(tokens):.0f} / 최대 {max(tokens)}"
-    )
+    print(f"\n리뷰 {len(rows)}건 -> 조각 {len(chunks)}개 (쪼개지며 늘어난 조각 {len(chunks) - len(rows)}개)")
+    print(f"토큰 평균 {statistics.mean(tokens):.1f} / 중앙값 {statistics.median(tokens):.0f} / 최대 {max(tokens)}")
 
     # CHUNK_SIZE 안으로 잘랐으니 여기 걸리면 안 된다. 걸린다면 자르기가 제 몫을 못 한 것이고,
     # 그대로 두면 임베딩 때 뒤가 조용히 잘려나간다.
@@ -69,7 +65,7 @@ def main():
             f"주의: 모델 한도({EMBED_MAX_TOKENS} 토큰)를 넘는 조각 {over}개 - 뒤가 잘려 누락된다"
         )
 
-    print("벡터는 여기서 만들지 않는다. 이어서 build_index.py 를 실행하세요.")
+    print("벡터는 여기서 만들지 않는다. 이어서 embed_reviews.py 를 실행하세요.")
     con.close()
 
 
