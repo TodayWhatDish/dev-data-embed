@@ -1,15 +1,16 @@
-# LastUpdated : 2026-08-25
+# LastUpdated : 2026-08-26
 
 # review_vectors 에 저장된 벡터로 유사 리뷰를 찾는 검색 모듈
 #
-# 색인(build_index.py)과 파일을 나눈 이유는 두 작업의 수명이 다르기 때문이다.
+# 색인(embed_reviews.py)과 파일을 나눈 이유는 두 작업의 수명이 다르기 때문이다.
 # 색인은 데이터가 바뀔 때만 한 번 돌리면 되고(1400여 건 인코딩에 십수 초),
 # 검색은 그 결과를 읽기만 한다. 한 파일에 두면 검색만 확인하고 싶을 때도
 # 임베딩을 통째로 다시 만들게 된다.
+
 import json
 import sqlite3
-from sentence_transformers import SentenceTransformer
 import numpy as np
+from sentence_transformers import SentenceTransformer
 from app.core.embedder import get_embeddings
 from app.core.config import EMBED_MODEL
 from app.core.db import source_fingerprint
@@ -47,10 +48,10 @@ def build_where(profile):
 
 
 def check_freshness(con):
-    """review_vectors 가 지금 DB 상태와 맞는지 확인하고, 어긋난 점을 문장으로 돌려준다.
+    """chunk_vector 가 지금 DB 상태와 맞는지 확인하고, 어긋난 점을 문장으로 돌려준다.
 
     load_db.py 를 다시 돌리면 pet_purchases 가 통째로 새로 만들어지는데,
-    이때 build_index.py 를 잊으면 review_vectors 만 옛 데이터를 가리킨 채 남는다.
+    이때 embed_reviews.py 를 잊으면 chunk_vector 만 옛 데이터를 가리킨 채 남는다.
     조인은 purchase_id 로 조용히 성립하므로 에러 없이 엉뚱한 리뷰가 검색된다.
     막을 방법이 없으니 최소한 눈에 띄게 알린다.
 
@@ -103,12 +104,12 @@ class VectorStore:
 
         rows = con.execute("""
             SELECT purchase_id, doc, vector
-            FROM review_vectors
+            FROM chunk_vectors
             ORDER BY purchase_id
         """).fetchall()
         if not rows:
             raise SystemExit(
-                "review_vectors 가 비어 있습니다. 먼저 build_index.py 를 실행하세요."
+                "chunk_vectors 가 비어 있습니다. 먼저 build_index.py 를 실행하세요."
             )
 
         self.ids = [r[0] for r in rows]
