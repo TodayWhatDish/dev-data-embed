@@ -23,7 +23,7 @@ from app.core.db import source_fingerprint
 from pipeline.prep import storage
 
 
-def build_doc(row):
+def build_doc(row:sqlite3.Row):
     """리뷰 한 건을 임베딩용 문장으로 조립한다."""
     # 알레르기/건강 이상이 없는 경우 CSV가 빈 값이라 NULL로 들어온다 -> 명시적인 한국어로 바꿔준다
     allergy = row["allergy"] or "알레르기 없음"
@@ -66,7 +66,7 @@ def fetch_chunks(cur: sqlite3.Cursor) -> list[sqlite3.Row]:
         SELECT purchase_id, chunk_index, body, n_tokens
         FROM chunks
         ORDER BY purchase_id, chunk_index
-                       """).fetchall()
+    """).fetchall()
 
 
 def main():
