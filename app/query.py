@@ -1,4 +1,4 @@
-# Last updated: 2026-08-17
+# Last updated: 2026-08-27
 # 프로필 + 질문을 받아 유사 리뷰를 찾아주는 대화형 확인용 CLI
 #
 # 검색 로직 자체는 search.py 에 있다. 여기서는 입력을 받고 결과를 찍고 로그를 남기는 일만 한다.
@@ -37,10 +37,13 @@ def main():
         query = input('\n질문: ').strip()
         if not query:
             break
+        species = input('  종(개/고양이, 생략 가능): ').strip()
         size = input('  체급(소형/중형/대형, 생략 가능): ').strip()
         allergy = input('  알레르기(예: 닭고기 알레르기, 생략 가능): ').strip()
 
         profile = {}
+        if species:
+            profile['animal_category'] = species
         if size:
             profile['size_category'] = size
         if allergy:
