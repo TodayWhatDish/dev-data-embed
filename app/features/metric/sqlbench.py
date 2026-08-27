@@ -38,6 +38,10 @@ class elapsed_time:
             print(f'{self.label:26} {self.ms:8.2f} ms')
         return False
 
+"""
+compare 함수는 같은 결과 db 쿼리에 대해서 성능을 비교하는 함수
+ - 이 위치가 아니라서, 삭제 또는 위치 변경 필요
+"""
 
 def compare(con, variants, params=(), n=50, plan=True):
     """variants: {이름: SQL}. 첫 번째를 기준으로 나머지 결과가 같은지 확인한 뒤 시간을 잰다.

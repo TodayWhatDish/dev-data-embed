@@ -5,15 +5,15 @@
 
 | 테이블 | 반려동물 쪽 | 제품 쪽 |
 |---|---|---|
-| [`animal_categories`](#animal_categories) | `breeds`, `pets` | `product_animal_categories` |
-| [`allergens`](#allergens) | `pet_allergies` | `ingredients` |
+| [`animal_category`](#animal_category) | `breed`, `pet` | `product_animal_category` |
+| [`allergen`](#allergen) | `pet_allergy` | `ingredient` |
 
 > 전체 색인은 [README.md](README.md).
 > 이 문서와 `src/create_schema/` 가 어긋나면 **코드가 맞다.**
 
 ---
 
-## animal_categories
+## animal_category
 
 축종 코드표. 개/고양이를 구분하는 값의 정의가 여기 있다. **앱 기준 읽기 전용** — 시드로만 채운다.
 
@@ -28,7 +28,7 @@ SQLite 는 CHECK 를 바꾸려면 테이블을 재생성해야 하지만, 코드
 | `name_eng` | TEXT | NOT NULL, UNIQUE | 표시명(영문) |
 
 **초기 데이터** — `common_schema.py` 의 `SEEDS` 가 넣는다. 이 표가 비어 있으면 FK 때문에
-`breeds` 에 아무것도 INSERT 할 수 없으므로, 스키마의 일부로 본다.
+`breed` 에 아무것도 INSERT 할 수 없으므로, 스키마의 일부로 본다.
 
 | `animal_category_id` | `name_ko` | `name_eng` |
 |---|---|---|
@@ -48,27 +48,27 @@ SQLite 는 CHECK 를 바꾸려면 테이블을 재생성해야 하지만, 코드
 
 | 테이블 | 뜻 | 문서 |
 |---|---|---|
-| `breeds` | 이 품종이 어느 축종의 것인가 | [pet_schema.md](pet_schema.md#breeds) |
-| `pets` | 이 아이가 어느 축종인가 | [pet_schema.md](pet_schema.md#pets) |
-| `product_animal_categories` | 이 제품을 어느 축종에게 줄 수 있는가 | [product_schema.md](product_schema.md#product_animal_categories) |
+| `breed` | 이 품종이 어느 축종의 것인가 | [pet_schema.md](pet_schema.md#breed) |
+| `pet` | 이 아이가 어느 축종인가 | [pet_schema.md](pet_schema.md#pet) |
+| `product_animal_category` | 이 제품을 어느 축종에게 줄 수 있는가 | [product_schema.md](product_schema.md#product_animal_category) |
 
 **축종을 늘릴 때 주의** — 제품 쪽은 연결 테이블이라 기존 행의 의미가 바뀌지 않는다.
-NULL 컬럼(`products.animal_category_id NULL = 전 축종 공용`)을 쓰던 시절에는 축종을 하나 늘리면
+NULL 컬럼(`product.animal_category_id NULL = 전 축종 공용`)을 쓰던 시절에는 축종을 하나 늘리면
 기존 `NULL` 행 전부가 "새 축종에게도 준다"로 조용히 의미가 바뀌었다. 그래서 갈아탔다 —
-경위는 [product_animal_categories](product_schema.md#product_animal_categories) 참고.
+경위는 [product_animal_category](product_schema.md#product_animal_category) 참고.
 
 ---
 
-## allergens
+## allergen
 
-알러지원 마스터. 반려동물의 알러지([`pet_allergies`](pet_schema.md#pet_allergies))와
-제품 원료([`ingredients`](product_schema.md#ingredients))를 잇는 **공통 어휘**다.
+알러지원 마스터. 반려동물의 알러지([`pet_allergy`](pet_schema.md#pet_allergy))와
+제품 원료([`ingredient`](product_schema.md#ingredient))를 잇는 **공통 어휘**다.
 **앱 기준 읽기 전용** — 관리자가 채운다.
 
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | `allergen_id` | INTEGER | PK | 대리키 |
-| `parent_id` | INTEGER | FK → `allergens` (RESTRICT) | 상위 분류. NULL = 최상위 |
+| `parent_id` | INTEGER | FK → `allergen` (RESTRICT) | 상위 분류. NULL = 최상위 |
 | `name_ko` | TEXT | NOT NULL, UNIQUE | 표준명 |
 | `name_eng` | TEXT | UNIQUE | 영문명. 없으면 NULL |
 
@@ -76,7 +76,7 @@ NULL 컬럼(`products.animal_category_id NULL = 전 축종 공용`)을 쓰던 �
 
 | 이름 | 컬럼 | 목적 |
 |---|---|---|
-| `idx_allergens_parent` | (`parent_id`) | "이 카테고리에 속한 원료 전부" |
+| `idx_allergen_parent` | (`parent_id`) | "이 카테고리에 속한 원료 전부" |
 
 ```
 단백질
@@ -96,7 +96,7 @@ NULL 컬럼(`products.animal_category_id NULL = 전 축종 공용`)을 쓰던 �
 **계층이 SQL 에서 불편한 이유.** 트리를 SQL 로 순회하려면 재귀 CTE 가 필요하다. 이게 **추천 요청마다
 도는 배제 쿼리**에 들어가면, 알러지 배제 — 틀리면 개가 아픈 경로 — 가 계속 복잡한 쿼리에 의존하게 된다.
 
-**그래서 트리 해석을 앱으로 옮겼다.** `allergens` 는 수백 행짜리 정적 마스터이고, 알러지 선택 UI 를
+**그래서 트리 해석을 앱으로 옮겼다.** `allergen` 는 수백 행짜리 정적 마스터이고, 알러지 선택 UI 를
 그리려면 앱이 어차피 이 트리를 통째로 들고 있어야 한다. 이미 메모리에 있는 트리를 순회하는 것은
 어느 언어로든 몇 줄이다. DB 는 `parent_id` 로 트리를 **저장만** 한다.
 
@@ -109,7 +109,7 @@ NULL 컬럼(`products.animal_category_id NULL = 전 축종 공용`)을 쓰던 �
 | 제품 배제 (매 요청) | 아무도 | **단순 조인** |
 | 백필 (원료 추가 시) | 아무도 — 직속 부모 한 칸만 본다 | `INSERT ... SELECT` |
 
-펼쳐 넣는 구체적인 규칙은 [`pet_allergies`](pet_schema.md#pet_allergies) 를 본다.
+펼쳐 넣는 구체적인 규칙은 [`pet_allergy`](pet_schema.md#pet_allergy) 를 본다.
 
 **운영 시 주의**
 
@@ -132,7 +132,7 @@ NULL 컬럼(`products.animal_category_id NULL = 전 축종 공용`)을 쓰던 �
 
 **① 계층을 안 만들고 평면 목록으로 둔다**
 
-`allergens` 를 부모·자식 없이 나열한다 — `닭고기`, `소고기`, `밀`, `옥수수`, `보리` …
+`allergen` 를 부모·자식 없이 나열한다 — `닭고기`, `소고기`, `밀`, `옥수수`, `보리` …
 
 보호자는 "곡물 알러지"라고 말하는데 목록에 `곡물` 이라는 항목이 없다. 밀·옥수수·보리·귀리를 하나씩
 찾아 고르게 해야 하고, 나중에 마스터에 `수수` 가 추가돼도 그 보호자에게 반영할 방법이 없다.
@@ -141,14 +141,14 @@ NULL 컬럼(`products.animal_category_id NULL = 전 축종 공용`)을 쓰던 �
 
 **② 계층 대신 `allergen_type` 분류 컬럼을 둔다**
 부모 타입을 allergen_type에 저장한다.<br>
-`allergens` 에 컬럼을 하나 추가해서 `닭고기` 의 타입은 `단백질`, `밀` 의 타입은 `곡물` 로 적는다.
+`allergen` 에 컬럼을 하나 추가해서 `닭고기` 의 타입은 `단백질`, `밀` 의 타입은 `곡물` 로 적는다.
 
 - **값이 두 군데 생긴다.** `곡물` 은 분류이면서 그 자체로 보호자가 등록하는 알러지원이다.
   그래서 `name_ko` 에도 `곡물` 행이 있고 `allergen_type` 값에도 `곡물` 이 있는 중복이 된다.
 
 즉, parent_id 컬럼을 두는 것과 유사하다.
 
-**③ `pet_allergies` 에는 고른 것 1행만 넣고, 배제할 때 계층을 편다**
+**③ `pet_allergy` 에는 고른 것 1행만 넣고, 배제할 때 계층을 편다**
 
 `가금류` 를 고르면 그 1행만 저장하고, 제품 배제 쿼리에서 하위를 찾아 내려간다.
 
@@ -158,7 +158,7 @@ NULL 컬럼(`products.animal_category_id NULL = 전 축종 공용`)을 쓰던 �
 **즉, 쿼리로 재귀 탐색한다.** -> 매우 복잡;
 
 ### 최종 결정
-**`pet_allergies테이블`에는 부모~자식까지 행으로 다 넣는다**
+**`pet_allergy` 테이블에는 부모~자식까지 행으로 다 넣는다**
 행에 `가금류`가 있다면 `거위`가 추가 되더라도 
 ```sql
 WHERE allergen_id = '가금류'의 id
@@ -173,7 +173,7 @@ WHERE allergen_id = '가금류'의 id
 
 | 테이블 | 방향 | 문서 |
 |---|---|---|
-| `pet_allergies` | 이 아이가 무엇에 알러지가 있는가 | [pet_schema.md](pet_schema.md#pet_allergies) |
-| `ingredients` | 이 원료가 무슨 알러지원인가 | [product_schema.md](product_schema.md#ingredients) |
+| `pet_allergy` | 이 아이가 무엇에 알러지가 있는가 | [pet_schema.md](pet_schema.md#pet_allergy) |
+| `ingredient` | 이 원료가 무슨 알러지원인가 | [product_schema.md](product_schema.md#ingredient) |
 
 두 테이블이 만나는 지점이 [`safe_products.py`](../../src/safe_products.py) 다.

@@ -40,29 +40,25 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / 'create_schema'))
 
-from execute_schema import create_schema  # noqa: E402
-
-ROOT = Path(__file__).resolve().parent.parent
-DB_PATH = ROOT / 'user.db'
-MASTER_DIR = ROOT / 'data' / 'master'
-SEED_DIR = ROOT / 'data' / 'seed'
+from execute_schema import create_schema
+from app.core.config import DB_PATH,MASTER_DIR,SEED_DIR
 
 # 테이블 -> CSV 경로. **순서를 적지 않는다.**
 # 적재 순서는 resolve_order() 가 FK 관계에서 계산한다. 손으로 적으면 스키마와 어긋날 수 있고,
 # 어긋난 채로도 '운 좋게' 돌다가 테이블이 하나 늘어난 날 터진다.
 SOURCES = {
     # --- 마스터: 사람이 채운다. 재생성하지 않는다 ---
-    'allergens': MASTER_DIR / 'allergens.csv',
-    'breeds': MASTER_DIR / 'breeds.csv',
-    'ingredients': MASTER_DIR / 'ingredients.csv',
-    'ingredient_allergens': MASTER_DIR / 'ingredient_allergens.csv',
+    'allergen': MASTER_DIR / 'allergen.csv',
+    'breed': MASTER_DIR / 'breed.csv',
+    'ingredient': MASTER_DIR / 'ingredient.csv',
+    'ingredient_allergen': MASTER_DIR / 'ingredient_allergen.csv',
     # --- 합성: gen_seed.py 가 시드 고정으로 뽑는다 ---
-    'users': SEED_DIR / 'users.csv',
-    'pets': SEED_DIR / 'pets.csv',
-    'pet_breeds': SEED_DIR / 'pet_breeds.csv',
-    'pet_allergies': SEED_DIR / 'pet_allergies.csv',
-    'products': SEED_DIR / 'products.csv',
-    'product_animal_categories': SEED_DIR / 'product_animal_categories.csv',
+    'user': SEED_DIR / 'user.csv',
+    'pet': SEED_DIR / 'pet.csv',
+    'pet_breed': SEED_DIR / 'pet_breed.csv',
+    'pet_allergy': SEED_DIR / 'pet_allergy.csv',
+    'product': SEED_DIR / 'product.csv',
+    'product_animal_category': SEED_DIR / 'product_animal_category.csv',
     'product_nutrition': SEED_DIR / 'product_nutrition.csv',
     'product_feeding_purposes': SEED_DIR / 'product_feeding_purposes.csv',
     'product_ingredients': SEED_DIR / 'product_ingredients.csv',
@@ -70,7 +66,7 @@ SOURCES = {
     'reviews': SEED_DIR / 'reviews.csv',
 }
 
-# animal_categories / product_categories / feeding_purposes 는 여기에 없다.
+# animal_category / product_category / feeding_purpose 는 여기에 없다.
 # 코드(*_schema.py 의 SEEDS)가 넣는다. CSV 로 또 빼면 같은 값이 두 군데에 앉는다.
 # 이 테이블들을 참조하는 FK 는 이미 채워져 있으므로 순서 계산에서 자동으로 빠진다.
 
@@ -166,8 +162,7 @@ def order_rows_parents_first(rows, pk, fk):
     """자기참조 테이블의 **행**을 부모부터 나오도록 정렬한다.
 
     allergens 는 parent_id 로 자기를 가리키고 FK 검증이 켜져 있으므로, 자식이 먼저
-    INSERT 되면 그 자리에서 터진다. CSV 를 손으로 편집하다가 행 순서가 바뀌는 것은
-    흔한 일이라 파일 순서에 의존하지 않는다.
+    INSERT 실패한다. CSV 를 손으로 편집하다가 행 순서가 바뀌는 것은 상관 없다.
 
     테이블 순서와 같은 문제이므로 같은 topo_sort() 를 쓴다.
     """
@@ -235,11 +230,11 @@ def verify(con):
     # 특정 펫 하나를 걸고 쓰는 것이 이 뷰의 정상 사용법이다(WORK.md 2026-08-24).
     # 필터 없이 돌리면 56초, pet_id 를 걸면 6ms 였다.
     (starved,) = con.execute('''
-        SELECT count(*) FROM pets pt
+        SELECT count(*) FROM pet pt
          WHERE pt.inactive_at IS NULL
            AND NOT EXISTS (SELECT 1 FROM v_safe_products v WHERE v.pet_id = pt.pet_id)
     ''').fetchone()
-    (active,) = con.execute('SELECT count(*) FROM pets WHERE inactive_at IS NULL').fetchone()
+    (active,) = con.execute('SELECT count(*) FROM pet WHERE inactive_at IS NULL').fetchone()
     print(f'활성 펫 {active}마리 중 Safe 후보 0개인 펫 {starved}마리')
     if starved > active * 0.1:
         print('[경고] 후보가 비는 펫이 너무 많다. 알러지를 상위 노드로 너무 자주 고르고 있다.')

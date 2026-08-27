@@ -55,7 +55,7 @@ PATH 의 `python` 이 구버전(3.9 / SQLite 3.35)이면 `malformed database sch
 | 파일 | 내용 |
 |---|---|
 | `execute_schema.py` | **진입점.** 아래 모듈에서 DDL 을 모아 순서대로 실행 + 설계 규칙 전문 |
-| `common_schema.py` | `animal_categories`, `allergens` (두 도메인이 공유하는 코드표) |
-| `user_schema.py` | `users` |
-| `pet_schema.py` | `breeds`, `pets`, `pet_breeds`, `pet_allergies` |
+| `common_schema.py` | `animal_category`, `allergen` (두 도메인이 공유하는 코드표) |
+| `user_schema.py` | `user` |
+| `pet_schema.py` | `breed`, `pet`, `pet_breed`, `pet_allergy` |
 | `product_schema.py` | 제품 8테이블 + 뷰 2개 |

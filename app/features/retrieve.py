@@ -1,19 +1,16 @@
 # LastUpdated : 2026-08-26
 
-# chunk_vectors 에 저장된 조각 벡터로 유사 리뷰를 찾는 검색 모듈
-#
-# 색인(prepare.py -> build_index.py)과 파일을 나눈 이유는 두 작업의 수명이 다르기 때문이다.
-# 색인은 데이터가 바뀔 때만 한 번 돌리면 되고, 검색은 그 결과를 읽기만 한다.
-# 한 파일에 두면 검색만 확인하고 싶을 때도 임베딩을 통째로 다시 만들게 된다.
+"""chunk_vectors를 기반으로 유사리뷰를 찾는 행위를한다. (검색)
+   
+   프로필 키를 기준으로 조각 점수를 반환하며, 사용자 쿼리 호출시 사용된다.
+"""
 import json
 import sqlite3
-from collections import defaultdict
-
 import numpy as np
-from sentence_transformers import SentenceTransformer
 
+from collections import defaultdict
+from sentence_transformers import SentenceTransformer
 from app.core.config import EMBED_MODEL
-from app.core.db import source_fingerprint
 from app.core.embedder import get_embeddings
 
 # 프로필 키 -> SQL 조건절. 값이 들어온 키만 WHERE 에 붙는다.
@@ -23,7 +20,7 @@ FILTERS = {
 }
 
 
-def fmt_purchase_id(pid):
+def fmt_purchase_id(pid: int):
     """정수 purchase_id 를 사람이 읽기 쉬운 원래 표기로 되돌린다. 418 -> 'O00418'
 
     저장은 INTEGER로 하되(조인/인덱스에 유리) 화면에 찍을 때만 접두어를 붙인다.
@@ -47,16 +44,11 @@ def build_where(profile):
     return " AND ".join(clauses) or "1=1", tuple(params)
 
 
-def check_freshness(con):
-    """chunk_vectors 가 지금 DB 상태와 맞는지 확인하고, 어긋난 점을 문장으로 돌려준다.
+def check_freshness(con: sqlite3.Connection):
+    """색인 시점의 모델,데이터 지문을 지금 DB와 비교해 어긋난 점을 문장 목록으로 돌려준다. 맞으면 빈 목록.
 
-    load_db.py 를 다시 돌리면 pet_purchases 가 통째로 새로 만들어지는데,
-    이때 build_index.py 를 잊으면 chunk_vectors 만 옛 데이터를 가리킨 채 남는다.
-    조인은 purchase_id 로 조용히 성립하므로 에러 없이 엉뚱한 리뷰가 검색된다.
-    막을 방법이 없으니 최소한 눈에 띄게 알린다.
-
-    검색을 막지는 않는다. 색인이 조금 낡아도 확인용으로는 여전히 쓸 만하고,
-    여기서 SystemExit 를 내면 데이터를 만지는 중에 아무것도 못 하게 되기 때문이다.
+    load_csv.py 재실행 후 재색인을 잊으면 chunk_vectors 만 옛 데이터를 가리키는데,
+    조인이 purchase_id 로 조용히 성립해 에러 없이 엉뚱한 리뷰가 나온다. 알리기만 하고 막지는 않는다.
     """
     meta = dict(con.execute("SELECT key, value FROM embedding_meta").fetchall())
     problems = []
@@ -66,32 +58,38 @@ def check_freshness(con):
             f"색인은 '{meta.get('model')}' 모델로 만들었는데 지금 설정은 '{EMBED_MODEL}' 입니다. "
             "벡터 공간이 달라 유사도가 의미를 잃습니다."
         )
-
-    # 'source' 키는 이 검사를 넣기 전에 만든 색인에는 없다. 그때는 판단을 보류한다.
-    indexed = meta.get("source")
-    if indexed is not None and indexed != source_fingerprint(con):
-        problems.append(
-            f"색인 이후 pet_purchases 가 바뀌었습니다 (색인 시점 {indexed} -> 현재 {source_fingerprint(con)})."
-        )
-
+   
     if problems:
-        problems.append("build_index.py 를 다시 실행하세요.")
+        problems.append("embed_reviews.py 를 다시 실행하세요.")
     return problems
 
-
 class VectorStore:
+    
     """chunk_vectors 를 chunks 와 조인해 한 번만 읽어 메모리에 들고 있는 검색기.
 
-    SQLite에는 벡터 타입이 없어서 build_index.py 가 JSON 문자열로 저장한다.
-    질의할 때마다 다시 읽으면 4000여 조각 x 384차원의 JSON을 매번 파싱하게 되는데
-    대화형 루프에서는 이 비용이 질문 수만큼 반복된다.
-    그래서 생성 시 전부 올려두고, 이후 질의에서는 WHERE 로 걸러진 purchase_id 만
-    받아 그 리뷰에서 나온 조각 행들을 골라 쓴다.
-
     한 행은 리뷰가 아니라 조각 하나다. 리뷰 하나가 여러 행을 차지한다.
+    이 클래스에서 가장 먼저 알아야 할 사실이고, 아래 자료구조가 전부 여기서 나온다.
 
-    벡터가 통째로 메모리에 올라가므로 색인이 커지면(수십만 건) 이 방식 대신
-    FAISS 같은 벡터 인덱스로 옮겨야 한다.
+    왜 통째로 올리는가 ─
+    SQLite 에는 벡터 타입이 없어서 embed_reviews.py 가 JSON 문자열로 저장한다.
+    질의마다 다시 읽으면 4,172 조각 x 384 차원어치 JSON 을 매번 파싱하게 되는데,
+    대화형 루프에서는 이 비용이 질문 수만큼 반복된다. 생성 시 한 번만 파싱해 두고,
+    이후 질의에서는 WHERE 로 걸러진 purchase_id 만 받아 그 조각 행들을 골라 쓴다.
+
+    들고 있는 것 ─
+        purchase_ids[i]  i 번 행이 어느 리뷰에서 나왔는지
+        docs[i]          i 번 행의 조각 본문 (chunks.body)
+        matrix[i]        i 번 행의 정규화된 벡터. 내적만으로 코사인 유사도가 된다
+        rows_of[pid]     한 리뷰가 차지하는 행 번호 '목록'
+
+    rows_of 가 값 하나가 아니라 목록인 이유가 위의 "한 행 = 조각 하나"다.
+    {pid: i} 로 두면 리뷰마다 마지막 조각만 남고 앞선 조각들이 조용히 사라진다.
+
+    search() 가 돌려주는 top_k 는 조각 k 개가 아니라 리뷰 k 건이다.
+    점수는 조각 단위로 재고, 순위는 리뷰 단위로 매긴다.
+
+    벡터가 통째로 메모리에 올라간다 (현재 4,172 x 384 float32, 약 6 MB).
+    색인이 커지면(수십만 건) 이 방식 대신 FAISS 같은 벡터 인덱스로 옮겨야 한다.
     """
 
     def __init__(
@@ -116,7 +114,7 @@ class VectorStore:
         """).fetchall()
         if not rows:
             raise SystemExit(
-                "chunk_vectors 가 비어 있습니다. prepare.py 와 build_index.py 를 차례로 실행하세요."
+                "chunk_vectors 가 비어 있습니다. embed_review.py 를 실행하세요."
             )
 
         self.purchase_ids = [r[0] for r in rows]

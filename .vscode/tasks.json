@@ -1,7 +1,7 @@
 {
     // 실행 순서가 고정된 파이프라인이라 태스크로 묶어둔다.
-    //   data/*.csv --[load_db]--> pet_reco.db --[prepare]--> chunks --[build_index]--> chunk_vectors --[query]--> 검색
-    // load_db 를 돌리면 pet_purchases 가 새로 만들어지므로 prepare 와 build_index 도 다시 돌려야 한다.
+    //   data/*.csv --[load_db]--> pet_reco.db --[chunk]--> chunks --[embed_reviews]--> chunk_vectors --[query]--> 검색
+    // load_db 를 돌리면 pet_purchases 가 새로 만들어지므로 chunk 와 embed_reviews 도 다시 돌려야 한다.
     // 잊더라도 retrieve.py 의 check_freshness() 가 검색 시작 시 경고한다.
     //
     // 각 스크립트가 app.core 를 import 하므로 파일 경로가 아니라 모듈(-m)로 실행한다.
@@ -9,29 +9,29 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "1. DB 적재 (load_db)",
-            "detail": "data/*.csv 를 pet_reco.db 로 적재한다. 표준 라이브러리만 쓰므로 빠르다.",
+            "label": "1. DB 적재 (load_csv)",
+            "detail": "data/../*.csv 를 pet_reco.db 로 적재한다.",
             "type": "shell",
-            "command": "python",
-            "args": ["-m", "pipeline.load_db"],
+            "command": "${command:python.interpreterPath}",
+            "args": ["-m", "pipeline.load_csv"],
             "problemMatcher": [],
             "presentation": { "clear": true }
         },
         {
-            "label": "2. 조각 만들기 (prepare)",
+            "label": "2. 조각 만들기 (chunk)",
             "detail": "리뷰를 임베딩용 문서로 조립하고 토큰 한도에 맞게 잘라 chunks 에 저장한다. 벡터는 만들지 않아 몇 초면 끝난다.",
             "type": "shell",
-            "command": "python",
-            "args": ["-m", "pipeline.prepare"],
+            "command": "${command:python.interpreterPath}",
+            "args": ["-m", "pipeline.chunk"],
             "problemMatcher": [],
             "presentation": { "clear": true }
         },
         {
-            "label": "3. 색인 생성 (build_index)",
+            "label": "3. 색인 생성 (embed_reviews)",
             "detail": "chunks 의 조각을 벡터로 변환해 chunk_vectors 에 저장한다. 모델 로딩 포함 20초 남짓 걸린다.",
             "type": "shell",
-            "command": "python",
-            "args": ["-m", "pipeline.build_index"],
+            "command": "${command:python.interpreterPath}",
+            "args": ["-m", "pipeline.embed_reviews"],
             "problemMatcher": [],
             "presentation": { "clear": true }
         },
@@ -41,8 +41,8 @@
             "dependsOrder": "sequence",
             "dependsOn": [
                 "1. DB 적재 (load_db)",
-                "2. 조각 만들기 (prepare)",
-                "3. 색인 생성 (build_index)"
+                "2. 조각 만들기 (chunk)",
+                "3. 색인 생성 (embed_reviews)"
             ],
             "problemMatcher": [],
             "group": { "kind": "build", "isDefault": true }
@@ -51,20 +51,25 @@
             "label": "검색 CLI (query)",
             "detail": "질문을 입력받아 유사 리뷰를 찾는다. 입력을 받아야 하므로 전용 터미널에서 연다.",
             "type": "shell",
-            "command": "python",
-            "args": ["-m", "pipeline.query"],
+            "command": "${command:python.interpreterPath}",
+            "args": ["-m", "app.query"],
             "problemMatcher": [],
             "presentation": { "panel": "dedicated", "clear": true }
         },
         {
-            "label": "의존성 설치 (langchain-text-splitters)",
-            "detail": "청킹에 쓰는 langchain-text-splitters 패키지를 pet-reco 환경에 설치한다. 한 번만 실행하면 됨.",
+            "label": "의존성 설치 (requirements)",
+            "detail": "README.md 설치 섹션의 패키지를 pet-reco 환경에 설치한다. 한 번만 실행하면 됨.",
             "type": "shell",
             "command": "${command:python.interpreterPath}",
-            "args": ["-m", "pip", "install", "langchain-text-splitters"],
+            "args": [
+                "-m", "pip", "install",
+                "langchain-text-splitters==1.1.2", "transformers==5.14.1",
+                "langchain-huggingface==1.2.2", "langchain-openai==1.4.3",
+                "fastapi==0.141.1", "uvicorn==0.52.0",
+                "ragas==0.4.3", "langgraph==1.2.11"
+            ],
             "problemMatcher": [],
             "presentation": { "clear": true }
         }
-
     ]
 }
