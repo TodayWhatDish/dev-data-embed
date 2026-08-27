@@ -41,11 +41,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent / 'create_schema'))
 
 from execute_schema import create_schema
-
-ROOT = Path(__file__).resolve().parent.parent
-DB_PATH = ROOT / 'pet_reco.db'
-MASTER_DIR = ROOT / 'data' / 'master'
-SEED_DIR = ROOT / 'data' / 'seed'
+from app.core.config import DB_PATH,MASTER_DIR,SEED_DIR
 
 # 테이블 -> CSV 경로. **순서를 적지 않는다.**
 # 적재 순서는 resolve_order() 가 FK 관계에서 계산한다. 손으로 적으면 스키마와 어긋날 수 있고,

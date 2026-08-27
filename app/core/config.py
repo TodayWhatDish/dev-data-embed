@@ -5,12 +5,15 @@
     경로, 모델 이름, 토큰 한도, 색깅 대상 조건과 같은 '값' 선언.
     표준 라이브러리 및 경로를 정의.
 """
-
+import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = ROOT / 'data'
 DB_PATH = DATA_DIR / 'pet_reco.db'
+MASTER_DIR = DATA_DIR / 'master'
+LOG_PATH = ROOT / 'query_log.jsonl'
+SEED_DIR = DATA_DIR / 'seed'
 LOG_PATH = ROOT / 'query_log.jsonl'
 
 # 다국어 지원 모델(한국어 포함) - 문장을 고정 차원 벡터로 변환
@@ -39,3 +42,35 @@ INDEX_FILTER = """
 
 if not Path(DB_PATH).exists():
     print(f"알림: DB 가 아직 없다 -> {DB_PATH}")
+
+
+# .env 를 환경변수로 올린다.
+def load_env(path=ROOT / ".env"):
+    """.env를 환경변수로 올린다."""
+    if not Path(path).exists():
+        return
+    for line in Path(path).read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k,v = line.split("=", 1)
+        k = k.strip()
+        v = v.strip().strip('"').strip("'")
+        os.environ.setdefault(k,v)
+
+def env(name: str, default: str) -> str:
+    """환경변수를 읽되, 빈 문자열은 기본값으로 친다."""
+    value = os.environ.get(name,"").strip()
+    return default if value == "" else value
+
+USE_API = env("USE_API",0) == "1"
+
+if USE_API:
+    LLM_BASE_URL = ... # OpenAI
+    LLM_API_KEY = ...
+    LLM_MODEL = ...
+else:
+    LLM_BASE_URL = ...
+    LLM_API_KEY = ...
+    LLM_MODEL = ...
+
