@@ -43,7 +43,7 @@ def main():
     con = sqlite3.connect(DB_PATH)
     rows = fetch_rows(con.cursor())
     if not rows:
-        raise SystemExit("자를 리뷰가 없습니다. 먼저 load_db.py 를 실행하세요.")
+        raise SystemExit("자를 리뷰가 없습니다. 먼저 load_csv.py 를 실행하세요.")
 
     # (purchase_id, 문서) 쌍으로 넘긴다. 한 리뷰가 조각 여러 개로 쪼개져도
     # 그 조각이 원래 어느 리뷰에서 나왔는지 따라붙어야 하기 때문이다.

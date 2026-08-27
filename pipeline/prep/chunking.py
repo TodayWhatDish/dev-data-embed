@@ -19,7 +19,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from transformers import AutoTokenizer
 
 from app.core.config import EMBED_TOKENIZER
-from pipeline.prep.options import CHUNK_OVERLAP, CHUNK_SIZE, SEPARATORS
+from pipeline.prep.options import CHUNK_OVERLAP, CHUNK_SIZE, SEPERATORS
 
 _tokenizer = None
 _splitter = None
