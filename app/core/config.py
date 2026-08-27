@@ -1,3 +1,4 @@
+# Last updated: 2026-08-27
 # Last Updated : 2026-08-23
 
 """ 모든 스크립트가 공유하는 설정값과 상수를 모아둔다
@@ -31,12 +32,12 @@ EMBED_DEVICE = "cpu"
 # 코사인 유사도용
 EMBED_NORMALIZE = True
 
-# 색인 대상 리뷰를 고르는 조건. pet_purchases 가 p 로 별칭된 쿼리에서 쓴다.
+# 색인 대상 리뷰를 고르는 조건. review 테이블이 r 로 별칭된 쿼리에서 쓴다.
 # is_holdout=1 은 추천 성능 평가용으로 남겨둔 행이라 색인에서 뺀다.
 INDEX_FILTER = """
-    p.is_holdout = 0
-    AND p.review IS NOT NULL
-    AND TRIM(p.review) <> ''
+    r.is_holdout = 0
+    AND r.body IS NOT NULL
+    AND TRIM(r.body) <> ''
 """
 
 if not Path(DB_PATH).exists():

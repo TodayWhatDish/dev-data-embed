@@ -1,3 +1,4 @@
+# Last updated: 2026-08-27
 # Last Updated: 2026-08-25
 """
 data/seed/*.csv 생성기 — 16테이블 스키마용 합성 개체 데이터.
@@ -39,7 +40,7 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 MASTER_DIR = ROOT / 'data' / 'master'
 SEED_DIR = ROOT / 'data' / 'seed'
 sys.path.insert(0, str(ROOT / 'src'))
-from petcalc import age_months
+from app.domain.petcalc import age_months
 
 # 시드를 고정한다. 재실행해도 같은 데이터가 나와야 벤치·평가가 비교 가능하다.
 SEED = 20260812
@@ -772,12 +773,12 @@ def main():
     write_csv('product_nutrition', ['product_id', 'crude_protein_pct', 'crude_fat_pct',
                                     'crude_fiber_pct', 'crude_ash_pct', 'moisture_pct',
                                     'calcium_pct', 'phosphorus_pct', 'sodium_pct'], nutrition)
-    write_csv('product_feeding_purposes', ['product_id', 'feeding_purpose_id'], purposes)
-    write_csv('product_ingredients', ['product_id', 'ingredient_id'], p_ings)
-    write_csv('purchases', ['purchase_id', 'pet_id', 'product_id', 'quantity',
+    write_csv('product_feeding_purpose', ['product_id', 'feeding_purpose_id'], purposes)
+    write_csv('product_ingredient', ['product_id', 'ingredient_id'], p_ings)
+    write_csv('purchase', ['purchase_id', 'pet_id', 'product_id', 'quantity',
                             'unit_price_krw', 'age_month_at_purchase',
                             'size_at_purchase', 'purchased_at'], purchases)
-    write_csv('reviews', ['purchase_id', 'rating', 'body', 'is_holdout', 'reviewed_at'], reviews)
+    write_csv('review', ['purchase_id', 'rating', 'body', 'is_holdout', 'reviewed_at'], reviews)
 
     # 분포가 의도대로 나왔는지 — 여기가 무너지면 판정 3분법을 시험할 수 없다.
     no_animal = N_PRODUCTS - len({p for p, _ in p_animals})
