@@ -18,7 +18,7 @@
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from transformers import AutoTokenizer
 
-from app.core.config import EMBED_TOKENIZER,CHUNK_OVERLAP, CHUNK_SIZE
+from app.core.config import EMBED_TOKENIZER
 from pipeline.prep.options import CHUNK_OVERLAP, CHUNK_SIZE, SEPARATORS
 
 _tokenizer = None
@@ -62,7 +62,7 @@ def split_review(purchase_id: int, doc: str):
     ]
 
 
-def split_reviews(docs: str):
+def split_reviews(docs: list[tuple]):
     """[(purchase_id, doc), ...] 전체를 조각 목록으로. 부르는 쪽은 이 함수 하나만 알면 된다."""
     chunks = []
     for purchase_id, doc in docs:
