@@ -4,14 +4,14 @@
 
 | 테이블 | 설명 |
 |---|---|
-| [`users`](#users) | 보호자 계정. 반려동물·구매·리뷰의 최상위 소유자 |
+| [`user`](#user) | 보호자 계정. 반려동물·구매·리뷰의 최상위 소유자 |
 
 > 전체 색인은 [README.md](README.md).
 > 이 문서와 `src/create_schema/` 가 어긋나면 **코드가 맞다.**
 
 ---
 
-## users
+## user
 
 서비스 가입자(보호자) 계정. 반려동물·구매·리뷰의 최상위 소유자이며, 삭제 시 하위 데이터가 함께
 정리된다(`ON DELETE CASCADE`).
@@ -37,7 +37,7 @@
 
 | 이름 | 컬럼 | 목적 |
 |---|---|---|
-| `uq_users_auth` | UNIQUE (`auth_provider`, `auth_uid`) | 같은 외부 계정이 두 유저에 붙는 것을 DB 레벨에서 차단 |
+| `uq_user_auth` | UNIQUE (`auth_provider`, `auth_uid`) | 같은 외부 계정이 두 유저에 붙는 것을 DB 레벨에서 차단 |
 
 ### 설계 노트
 
@@ -45,10 +45,10 @@
 
 **`auth_uid` 는 로그인 순간에만 읽힌다.** 이메일이 아니라 이 값으로 계정을 찾는다 — 이메일은
 사용자가 바꿀 수 있지만 이 값은 안 바뀐다. 로그인 이후 요청은 토큰에서 복원한 `user_id` 만 쓴다.
-로그인 처리는 `uq_users_auth` 를 그대로 타는 조회 하나로 끝난다:
+로그인 처리는 `uq_user_auth` 를 그대로 타는 조회 하나로 끝난다:
 
 ```sql
-SELECT user_id FROM users WHERE auth_provider = ? AND auth_uid = ?
+SELECT user_id FROM user WHERE auth_provider = ? AND auth_uid = ?
 ```
 
 복합 UNIQUE 인 이유는 이 **쌍**이 유일해야 하기 때문이다 — 같은 uid 라도 제공자가 다르면 다른 계정이다.
@@ -75,9 +75,9 @@ SELECT user_id FROM users WHERE auth_provider = ? AND auth_uid = ?
 
 | 관계 | 테이블 | 카디널리티 | 문서 |
 |---|---|---|---|
-| 반려동물 | `pets.user_id` | 1 : N | [pet_schema.md](pet_schema.md#pets) |
+| 반려동물 | `pet.user_id` | 1 : N | [pet_schema.md](pet_schema.md#pet) |
 
-**연결 테이블이 아니라 `pets` 의 FK 컬럼 하나다.** 한 유저가 여러 마리를 키우지만
+**연결 테이블이 아니라 `pet` 의 FK 컬럼 하나다.** 한 유저가 여러 마리를 키우지만
 **한 마리의 보호자는 한 명**이라 다대다가 아니다. 공동 소유(가족 계정)를 표현해야 하는 날
 `user_pets` 연결 테이블이 필요해지지만, 지금은 요구사항이 없다.
 
