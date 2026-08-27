@@ -17,7 +17,7 @@
 import sqlite3
 from app.core.embedder import get_embeddings
 from app.core.config import DB_PATH, EMBED_MODEL, EMBED_BATCH_SIZE,EMBED_NORMALIZE
-from pipeline.prep import embedding,storage
+from pipeline.prep import storage
 
 def fetch_chunks(cur: sqlite3.Cursor) -> list[sqlite3.Row]:
     """색인 대상 조각을 chunks 테이블에서 읽어온다.

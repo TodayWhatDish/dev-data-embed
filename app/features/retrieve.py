@@ -47,7 +47,7 @@ def build_where(profile):
 def check_freshness(con: sqlite3.Connection):
     """색인 시점의 모델,데이터 지문을 지금 DB와 비교해 어긋난 점을 문장 목록으로 돌려준다. 맞으면 빈 목록.
 
-    load_db.py 재실행 후 재색인을 잊으면 chunk_vectors 만 옛 데이터를 가리키는데,
+    load_csv.py 재실행 후 재색인을 잊으면 chunk_vectors 만 옛 데이터를 가리키는데,
     조인이 purchase_id 로 조용히 성립해 에러 없이 엉뚱한 리뷰가 나온다. 알리기만 하고 막지는 않는다.
     """
     meta = dict(con.execute("SELECT key, value FROM embedding_meta").fetchall())
@@ -64,18 +64,32 @@ def check_freshness(con: sqlite3.Connection):
     return problems
 
 class VectorStore:
+    
     """chunk_vectors 를 chunks 와 조인해 한 번만 읽어 메모리에 들고 있는 검색기.
 
-    SQLite에는 벡터 타입이 없어서 build_index.py 가 JSON 문자열로 저장한다.
-    질의할 때마다 다시 읽으면 4000여 조각 x 384차원의 JSON을 매번 파싱하게 되는데
-    대화형 루프에서는 이 비용이 질문 수만큼 반복된다.
-    그래서 생성 시 전부 올려두고, 이후 질의에서는 WHERE 로 걸러진 purchase_id 만
-    받아 그 리뷰에서 나온 조각 행들을 골라 쓴다.
-
     한 행은 리뷰가 아니라 조각 하나다. 리뷰 하나가 여러 행을 차지한다.
+    이 클래스에서 가장 먼저 알아야 할 사실이고, 아래 자료구조가 전부 여기서 나온다.
 
-    벡터가 통째로 메모리에 올라가므로 색인이 커지면(수십만 건) 이 방식 대신
-    FAISS 같은 벡터 인덱스로 옮겨야 한다.
+    왜 통째로 올리는가 ─
+    SQLite 에는 벡터 타입이 없어서 embed_reviews.py 가 JSON 문자열로 저장한다.
+    질의마다 다시 읽으면 4,172 조각 x 384 차원어치 JSON 을 매번 파싱하게 되는데,
+    대화형 루프에서는 이 비용이 질문 수만큼 반복된다. 생성 시 한 번만 파싱해 두고,
+    이후 질의에서는 WHERE 로 걸러진 purchase_id 만 받아 그 조각 행들을 골라 쓴다.
+
+    들고 있는 것 ─
+        purchase_ids[i]  i 번 행이 어느 리뷰에서 나왔는지
+        docs[i]          i 번 행의 조각 본문 (chunks.body)
+        matrix[i]        i 번 행의 정규화된 벡터. 내적만으로 코사인 유사도가 된다
+        rows_of[pid]     한 리뷰가 차지하는 행 번호 '목록'
+
+    rows_of 가 값 하나가 아니라 목록인 이유가 위의 "한 행 = 조각 하나"다.
+    {pid: i} 로 두면 리뷰마다 마지막 조각만 남고 앞선 조각들이 조용히 사라진다.
+
+    search() 가 돌려주는 top_k 는 조각 k 개가 아니라 리뷰 k 건이다.
+    점수는 조각 단위로 재고, 순위는 리뷰 단위로 매긴다.
+
+    벡터가 통째로 메모리에 올라간다 (현재 4,172 x 384 float32, 약 6 MB).
+    색인이 커지면(수십만 건) 이 방식 대신 FAISS 같은 벡터 인덱스로 옮겨야 한다.
     """
 
     def __init__(
@@ -100,7 +114,7 @@ class VectorStore:
         """).fetchall()
         if not rows:
             raise SystemExit(
-                "chunk_vectors 가 비어 있습니다. prepare.py 와 build_index.py 를 차례로 실행하세요."
+                "chunk_vectors 가 비어 있습니다. embed_review.py 를 실행하세요."
             )
 
         self.purchase_ids = [r[0] for r in rows]
