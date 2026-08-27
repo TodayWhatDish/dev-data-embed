@@ -31,20 +31,11 @@ EMBED_NORMALIZE = True
 
 # 색인 대상 리뷰를 고르는 조건. pet_purchases 가 p 로 별칭된 쿼리에서 쓴다.
 # is_holdout=1 은 추천 성능 평가용으로 남겨둔 행이라 색인에서 뺀다.
-# build_index.py 와 search.py 가 같은 기준을 봐야 재색인 필요 여부를 판단할 수 있어 여기 둔다.
 INDEX_FILTER = """
     p.is_holdout = 0
     AND p.review IS NOT NULL
     AND TRIM(p.review) <> ''
 """
-
-CHUNK_SIZE =75
-CHUNK_OVERLAP = 48
-PREFIX_BUDGET =32 #접두사 [제품명 > 중제목] 본문내용
-RESPLIT_OVER = EMBED_MAX_TOKENS-PREFIX_BUDGET
-HEADERS = [("##","section")] #청킹할 데이터의 표시 경계 구분점 생성(Markdown)
-SEPERATORS = ["\n\n","\n","다","요",".",",",""]
-
 
 if not Path(DB_PATH).exists():
     print(f"알림: DB 가 아직 없다 -> {DB_PATH}")

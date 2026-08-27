@@ -17,7 +17,6 @@
 import sqlite3
 from app.core.embedder import get_embeddings
 from app.core.config import DB_PATH, EMBED_MODEL, EMBED_BATCH_SIZE,EMBED_NORMALIZE
-from app.core.db import source_fingerprint
 from pipeline.prep import embedding,storage
 
 def fetch_chunks(cur: sqlite3.Cursor) -> list[sqlite3.Row]:
@@ -48,7 +47,7 @@ def main():
     )
     # 3. 저장
     storage.save_vectors(
-        con, chunks, vectors, vectors.shape[1], source_fingerprint(con)
+        con, chunks, vectors, vectors.shape[1]
     )
     print(f"\n임베딩 {len(chunks)}개, 차원 {vectors.shape[1]}, 모델 : {EMBED_MODEL}")
     print("검색은 query.py 를 실행하세요.")

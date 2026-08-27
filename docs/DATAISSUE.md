@@ -254,7 +254,7 @@ O00229 셰퍼드    소형견 39.2kg   (기대: 대형)
 ```bash
 python src/load_db.py
 python src/check_data.py     # ERROR 0건이어야 함
-python src/build_index.py
+
 ```
 
 `check_data.py`가 `ERROR 0건`을 낼 때까지 §1~§3을 고칩니다.

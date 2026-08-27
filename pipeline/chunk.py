@@ -1,6 +1,6 @@
 # Last Updated : 2026-08-24
 
-"""리뷰를 임베딩용 문서로 조립하고 토큰 한도에 맞게 자른다. 벡터는 안 만든다 - build_index.py가 한다.
+"""리뷰를 임베딩용 문서로 조립하고(embedding) 토큰 한도에 맞게 자른다(chunking). 
 
 자르는 건 몇 초, 임베딩은 모델 로딩 포함 수십 초 - 값이 다른 작업이라 나눴다.
 """
@@ -8,7 +8,6 @@
 import sqlite3
 import statistics
 import sys
-from pathlib import Path
 
 from transformers import logging as hf_logging
 
@@ -20,25 +19,7 @@ sys.stdout.reconfigure(errors="replace")
 hf_logging.set_verbosity_error()
 
 from app.core.config import DB_PATH, EMBED_MAX_TOKENS, INDEX_FILTER
-from pipeline.prep import chunking, storage, embedding
-
-
-def build_doc(row: sqlite3.Row) -> str:
-    """리뷰 한 건을 임베딩용 문장으로 조립한다.
-
-    자를 대상을 읽는 fetch_rows 바로 옆에 둔다. 컬럼 이름을 아는 코드가
-    한자리에 모여 있어야 스키마가 바뀔 때 고칠 데가 한 파일이다.
-    """
-    # 알레르기/건강 이상이 없는 경우 CSV가 빈 값이라 NULL로 들어온다 -> 명시적인 한국어로 바꿔준다
-    allergy = row["allergy"] or "알레르기 없음"
-    health = row["health_condition"] or "건강 특이사항 없음"
-    return (
-        "passage:\n"
-        f"{row['size_category']}견 {row['age_group']} {row['breed']}, {allergy}, {health}. "
-        f"{row['category']}/{row['sub_category']} {row['product_name']} "
-        f"({row['target_feeding_purpose']} 목적, {row['target_food_form']}) "
-        f"별점 {row['rating']}점 후기: {row['review']}"
-    )
+from pipeline.prep import chunking, storage
 
 
 def fetch_rows(cur: sqlite3.Cursor):
@@ -66,7 +47,7 @@ def main():
 
     # (purchase_id, 문서) 쌍으로 넘긴다. 한 리뷰가 조각 여러 개로 쪼개져도
     # 그 조각이 원래 어느 리뷰에서 나왔는지 따라붙어야 하기 때문이다.
-    docs = [(row["purchase_id"], embedding.build_review_doc(row)) for row in rows]
+    docs = [(row["purchase_id"], chunking.build_review_doc(row)) for row in rows]
     chunks = chunking.split_reviews(docs)
     storage.save_chunks(con, chunks)
 

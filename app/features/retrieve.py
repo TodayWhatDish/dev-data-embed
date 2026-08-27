@@ -1,19 +1,16 @@
 # LastUpdated : 2026-08-26
 
-# chunk_vectors 에 저장된 조각 벡터로 유사 리뷰를 찾는 검색 모듈
-#
-# 색인(prepare.py -> build_index.py)과 파일을 나눈 이유는 두 작업의 수명이 다르기 때문이다.
-# 색인은 데이터가 바뀔 때만 한 번 돌리면 되고, 검색은 그 결과를 읽기만 한다.
-# 한 파일에 두면 검색만 확인하고 싶을 때도 임베딩을 통째로 다시 만들게 된다.
+"""chunk_vectors를 기반으로 유사리뷰를 찾는 행위를한다. (검색)
+   
+   프로필 키를 기준으로 조각 점수를 반환하며, 사용자 쿼리 호출시 사용된다.
+"""
 import json
 import sqlite3
-from collections import defaultdict
-
 import numpy as np
-from sentence_transformers import SentenceTransformer
 
+from collections import defaultdict
+from sentence_transformers import SentenceTransformer
 from app.core.config import EMBED_MODEL
-from app.core.db import source_fingerprint
 from app.core.embedder import get_embeddings
 
 # 프로필 키 -> SQL 조건절. 값이 들어온 키만 WHERE 에 붙는다.
@@ -23,7 +20,7 @@ FILTERS = {
 }
 
 
-def fmt_purchase_id(pid):
+def fmt_purchase_id(pid: int):
     """정수 purchase_id 를 사람이 읽기 쉬운 원래 표기로 되돌린다. 418 -> 'O00418'
 
     저장은 INTEGER로 하되(조인/인덱스에 유리) 화면에 찍을 때만 접두어를 붙인다.
@@ -47,16 +44,11 @@ def build_where(profile):
     return " AND ".join(clauses) or "1=1", tuple(params)
 
 
-def check_freshness(con):
-    """chunk_vectors 가 지금 DB 상태와 맞는지 확인하고, 어긋난 점을 문장으로 돌려준다.
+def check_freshness(con: sqlite3.Connection):
+    """색인 시점의 모델,데이터 지문을 지금 DB와 비교해 어긋난 점을 문장 목록으로 돌려준다. 맞으면 빈 목록.
 
-    load_db.py 를 다시 돌리면 pet_purchases 가 통째로 새로 만들어지는데,
-    이때 build_index.py 를 잊으면 chunk_vectors 만 옛 데이터를 가리킨 채 남는다.
-    조인은 purchase_id 로 조용히 성립하므로 에러 없이 엉뚱한 리뷰가 검색된다.
-    막을 방법이 없으니 최소한 눈에 띄게 알린다.
-
-    검색을 막지는 않는다. 색인이 조금 낡아도 확인용으로는 여전히 쓸 만하고,
-    여기서 SystemExit 를 내면 데이터를 만지는 중에 아무것도 못 하게 되기 때문이다.
+    load_db.py 재실행 후 재색인을 잊으면 chunk_vectors 만 옛 데이터를 가리키는데,
+    조인이 purchase_id 로 조용히 성립해 에러 없이 엉뚱한 리뷰가 나온다. 알리기만 하고 막지는 않는다.
     """
     meta = dict(con.execute("SELECT key, value FROM embedding_meta").fetchall())
     problems = []
@@ -66,18 +58,10 @@ def check_freshness(con):
             f"색인은 '{meta.get('model')}' 모델로 만들었는데 지금 설정은 '{EMBED_MODEL}' 입니다. "
             "벡터 공간이 달라 유사도가 의미를 잃습니다."
         )
-
-    # 'source' 키는 이 검사를 넣기 전에 만든 색인에는 없다. 그때는 판단을 보류한다.
-    indexed = meta.get("source")
-    if indexed is not None and indexed != source_fingerprint(con):
-        problems.append(
-            f"색인 이후 pet_purchases 가 바뀌었습니다 (색인 시점 {indexed} -> 현재 {source_fingerprint(con)})."
-        )
-
+   
     if problems:
-        problems.append("build_index.py 를 다시 실행하세요.")
+        problems.append("embed_reviews.py 를 다시 실행하세요.")
     return problems
-
 
 class VectorStore:
     """chunk_vectors 를 chunks 와 조인해 한 번만 읽어 메모리에 들고 있는 검색기.
