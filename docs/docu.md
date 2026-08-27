@@ -18,6 +18,10 @@
 ### 4. 검색 테스트
 > python -m app.query "소형견 다이어트 사료 추천해줘"
 
+## [API]
+### 1. Fast Api
+> pip install fastapi "uvicorn[standard]"
+
 
 # TODO
 
