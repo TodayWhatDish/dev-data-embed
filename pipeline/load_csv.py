@@ -40,10 +40,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / 'create_schema'))
 
-from execute_schema import create_schema  # noqa: E402
+from execute_schema import create_schema
 
 ROOT = Path(__file__).resolve().parent.parent
-DB_PATH = ROOT / 'user.db'
+DB_PATH = ROOT / 'pet_reco.db'
 MASTER_DIR = ROOT / 'data' / 'master'
 SEED_DIR = ROOT / 'data' / 'seed'
 
