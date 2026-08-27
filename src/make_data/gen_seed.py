@@ -181,6 +181,47 @@ BREED_BODY = {
 DEFAULT_BODY = {1: (4.0, 20.0, 3), 2: (3.0, 6.0, 2)}
 
 
+# 축종별 '품종을 몇 개 아는가' 분포. 행 수가 곧 뜻이다(pet_schema.md) —
+# 0행 = 모른다(잡종 포함) / 1행 = 순혈 / 2행 이상 = 믹스.
+#
+# 고양이 쪽 0행을 개보다 낮게 잡는다. '코리안숏헤어'라는 포괄 명칭이 있어서
+# 길에서 온 아이도 보호자는 코숏이라고 적는다 — 개의 '잡종'과 달리 이름이 있다.
+# 같은 이유로 고양이는 믹스 개념도 개만큼 쓰이지 않는다.
+BREED_COUNT_DIST = {
+    1: [(0, 8), (1, 70), (2, 20), (3, 2)],    # 개
+    2: [(0, 4), (1, 86), (2, 10), (3, 0)],    # 고양이
+}
+
+# 품종별 등장 가중치. 여기 없는 품종은 1 로 본다(= 개는 전부 균등).
+#
+# 균등하게 뽑으면 코리안숏헤어가 아비시니안과 같은 빈도로 나온다. 국내 반려묘 구성으로는
+# 코숏이 압도적이어야 하는데, 실제로 브리티시숏헤어(12)보다 적게(8) 나오고 있었다.
+# 개 쪽은 근거로 쓸 자료가 없어 균등으로 둔다 — 임의 가중치를 넣느니 균등인 편이 낫다.
+BREED_WEIGHT = {
+    '코리안숏헤어': 45, '러시안블루': 8, '스코티시폴드': 8, '페르시안': 6,
+    '먼치킨': 6, '브리티시숏헤어': 5, '샴': 4, '노르웨이숲': 4,
+    '아메리칸숏헤어': 4, '랙돌': 4, '벵갈': 3, '터키시앙고라': 2, '아비시니안': 1,
+}
+
+
+def pick_breeds(category, n):
+    """가중치를 반영해 **서로 다른** 품종 n 개를 고른다(비복원 추출).
+
+    rng.sample() 은 가중치를 못 받고 rng.choices() 는 중복을 허용한다.
+    믹스는 같은 품종이 두 번 들어가면 안 되므로(복합 PK 가 막는다) 하나씩 뽑고 뺀다.
+    """
+    pool = list(BREEDS_BY_CATEGORY[category])
+    wts = [BREED_WEIGHT.get(BREED_NAME[b], 1) for b in pool]
+    out = []
+    for _ in range(min(n, len(pool))):
+        b = rng.choices(pool, weights=wts, k=1)[0]
+        i = pool.index(b)
+        pool.pop(i)
+        wts.pop(i)
+        out.append(b)
+    return out
+
+
 # ---------------------------------------------------------------------------
 # 값 풀 — 옛 data/*.csv 4종에서 실측한 분포를 재료로 쓴다
 
@@ -223,10 +264,29 @@ PURPOSE_NAME = {1: '관절', 2: '다이어트', 3: '피부', 4: '치아', 5: '�
 # product_schema.md 가 ingredient_allergens 를 컬럼 하나가 아니라 다대다 테이블로 만든 이유가
 # 이것이다("'베이커리 부산물'은 밀·계란·유제품이다. 컬럼이 하나면 밀만 적히고 계란과 유제품은
 # 조용히 '안전'으로 통과한다"). 데이터에 복합 원료가 없으면 그 설계가 한 번도 시험되지 않는다.
-ING_PROTEIN = [1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 47, 48]
-ING_CARB = [23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 46, 49]
-ING_SUPPLEMENT = [4, 13, 17, 18, 19, 20, 21, 22, 37, 38, 39, 40, 41, 42, 43, 44, 50]
+# 51~57 은 '알러지원은 마스터에 있는데 그걸 가리키는 원료가 없던' 자리를 메운 것들이다.
+# 게·땅콩·호밀·수수·인공색소는 실제 사료·간식에 흔한데 원료 목록에서 빠져 있어서,
+# 보호자가 그 알러지를 골라도 걸러지는 제품이 0개였다 — 하드 필터가 무의미해진다.
+ING_PROTEIN = [1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 47, 48, 51, 55]
+ING_CARB = [23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 46, 49, 53, 54]
+ING_SUPPLEMENT = [4, 13, 17, 18, 19, 20, 21, 22, 37, 38, 39, 40, 41, 42, 43, 44, 50, 52]
+ING_ADDITIVE = [56, 57]  # 착색료·소르빈산칼륨 — 간식에 흔하다
 ING_CAT_ONLY = [45]  # 타우린 — 고양이 사료의 필수 첨가
+
+# 분류별 '보증성분표가 있을' 확률.
+#
+# 예전에는 분류를 안 보고 일괄 85% 였다. 그래서 사료 113개 중 14개가 성분표 없이 나왔는데,
+# 사료관리법상 배합사료는 등록성분량(조단백·조지방·조섬유·조회분 등) 표시가 **의무**라
+# 그런 사료는 유통될 수 없다. product_schema.md 도 결측의 방향을 명시해 뒀다 —
+# "**사료는** 성분표가 있고 **간식은** 없는 경우가 흔하다."
+# 결측 자체는 남겨야 한다(그게 이 표를 products 에서 분리한 이유다). 쏠리는 쪽만 바로잡는다.
+NUTRITION_RATE = {
+    1: 0.98,   # 사료 — 표시 의무. 빠지는 건 등록 누락 정도
+    2: 0.70,   # 간식(대분류)
+    3: 0.55,   # 덴탈껌 — 포장에 성분표가 없는 경우가 가장 흔하다
+    4: 0.65,   # 트릿
+    5: 0.60,   # 수제간식 — 소규모 제조라 표기가 자주 빠진다
+}
 
 SIZE_LABEL = {1: '초소형', 2: '소형', 3: '중형', 4: '대형', 5: '초대형'}
 STAGE_LABEL = {'all': '전 연령', 'puppy': '유아기', 'senior': '노령기', 'adult': '성년기'}
@@ -334,14 +394,36 @@ def gen_pets(users):
     for u in users:
         uid, user_created = u[0], datetime.fromisoformat(u[9])
 
-        # 옛 pet_profiles.csv 실측: 고객 300명 중 1마리 213 / 2마리 70 / 3마리 17
-        for _ in range(pick([(1, 213), (2, 70), (3, 17)])):
+        # 펫 등록은 **앱에 로그인해야** 할 수 있다. 그래서 두 가지가 따라온다.
+        #
+        #   1) last_login_at 이 NULL(한 번도 로그인 안 함)이면 펫이 있을 수 없다.
+        #      예전에는 그런 유저 14명 전원이 펫을 갖고 있었다.
+        #   2) 등록·수정 시각은 **마지막 로그인보다 뒤일 수 없다.**
+        #      last_login_at 은 '마지막' 로그인이므로 그 뒤의 앱 활동은 정의상 없다.
+        #      예전에는 96건이 그 뒤에 찍혀 있었다.
+        if u[7] is None:
+            continue
+        last_login = datetime.fromisoformat(u[7])
+        # 탈퇴한 뒤에도 등록할 수 없다.
+        ceiling = min(last_login, datetime.fromisoformat(u[8])) if u[8] else last_login
+        if ceiling < user_created:
+            continue
+
+        # 가입만 하고 아직 펫을 안 올린 유저도 있다. 예전에는 300명 전원이 펫을 갖고 있었는데,
+        # 그러면 '펫 0마리 유저'라는 상태가 데이터에 존재하지 않게 된다.
+        if rng.random() < 0.06:
+            continue
+
+        used_names = set()
+        for _ in range(pick([(1, 70), (2, 24), (3, 6)])):
             pet_id += 1
             category = pick([(1, 80), (2, 20)])   # 개 / 고양이
 
             # 품종 수가 곧 행 수다. 0행 = 모른다(잡종 포함), 2행 이상 = 믹스.
-            n_breeds = pick([(0, 10), (1, 70), (2, 18), (3, 2)])
-            chosen = rng.sample(BREEDS_BY_CATEGORY[category], n_breeds)
+            # 축종마다 분포가 다르고, 품종 자체도 가중치를 받는다 — 위 BREED_COUNT_DIST /
+            # BREED_WEIGHT 참고. 예전에는 둘 다 균등이라 코숏이 아비시니안만큼만 나왔다.
+            n_breeds = pick(BREED_COUNT_DIST[category])
+            chosen = pick_breeds(category, n_breeds)
             for bid in chosen:
                 pet_breeds.append((pet_id, bid))
 
@@ -349,6 +431,11 @@ def gen_pets(users):
                               (7, 7), (8, 6), (9, 5), (10, 4), (11, 3), (12, 2), (13, 2),
                               (14, 1), (15, 1)])
             birth = TODAY - timedelta(days=age_years * 365 + rng.randint(0, 364))
+            # 마지막 로그인 뒤에 태어난 아이는 이 유저가 등록했을 수 없다.
+            # 휴면 유저에게 갓난 강아지가 붙는 것을 막는다 — 나이를 구간에 맞춰 올린다.
+            if as_dt(birth) > ceiling:
+                birth = rdate(max(user_created.date(), ceiling.date() - timedelta(days=365 * 15)),
+                              ceiling.date())
 
             lo, hi, size = (BREED_BODY[BREED_NAME[chosen[0]]] if chosen
                             else DEFAULT_BODY[category])
@@ -366,13 +453,19 @@ def gen_pets(users):
             # 등록 시각의 하한이 두 개다 — (1) 태어난 뒤 (2) 주인이 가입한 뒤.
             # 늦은 쪽을 쓴다. 예전에는 주인 가입일만 봐서 '태어나기 2년 전에 등록'된
             # 개체가 45마리 나왔다.
-            created = rdt(max(user_created, as_dt(birth)), NOW)
+            created = rdt(max(user_created, as_dt(birth)), ceiling)
             # 사망·파양 등. 불리언이 아니라 시각이라 '언제' 떠났는지가 남는다.
-            inactive = rdt(created, NOW) if rng.random() < 0.03 else None
-            updated = rdt(inactive or created, NOW)
+            # 활동종료 기록도 앱에서 남기는 것이라 마지막 로그인 이후일 수 없다.
+            inactive = rdt(created, ceiling) if rng.random() < 0.03 else None
+            updated = rdt(inactive or created, ceiling)
+
+            # 한 집에 같은 이름 두 마리는 없다. 이름 풀이 40개라 그냥 뽑으면 실제로 겹쳤다.
+            avail = [n for n in PET_NAMES if n not in used_names] or PET_NAMES
+            pet_name = rng.choice(avail)
+            used_names.add(pet_name)
 
             pets.append((
-                pet_id, uid, category, rng.choice(PET_NAMES),
+                pet_id, uid, category, pet_name,
                 pick([('M', 49), ('F', 49), (None, 2)]),
                 birth.isoformat(),
                 weight if rng.random() > 0.05 else None,   # 미입력 개체도 있다
@@ -464,6 +557,9 @@ def gen_products():
         if is_food:
             chosen_ings |= set(rng.sample(ING_CARB, rng.randint(1, 3)))
         chosen_ings |= set(rng.sample(ING_SUPPLEMENT, rng.randint(0, 2)))
+        # 첨가물은 간식 쪽에 흔하다. 사료에도 아주 없지는 않다.
+        if rng.random() < (0.10 if is_food else 0.35):
+            chosen_ings.add(rng.choice(ING_ADDITIVE))
         if 2 in animals and rng.random() < 0.7:
             chosen_ings |= set(ING_CAT_ONLY)
         for i in sorted(chosen_ings):
@@ -502,21 +598,26 @@ def gen_products():
         ))
 
         # --- 영양성분 (1:1, 없는 제품도 있다) ---
-        if rng.random() < 0.85:
+        # 결측률은 분류마다 다르다. 사료는 표시 의무가 있어 거의 전부 있고, 간식은 자주 빠진다.
+        if rng.random() < NUTRITION_RATE[cat]:
             wet = form == '습식'
 
             def maybe(lo, hi, p=0.6):
                 return round(rng.uniform(lo, hi), 1) if rng.random() < p else None
 
-            nutrition.append((
-                pid,
-                round(rng.uniform(8, 12) if wet else rng.uniform(22, 34), 1),
-                round(rng.uniform(2, 6) if wet else rng.uniform(8, 18), 1),
-                round(rng.uniform(0.5, 1.5) if wet else rng.uniform(2, 5), 1),
-                round(rng.uniform(1, 3) if wet else rng.uniform(5, 9), 1),
-                round(rng.uniform(70, 82) if wet else rng.uniform(8, 12), 1),
-                maybe(0.6, 2.0), maybe(0.5, 1.6), maybe(0.1, 0.6),
-            ))
+            protein = round(rng.uniform(8, 12) if wet else rng.uniform(22, 34), 1)
+            fat = round(rng.uniform(2, 6) if wet else rng.uniform(8, 18), 1)
+            fiber = round(rng.uniform(0.5, 1.5) if wet else rng.uniform(2, 5), 1)
+            ash = round(rng.uniform(1, 3) if wet else rng.uniform(5, 9), 1)
+            moisture = round(rng.uniform(70, 82) if wet else rng.uniform(8, 12), 1)
+
+            # 보증성분 5개의 합은 100% 를 넘을 수 없다 — 나머지는 탄수화물(가용무질소물) 몫이라
+            # 최소 1% 는 남긴다. 습식은 수분이 80% 대라 그냥 뽑으면 합이 104% 까지 나온다.
+            # 사료 쪽 결측을 줄이자 성분표가 늘면서 이 잠복 결함이 드러났다.
+            moisture = min(moisture, round(99 - (protein + fat + fiber + ash), 1))
+
+            nutrition.append((pid, protein, fat, fiber, ash, moisture,
+                              maybe(0.6, 2.0), maybe(0.5, 1.6), maybe(0.1, 0.6)))
 
     return products, p_animals, nutrition, purposes, p_ings
 
