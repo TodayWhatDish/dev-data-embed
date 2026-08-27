@@ -14,7 +14,7 @@
     RecursiveCharacterTextSplitter만 사용한다.
 
 """
-
+import sqlite3
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from transformers import AutoTokenizer
 
@@ -47,6 +47,18 @@ def get_splitter():
 def count_tokens(text):
     return len(get_tokenizer().encode(text))
 
+def build_review_doc(row: sqlite3.Row) -> str:
+    """리뷰 한 건을 임베딩용 문장으로 조립한다."""
+    allergy = row["allergy"] or "알레르기 없음"
+    health = row["health_condition"] or "건강 특이사항 없음"
+    return (
+        "passage:\n"
+        f"{row['size_category']}견 {row['age_group']} {row['breed']}, {allergy}, {health}. "
+        f"{row['category']}/{row['sub_category']} {row['product_name']} "
+        f"({row['target_feeding_purpose']} 목적, {row['target_food_form']}) "
+        f"별점 {row['rating']}점 후기: {row['review']}"
+    )
+
 #  리뷰 하나가 조각 여러 개로 쪼개질 수 있으니(긴 리뷰의 경우), 
 #  쪼갠 뒤에도 "이 조각이 원래 몇 번 리뷰에서 나왔나"를 알아야함.
 def split_review(purchase_id: int, doc: str):
@@ -68,3 +80,4 @@ def split_reviews(docs: list[tuple]):
     for purchase_id, doc in docs:
         chunks.extend(split_review(purchase_id, doc))
     return chunks
+

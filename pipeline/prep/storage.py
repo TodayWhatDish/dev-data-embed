@@ -123,3 +123,7 @@ def save_vectors(
         ],
     )
     con.commit()
+
+
+
+
