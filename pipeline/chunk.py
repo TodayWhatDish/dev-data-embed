@@ -1,3 +1,4 @@
+# Last updated: 2026-08-27
 # Last Updated : 2026-08-24
 
 """리뷰를 임베딩용 문서로 조립하고(embedding) 토큰 한도에 맞게 자른다(chunking). 
@@ -23,19 +24,41 @@ from pipeline.prep import chunking, storage
 
 
 def fetch_rows(cur: sqlite3.Cursor):
-    """자를 대상 리뷰를 상품 정보와 함께 읽어온다. (대상 조건인 INDEX_FILTER는 config.py에 명시)"""
-    # 컬럼 이름으로 꺼내야 build_doc 이 row['breed'] 처럼 읽을 수 있다.
+    """자를 대상 리뷰를 펫·상품 정보와 함께 읽어온다. (대상 조건인 INDEX_FILTER는 config.py에 명시)
+
+    새 스키마는 정규화돼 있어 견종/알러지/급여목적이 전부 다대다다.
+    한 리뷰당 여러 행으로 불어나는 걸 GROUP_CONCAT(DISTINCT ...)로 다시 한 줄로 뭉친다.
+    """
+    # 컬럼 이름으로 꺼내야 build_review_doc 이 row['breed'] 처럼 읽을 수 있다.
     cur.row_factory = sqlite3.Row
     return cur.execute(f"""
         SELECT
-            p.purchase_id, p.category, p.breed, p.size_category, p.age_group,
-            p.allergy, p.health_condition, p.rating, p.review,
-            pr.sub_category, pr.product_name,
-            pr.target_feeding_purpose, pr.target_food_form
-        FROM pet_purchases AS p
-        JOIN pet_products AS pr ON pr.product_id = p.product_id
+            r.purchase_id, r.rating, r.body AS review,
+            pu.age_month_at_purchase,
+            CASE pu.size_at_purchase
+                WHEN 1 THEN '초소형' WHEN 2 THEN '소형' WHEN 3 THEN '중형'
+                WHEN 4 THEN '대형' WHEN 5 THEN '초대형'
+            END AS size_category,
+            GROUP_CONCAT(DISTINCT br.name_ko) AS breed,
+            GROUP_CONCAT(DISTINCT al.name_ko) AS allergy,
+            pc_parent.name_ko AS category, pc.name_ko AS sub_category,
+            p.name AS product_name, p.food_form AS target_food_form,
+            GROUP_CONCAT(DISTINCT fp.name_ko) AS target_feeding_purpose
+        FROM review AS r
+        JOIN purchase AS pu ON pu.purchase_id = r.purchase_id
+        JOIN pet AS pe ON pe.pet_id = pu.pet_id
+        JOIN product AS p ON p.product_id = pu.product_id
+        LEFT JOIN pet_breed AS pb ON pb.pet_id = pe.pet_id
+        LEFT JOIN breed AS br ON br.breed_id = pb.breed_id
+        LEFT JOIN pet_allergy AS pa ON pa.pet_id = pe.pet_id
+        LEFT JOIN allergen AS al ON al.allergen_id = pa.allergen_id
+        LEFT JOIN product_category AS pc ON pc.product_category_id = p.product_category_id
+        LEFT JOIN product_category AS pc_parent ON pc_parent.product_category_id = pc.parent_id
+        LEFT JOIN product_feeding_purpose AS pfp ON pfp.product_id = p.product_id
+        LEFT JOIN feeding_purpose AS fp ON fp.feeding_purpose_id = pfp.feeding_purpose_id
         WHERE {INDEX_FILTER}
-        ORDER BY p.purchase_id
+        GROUP BY r.purchase_id
+        ORDER BY r.purchase_id
     """).fetchall()
 
 

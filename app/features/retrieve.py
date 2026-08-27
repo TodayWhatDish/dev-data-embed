@@ -1,3 +1,4 @@
+# Last updated: 2026-08-27
 # LastUpdated : 2026-08-26
 
 """chunk_vectors를 기반으로 유사리뷰를 찾는 행위를한다. (검색)
@@ -14,9 +15,28 @@ from app.core.config import EMBED_MODEL
 from app.core.embedder import get_embeddings
 
 # 프로필 키 -> SQL 조건절. 값이 들어온 키만 WHERE 에 붙는다.
+# size_at_purchase 는 1~5 코드라 CASE 로 사람이 쓰는 말(소형/중형/대형)로 바꿔 비교한다.
+# 알러지는 pet_allergy 가 다대다라 EXISTS 로 "그 알러지가 등록돼 있는가"를 확인한다.
 FILTERS = {
-    "size_category": "p.size_category = ?",
-    "allergy": "(p.allergy IS NULL OR p.allergy <> ?)",
+    "size_category": """
+        CASE pu.size_at_purchase
+            WHEN 2 THEN '소형' WHEN 3 THEN '중형' WHEN 4 THEN '대형'
+        END = ?
+    """,
+    "allergy": """
+        NOT EXISTS (
+            SELECT 1 FROM pet_allergy AS pa
+            JOIN allergen AS al ON al.allergen_id = pa.allergen_id
+            WHERE pa.pet_id = pu.pet_id AND al.name_ko = ?
+        )
+    """,
+    "animal_category": """
+        EXISTS (
+            SELECT 1 FROM product_animal_category AS pac
+            JOIN animal_category AS ac ON ac.animal_category_id = pac.animal_category_id
+            WHERE pac.product_id = pu.product_id AND ac.name_ko = ?
+        )
+    """,
 }
 
 
@@ -145,14 +165,14 @@ class VectorStore:
         # 아래 rows_of 에 그 id 가 있는지로 이미 걸러진다.
         picked = self.con.execute(
             f"""
-            SELECT p.purchase_id
-            FROM pet_purchases AS p
+            SELECT pu.purchase_id
+            FROM purchase AS pu
             WHERE {where}
         """,
             params,
         ).fetchall()
 
-        # 리뷰 id -> 조각 행 번호로 펼친다. 색인 이후 pet_purchases 가 바뀌었을 수
+        # 리뷰 id -> 조각 행 번호로 펼친다. 색인 이후 purchase 가 바뀌었을 수
         # 있으므로 캐시에 있는 id 만 남는다. (defaultdict 에 빈 목록을 새로 심지
         # 않으려고 [] 대신 get 으로 읽는다.)
         idx = [row for (pid,) in picked for row in self.rows_of.get(pid, ())]

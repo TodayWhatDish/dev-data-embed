@@ -1,3 +1,4 @@
+# Last updated: 2026-08-27
 # Last Updated: 2026-08-25
 """
 data/master + data/seed 의 CSV 를 user.db(16테이블 스키마)로 적재한다.
@@ -60,10 +61,10 @@ SOURCES = {
     'product': SEED_DIR / 'product.csv',
     'product_animal_category': SEED_DIR / 'product_animal_category.csv',
     'product_nutrition': SEED_DIR / 'product_nutrition.csv',
-    'product_feeding_purposes': SEED_DIR / 'product_feeding_purposes.csv',
-    'product_ingredients': SEED_DIR / 'product_ingredients.csv',
-    'purchases': SEED_DIR / 'purchases.csv',
-    'reviews': SEED_DIR / 'reviews.csv',
+    'product_feeding_purpose': SEED_DIR / 'product_feeding_purpose.csv',
+    'product_ingredient': SEED_DIR / 'product_ingredient.csv',
+    'purchase': SEED_DIR / 'purchase.csv',
+    'review': SEED_DIR / 'review.csv',
 }
 
 # animal_category / product_category / feeding_purpose 는 여기에 없다.
