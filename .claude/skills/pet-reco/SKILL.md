@@ -1,6 +1,6 @@
 ---
 name: pet-reco
-description: "Runs the pet-reco data pipeline (load_db.py -> check_data.py -> prepare.py -> build_index.py) and the query CLI. Use when asked to rebuild pet_reco.db, re-embed reviews, regenerate chunk_vectors, or debug why the pipeline order/output looks wrong."
+description: "Runs the pet-reco data pipeline (load_db.py -> check_data.py -> prepare.py -> build_index.py) and the query CLI. Use when asked to rebuild pet_reco.db, re-embed review, regenerate chunk_vectors, or debug why the pipeline order/output looks wrong."
 ---
 
 # /pet-reco

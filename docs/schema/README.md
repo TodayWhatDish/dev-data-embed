@@ -29,46 +29,46 @@
 
 | 파일 | 담는 것 | 테이블 |
 |---|---|---|
-| [common_schema.md](common_schema.md) | **두 도메인이 공유하는 코드표** | `animal_categories`, `allergens` |
-| [user_schema.md](user_schema.md) | 계정 | `users` |
-| [pet_schema.md](pet_schema.md) | 반려동물 | `breeds`, `pets`, `pet_breeds`, `pet_allergies` |
-| [product_schema.md](product_schema.md) | 제품 | `product_categories`, `feeding_purposes`, `products`, `product_animal_categories`, `product_nutrition`, `product_feeding_purposes`, `ingredients`, `ingredient_allergens`, `product_ingredients` + 뷰 2개 |
+| [common_schema.md](common_schema.md) | **두 도메인이 공유하는 코드표** | `animal_category`, `allergen` |
+| [user_schema.md](user_schema.md) | 계정 | `user` |
+| [pet_schema.md](pet_schema.md) | 반려동물 | `breed`, `pet`, `pet_breed`, `pet_allergy` |
+| [product_schema.md](product_schema.md) | 제품 | `product_category`, `feeding_purpose`, `product`, `product_animal_category`, `product_nutrition`, `product_feeding_purpose`, `ingredient`, `ingredient_allergen`, `product_ingredient` + 뷰 2개 |
 
 **`common_schema.md` 가 따로 있는 이유** — 이 두 코드표는 반려동물 쪽과 제품 쪽이 **같은 ID 를
 참조해야만** 성립한다. 한쪽 도메인 파일에 넣으면 다른 쪽에서 읽을 때 "왜 저기 있지"가 된다.
 
 | 코드표 | 반려동물 쪽 | 제품 쪽 | 같은 ID 를 써야 하는 이유 |
 |---|---|---|---|
-| `animal_categories` | `breeds`, `pets` | `product_animal_categories` | 고양이 제품이 개 후보에 섞이면 안 된다 |
-| `allergens` | `pet_allergies` | `ingredient_allergens` | 알러지 배제가 문자열이 아니라 **조인**이 되려면 |
+| `animal_category` | `breed`, `pet` | `product_animal_category` | 고양이 제품이 개 후보에 섞이면 안 된다 |
+| `allergen` | `pet_allergy` | `ingredient_allergen` | 알러지 배제가 문자열이 아니라 **조인**이 되려면 |
 
 ---
 
 ## 관계도
 
 ```
-                    animal_categories ─────┐
+                    animal_category ─────┐
                      │            │        │
                      │            │        │
         ┌────────────┘            │        └──────────┐
         │                         │                   │
-     breeds                     pets              product_animal_categories
+     breed                     pet              product_animal_category
         │                     │  │  │                       │
-        └── pet_breeds ───────┘  │  └── pet_allergies       │
+        └── pet_breed ───────┘  │  └── pet_allergy       │
                                  │              │           │
-                              users ────────────┼───────────┼──────┐
+                              user ────────────┼───────────┼──────┐
                                                 │           │      │
-                                          allergens         │   products
+                                          allergen         │   product
                                                 │           │    │ │ │ │
-                                     ingredient_allergens ──┘    │ │ │ └─ product_categories
+                                     ingredient_allergen ──┘    │ │ │ └─ product_category
                                                 │                │ │ │
-                                          ingredients            │ │ └─ product_nutrition
+                                          ingredient            │ │ └─ product_nutrition
                                                 │                │ │
-                                       product_ingredients ──────┘ │
+                                       product_ingredient ──────┘ │
                                                                    │
-                                       product_feeding_purposes ───┘
+                                       product_feeding_purpose ───┘
                                                 │
-                                        feeding_purposes
+                                        feeding_purpose
 ```
 
 **뷰 없음 (2026-08-25).** 알러지 판정 뷰 2개를 빼고 `src/safe_products.py` 로 옮겼다 —
@@ -87,7 +87,7 @@ LLM 은 확률적으로 실패하지만 `NOT EXISTS` 는 반드시 배제한다.
 **② 모르는 것을 안전으로 처리하지 않는다.**
 데이터가 부실할수록 더 안전해 보이는 실패를 막기 위해, 판정은 `WARN`/`None`/`Safe` 3분법이다.
 판정 로직은 뷰가 아니라 `src/safe_products.py` 에 있다 (2026-08-25).
-같은 원칙이 `product_animal_categories` 의 0행(= 아무에게도 안 뜸)에도 적용된다.
+같은 원칙이 `product_animal_category` 의 0행(= 아무에게도 안 뜸)에도 적용된다.
 
 **③ 사실을 저장하고 상태는 파생시킨다.**
 나이는 `birth_date` 에서, 휴면은 `last_login_at` 에서, 재구매는 구매 행에서 계산한다.

@@ -4,12 +4,12 @@
 
 | 테이블 | 설명 |
 |---|---|
-| [`breeds`](#breeds) | 품종 마스터 (읽기 전용) |
-| [`pets`](#pets) | 반려동물 프로필. **유저가 소유한 개체** |
-| [`pet_breeds`](#pet_breeds) | 반려동물 ↔ 품종 (다대다) |
-| [`pet_allergies`](#pet_allergies) | 반려동물 ↔ 알러지원 (다대다). 추천의 하드 필터 |
+| [`breed`](#breed) | 품종 마스터 (읽기 전용) |
+| [`pet`](#pet) | 반려동물 프로필. **유저가 소유한 개체** |
+| [`pet_breed`](#pet_breed) | 반려동물 ↔ 품종 (다대다) |
+| [`pet_allergy`](#pet_allergy) | 반려동물 ↔ 알러지원 (다대다). 추천의 하드 필터 |
 
-축종(`animal_categories`)과 알러지원(`allergens`)은 제품 도메인과 공유하므로
+축종(`animal_category`)과 알러지원(`allergen`)은 제품 도메인과 공유하므로
 [common_schema.md](common_schema.md) 에 있다. 보호자 계정은 [user_schema.md](user_schema.md).
 
 > 전체 색인은 [README.md](README.md).
@@ -17,17 +17,17 @@
 
 ---
 
-## breeds
+## breed
 
 품종 마스터. 개/고양이 품종명을 한곳에 모아두는 정적 코드표다. **앱 기준 읽기 전용** — 관리자가 채운다.
 
-한 마리가 여러 품종을 가질 수 있으므로 `pets` 가 이 테이블을 직접 참조하지 않고, 연결 테이블
-[`pet_breeds`](#pet_breeds) 를 거친다. 품종을 모르는 개체는 `pet_breeds` 에 행이 0개다.
+한 마리가 여러 품종을 가질 수 있으므로 `pet` 가 이 테이블을 직접 참조하지 않고, 연결 테이블
+[`pet_breed`](#pet_breed) 를 거친다. 품종을 모르는 개체는 `pet_breed` 에 행이 0개다.
 
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | `breed_id` | INTEGER | PK | 대리키 |
-| `animal_category_id` | INTEGER | NOT NULL, FK → [`animal_categories`](common_schema.md#animal_categories) | 축종 |
+| `animal_category_id` | INTEGER | NOT NULL, FK → [`animal_category`](common_schema.md#animal_category) | 축종 |
 | `name_ko` | TEXT | NOT NULL | 표준 품종명(한글) |
 | `name_eng` | TEXT | | 품종명(영문). 표준 영문명이 없는 품종은 NULL |
 
@@ -35,8 +35,8 @@
 
 | 이름 | 컬럼 | 목적 |
 |---|---|---|
-| `uq_breeds_name_ko` | UNIQUE (`animal_category_id`, `name_ko`) | 한글명 중복 차단 + 종별 목록 조회 |
-| `uq_breeds_name_eng` | UNIQUE (`animal_category_id`, `name_eng`) | **표기만 다른 같은 품종** 중복 차단 |
+| `uq_breed_name_ko` | UNIQUE (`animal_category_id`, `name_ko`) | 한글명 중복 차단 + 종별 목록 조회 |
+| `uq_breed_name_eng` | UNIQUE (`animal_category_id`, `name_eng`) | **표기만 다른 같은 품종** 중복 차단 |
 
 ### 설계 노트
 
@@ -67,24 +67,24 @@
 | `'삽살개'` + NULL | 등록 | NULL 끼리는 충돌하지 않는다 |
 
 **둘 다 `animal_category_id` 를 앞에 둔 복합 인덱스다.** 품종 선택 드롭다운을 채우는 조회
-(`WHERE animal_category_id = ? ORDER BY name_ko`)가 leftmost prefix 로 `uq_breeds_name_ko` 를
-그대로 탄다. `uq_users_auth` 와 달리 여기서는 컬럼 순서가 실제로 이득을 만든다.
+(`WHERE animal_category_id = ? ORDER BY name_ko`)가 leftmost prefix 로 `uq_breed_name_ko` 를
+그대로 탄다. `uq_user_auth` 와 달리 여기서는 컬럼 순서가 실제로 이득을 만든다.
 
-**축종은 [`animal_categories`](common_schema.md#animal_categories) 를 참조한다.** 코드값의 뜻은 그
-표에 있다. `animal_category_id` 를 갖는 다른 테이블([`pets`](#pets), [`product_animal_categories`](product_schema.md#product_animal_categories))도
+**축종은 [`animal_category`](common_schema.md#animal_category) 를 참조한다.** 코드값의 뜻은 그
+표에 있다. `animal_category_id` 를 갖는 다른 테이블([`pet`](#pet), [`product_animal_category`](product_schema.md#product_animal_category))도
 같은 테이블을 참조해야 한다 — 테이블마다 코드를 따로 매기면 조인과 필터가 에러 없이 조용히 틀린다.
 
 **'믹스' / '모름' 행을 만들지 않는다.** `size_category` 가 없어진 지금은 값을 하나 고를 필요도
-없어졌지만, 애초에 품종을 모르는 상태는 `pet_breeds` 의 행 0개로 표현하는 것이 맞다.
+없어졌지만, 애초에 품종을 모르는 상태는 `pet_breed` 의 행 0개로 표현하는 것이 맞다.
 
 ---
 
-## pets
+## pet
 
 반려동물 프로필. 추천의 정형 입력이 여기 모인다. **유저가 소유한 개체**이며
-[`users`](user_schema.md#users) 를 `user_id` FK 로 참조한다(1 보호자 : N 반려동물).
-**RESTRICT 다 (2026-08-24).** CASCADE 면 계정 삭제가 `pets` → `purchases` → `reviews` 로
-번져 후기까지 지운다. 탈퇴는 `users.withdrawn_at`, 파기는 익명화 UPDATE 이므로
+[`user`](user_schema.md#user) 를 `user_id` FK 로 참조한다(1 보호자 : N 반려동물).
+**RESTRICT 다 (2026-08-24).** CASCADE 면 계정 삭제가 `pet` → `purchase` → `review` 로
+번져 후기까지 지운다. 탈퇴는 `user.withdrawn_at`, 파기는 익명화 UPDATE 이므로
 계정 행을 지우는 경로 자체를 DB 가 막는다 ([`../docu.md`](../docu.md) §1).
 
 **오래 변하지 않는 속성만 넣는다.** 그때그때 달라지는 상태("요즘 변이 무르다", "이가 안 좋아져서
@@ -94,8 +94,8 @@
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | `pet_id` | INTEGER | PK | 대리키 |
-| `user_id` | INTEGER | NOT NULL, FK → [`users`](user_schema.md#users) (**RESTRICT**) | 보호자. 1 보호자 : N 반려동물 |
-| `animal_category_id` | INTEGER | NOT NULL, FK → [`animal_categories`](common_schema.md#animal_categories) | 축종 |
+| `user_id` | INTEGER | NOT NULL, FK → [`user`](user_schema.md#user) (**RESTRICT**) | 보호자. 1 보호자 : N 반려동물 |
+| `animal_category_id` | INTEGER | NOT NULL, FK → [`animal_category`](common_schema.md#animal_category) | 축종 |
 | `name` | TEXT | NOT NULL | 이름. LLM 응답에서 이름을 불러주는 데 쓴다 |
 | `gender` | TEXT | CHECK `M`/`F` | 성별 |
 | `birth_date` | TEXT | CHECK date | 생년월일. 나이는 조회 시점에 계산한다 |
@@ -111,7 +111,7 @@
 
 | 이름 | 컬럼 | 목적 |
 |---|---|---|
-| `idx_pets_user` | (`user_id`) | 보호자의 반려동물 목록 조회 |
+| `idx_pet_user` | (`user_id`) | 보호자의 반려동물 목록 조회 |
 
 ### 설계 노트
 
@@ -120,7 +120,7 @@
 
 | 컬럼 | 답하는 질문 | 쓰임 |
 |---|---|---|
-| `size` | 얼마나 큰가 | `products.target_size_min`/`max` 매칭 (필터) |
+| `size` | 얼마나 큰가 | `product.target_size_min`/`max` 매칭 (필터) |
 | `weight_kg` | 몇 kg인가 | 급여량·칼로리 (수치 계산) |
 | `body_type` | 살쪘나 | 다이어트 제품 (필터) |
 
@@ -134,7 +134,7 @@ TEXT 였다면 `'대형' > '소형'` 이 사전순 비교가 되어 무의미해
 `body_type` 의 5단계는 임의 구분이 아니라 **수의학의 BCS(Body Condition Score) 5점 척도**와 같다.
 나중에 "갈비뼈가 만져지나요" 같은 문진으로 값을 받게 되면 그대로 매핑된다.
 
-[`products.target_size_min`/`max`](product_schema.md#products) 는 `size` 와 **반드시 같은 코드**를
+[`product.target_size_min`/`max`](product_schema.md#product) 는 `size` 와 **반드시 같은 코드**를
 써야 한다 — 다르게 매기면 필터가 에러 없이 틀린다.
 
 **`birth_date` 를 저장하고 나이는 계산한다.** `age` 정수를 저장하면 시간이 지나면서 조용히 틀려진다.
@@ -153,34 +153,34 @@ TEXT 였다면 `'대형' > '소형'` 이 사전순 비교가 되어 무의미해
 
 | 항목 | 테이블 |
 |---|---|
-| 품종 | [`pet_breeds`](#pet_breeds) |
-| 알러지 | [`pet_allergies`](#pet_allergies) |
+| 품종 | [`pet_breed`](#pet_breed) |
+| 알러지 | [`pet_allergy`](#pet_allergy) |
 
 **비정형 입력으로 받는 것** — 프로필에 저장하지 않고 요청 시점 자연어로 받는다.
 
 - 급여 형태 (건식/습식)
 - 식성 (식탐많음/식이까다로움)
 - 급여목적 (관절/다이어트/피부) — 제품 쪽만 정형으로 관리한다.
-  이유는 [`feeding_purposes`](product_schema.md#feeding_purposes) 참고.
+  이유는 [`feeding_purpose`](product_schema.md#feeding_purpose) 참고.
 
 ---
 
-## pet_breeds
+## pet_breed
 
-반려동물 ↔ 품종 (다대다). 한 마리가 여러 품종 성분을 가질 수 있으므로 `pets` 에 `breed_id` 컬럼을
+반려동물 ↔ 품종 (다대다). 한 마리가 여러 품종 성분을 가질 수 있으므로 `pet` 에 `breed_id` 컬럼을
 두지 않고 이 테이블을 거친다.
 
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
-| `pet_id` | INTEGER | PK, FK → [`pets`](#pets) (CASCADE) | 반려동물 |
-| `breed_id` | INTEGER | PK, FK → [`breeds`](#breeds) (RESTRICT) | 품종 |
+| `pet_id` | INTEGER | PK, FK → [`pet`](#pet) (CASCADE) | 반려동물 |
+| `breed_id` | INTEGER | PK, FK → [`breed`](#breed) (RESTRICT) | 품종 |
 
 **인덱스**
 
 | 이름 | 컬럼 | 목적 |
 |---|---|---|
 | (복합 PK) | (`pet_id`, `breed_id`) | 중복 등록 차단 + "이 반려동물의 품종들" |
-| `idx_pet_breeds_breed` | (`breed_id`) | "이 품종을 가진 반려동물 전부" — 품종별 후기 집계 |
+| `idx_pet_breed_breed` | (`breed_id`) | "이 품종을 가진 반려동물 전부" — 품종별 후기 집계 |
 
 ### 설계 노트
 
@@ -195,7 +195,7 @@ TEXT 였다면 `'대형' > '소형'` 이 사전순 비교가 되어 무의미해
 "모름"을 NULL 이나 '믹스' 마법값으로 표현하지 않고 **행이 없는 상태**로 둔다. 아는 만큼만 등록하면 된다.
 
 **비율 컬럼을 두지 않는다.** DNA 검사를 하지 않은 보호자의 "반반쯤?" 이 실측값 자리에 앉게 된다.
-측정할 수 없는 정도를 숫자로 굳히지 않는다는 점에서 `pets.neutered` 와 같은 판단이다.
+측정할 수 없는 정도를 숫자로 굳히지 않는다는 점에서 `pet.neutered` 와 같은 판단이다.
 DNA 검사를 연동하는 날 컬럼을 추가하면 된다.
 
 **대리키 없이 복합 PK 다.** `WITHOUT ROWID` 라 PK 가 곧 테이블의 클러스터 키이고, 중복 등록 차단도
@@ -211,21 +211,21 @@ UNIQUE 인덱스 두 개가 늘어 지금은 채택하지 않았다.
 
 ---
 
-## pet_allergies
+## pet_allergy
 
 반려동물 ↔ 알러지원 (다대다). **추천의 하드 필터 입력이다.**
 
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
-| `pet_id` | INTEGER | PK, FK → [`pets`](#pets) (CASCADE) | 반려동물 |
-| `allergen_id` | INTEGER | PK, FK → [`allergens`](common_schema.md#allergens) (RESTRICT) | 알러지원 |
+| `pet_id` | INTEGER | PK, FK → [`pet`](#pet) (CASCADE) | 반려동물 |
+| `allergen_id` | INTEGER | PK, FK → [`allergen`](common_schema.md#allergen) (RESTRICT) | 알러지원 |
 
 **인덱스** — 복합 PK 하나뿐이다.
 
 ### 설계 노트
 
 **카테고리를 고르면 하위를 전부 펼쳐 넣는다. 고른 카테고리 행도 같이 남긴다.**
-목록 계산은 앱이 한다 — [`allergens`](common_schema.md#allergens) 트리는 UI 때문에 어차피 메모리에 있다.
+목록 계산은 앱이 한다 — [`allergen`](common_schema.md#allergen) 트리는 UI 때문에 어차피 메모리에 있다.
 
 `가금류` 를 고른 경우:
 
@@ -243,13 +243,13 @@ UNIQUE 인덱스 두 개가 늘어 지금은 채택하지 않았다.
 카테고리 행이 남아 있어야 나중에 `거위` 가 추가됐을 때 대상을 찾을 수 있다.
 
 ```sql
-INSERT OR IGNORE INTO pet_allergies(pet_id, allergen_id)
-SELECT pet_id, :new_id FROM pet_allergies WHERE allergen_id = :parent_id;
+INSERT OR IGNORE INTO pet_allergy(pet_id, allergen_id)
+SELECT pet_id, :new_id FROM pet_allergy WHERE allergen_id = :parent_id;
 ```
 
 **제품 배제 필터의 입력이다.** 여기 있는 알러지원은 쿼리에서 예외 없이 배제된다.
 실제 판정은 [`safe_products.py`](../../src/safe_products.py) 가
-[`ingredients.allergen_id`](product_schema.md#ingredients) 와 조인해서 내린다 — 문자열 비교가 아니다.
+[`ingredient.allergen_id`](product_schema.md#ingredient) 와 조인해서 내린다 — 문자열 비교가 아니다.
 
 **심각도(`severity`)를 두지 않는다.** 보호자가 알러지를 안다는 것 자체가 이미 겪어봤다는 뜻이므로
 무조건 배제한다. 반쯤 아는 심각도로 필터 강도를 조절하는 게 가장 위험하다.

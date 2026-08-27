@@ -1,6 +1,6 @@
 ---
 name: pet-reco
-description: "Use when running or debugging the pet-reco data pipeline (generate CSVs, load into selectory.db, embed reviews). Trigger: /pet-reco"
+description: "Use when running or debugging the pet-reco data pipeline (generate CSVs, load into selectory.db, embed review). Trigger: /pet-reco"
 ---
 
 # /pet-reco
