@@ -31,18 +31,22 @@ DB 가 막지 못해 이 생성기가 책임지는 것 (docu/schema/ 에 "앱이
 
 import csv
 import random
+import sys
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 MASTER_DIR = ROOT / 'data' / 'master'
 SEED_DIR = ROOT / 'data' / 'seed'
+sys.path.insert(0, str(ROOT / 'src'))
+from petcalc import age_months
 
 # 시드를 고정한다. 재실행해도 같은 데이터가 나와야 벤치·평가가 비교 가능하다.
 SEED = 20260812
 
 N_USERS = 300
 N_PRODUCTS = 200
+N_ADDITIONAL_PURCHASES = 600
 
 # 데이터의 '오늘'. date.today() 를 쓰면 재실행할 때마다 값이 흔들린다.
 TODAY = date(2026, 8, 25)
@@ -623,6 +627,120 @@ def gen_products():
 
 
 # ---------------------------------------------------------------------------
+# purchases / reviews — 기존 후기 원본을 정규화된 두 테이블로 분리
+
+def gen_purchases_reviews(pets, products, p_animals):
+    """원본 후기를 분리하고, 현재 시드와 연결된 새 구매·후기를 추가한다."""
+    pet_by_id = {row[0]: row for row in pets}
+    pets_by_user = {}
+    for pet in pets:
+        pets_by_user.setdefault(pet[1], []).append(pet)
+    product_by_id = {row[0]: row for row in products}
+    product_animals = {}
+    for product_id, animal_category_id in p_animals:
+        product_animals.setdefault(product_id, set()).add(animal_category_id)
+    size_code = {'소형': 2, '중형': 3, '대형': 4}
+    purchases, reviews = [], []
+    remapped = 0
+    fallback = 0
+    review_templates = {
+        1: ['잘 먹지 않아서 아쉬워요. 다음에는 다른 제품을 찾아보려고요.',
+            '기대했는데 우리 아이와는 잘 맞지 않았어요.'],
+        2: ['조금 아쉬웠어요. 먹기는 하지만 재구매는 고민됩니다.',
+            '반응이 보통이고 특별한 장점은 못 느꼈어요.'],
+        3: ['무난하게 먹이고 있어요. 크게 나쁘지는 않아요.',
+            '기호성은 보통이고 가격 대비 괜찮은 편이에요.'],
+        4: ['잘 먹고 속도 편해 보여서 만족해요.',
+            '꾸준히 먹이고 있어요. 다음에도 구매할 것 같아요.'],
+        5: ['정말 잘 먹어요. 다음에도 재구매할 예정입니다.',
+            '밥 시간마다 기다릴 정도로 좋아해요. 아주 만족합니다.'],
+    }
+
+    def make_review_body(purchase_id, pet, product, purchased_at, quantity, rating):
+        details = [
+            '첫 급여라 걱정했는데 적응이 빨랐어요.',
+            '포장 상태도 괜찮고 급여하기 편했어요.',
+            '며칠 동안 상태를 지켜보니 특별한 문제는 없었어요.',
+            '기대했던 것보다 기호성이 괜찮았어요.',
+            '다음 주문 때도 비슷한 제품을 비교해볼 생각이에요.',
+        ]
+        return (f'{pet[3]}에게 {product[3]}을 급여해봤어요. '
+                f'{rng.choice(review_templates[rating])} '
+                f'{rng.choice(details)} {purchased_at:%Y년 %m월}에 {quantity}개 주문했어요. '
+                f'후기 번호는 {purchase_id}번입니다.')
+
+    with (ROOT / 'data' / 'review.csv').open(encoding='utf-8', newline='') as f:
+        for source in csv.DictReader(f):
+            purchase_id = int(source['purchase_id'][1:])
+            source_pet_id = int(source['pet_id'][1:])
+            pet_id = source_pet_id
+            if pet_id not in pet_by_id:
+                user_id = int(source['customer_id'][1:])
+                candidates = pets_by_user.get(user_id, [])
+                if candidates:
+                    pet_id = min(candidates, key=lambda row: int(row[0]))[0]
+                else:
+                    wanted_size = size_code[source['size_category']]
+                    pet_id = min(pets, key=lambda row: (abs(int(row[7]) - wanted_size),
+                                                        int(row[0])))[0]
+                    fallback += 1
+                remapped += 1
+            product_id = int(source['product_id'][1:])
+            pet = pet_by_id[pet_id]
+            product = product_by_id[product_id]
+
+            source_time = datetime.strptime(source['purchased_at'], '%Y-%m-%d')
+            pet_created = datetime.fromisoformat(pet[11])
+            product_created = datetime.fromisoformat(product[15])
+            purchased_at = max(source_time, pet_created, product_created)
+            reviewed_at = purchased_at
+
+            purchases.append((
+                purchase_id, pet_id, product_id, int(source['quantity']),
+                product[5], age_months(pet[5], purchased_at.isoformat()),
+                size_code[source['size_category']], dt(purchased_at),
+            ))
+            reviews.append((
+                purchase_id, int(source['rating']),
+                make_review_body(purchase_id, pet, product, purchased_at,
+                                 int(source['quantity']), int(source['rating'])),
+                int(source['is_holdout']), dt(reviewed_at),
+            ))
+
+    eligible_pets = [row for row in pets if row[10] is None]
+    eligible_products = [row for row in products if row[14] == 1]
+    next_purchase_id = max(row[0] for row in purchases) + 1
+    for _ in range(N_ADDITIONAL_PURCHASES):
+        pet = rng.choice(eligible_pets)
+        category = pet[2]
+        candidates = [row for row in eligible_products
+                      if category in product_animals.get(row[0], set())]
+        product = rng.choice(candidates or eligible_products)
+        lower_bound = max(datetime.fromisoformat(pet[11]),
+                          datetime.fromisoformat(product[15]))
+        purchased_at = rdt(lower_bound, NOW)
+        rating = pick([(1, 8), (2, 10), (3, 20), (4, 32), (5, 30)])
+        reviewed_at = min(NOW, purchased_at + timedelta(days=rng.randint(1, 14)))
+        purchase_id = next_purchase_id
+        next_purchase_id += 1
+        purchases.append((
+            purchase_id, pet[0], product[0], rng.randint(1, 5), product[5],
+            age_months(pet[5], purchased_at.isoformat()), pet[7], dt(purchased_at),
+        ))
+        reviews.append((
+            purchase_id, rating,
+            make_review_body(purchase_id, pet, product, purchased_at,
+                             purchases[-1][3], rating),
+            1 if rng.random() < 0.10 else 0, dt(reviewed_at),
+        ))
+
+    if remapped:
+        print(f'  reviews 펫 ID 보정 {remapped}건 (고객 펫 연결 실패 최후 보정 {fallback}건)')
+    print(f'  신규 구매·후기 더미 {N_ADDITIONAL_PURCHASES}건 추가')
+    return purchases, reviews
+
+
+# ---------------------------------------------------------------------------
 
 def main():
     print(f'seed={SEED}  today={TODAY}')
@@ -633,6 +751,7 @@ def main():
     users = gen_users()
     pets, pet_breeds, pet_allergies = gen_pets(users)
     products, p_animals, nutrition, purposes, p_ings = gen_products()
+    purchases, reviews = gen_purchases_reviews(pets, products, p_animals)
 
     print('\n[seed]')
     write_csv('users', ['user_id', 'auth_provider', 'auth_uid', 'email', 'name', 'phone',
@@ -655,6 +774,10 @@ def main():
                                     'calcium_pct', 'phosphorus_pct', 'sodium_pct'], nutrition)
     write_csv('product_feeding_purposes', ['product_id', 'feeding_purpose_id'], purposes)
     write_csv('product_ingredients', ['product_id', 'ingredient_id'], p_ings)
+    write_csv('purchases', ['purchase_id', 'pet_id', 'product_id', 'quantity',
+                            'unit_price_krw', 'age_month_at_purchase',
+                            'size_at_purchase', 'purchased_at'], purchases)
+    write_csv('reviews', ['purchase_id', 'rating', 'body', 'is_holdout', 'reviewed_at'], reviews)
 
     # 분포가 의도대로 나왔는지 — 여기가 무너지면 판정 3분법을 시험할 수 없다.
     no_animal = N_PRODUCTS - len({p for p, _ in p_animals})

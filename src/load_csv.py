@@ -66,6 +66,8 @@ SOURCES = {
     'product_nutrition': SEED_DIR / 'product_nutrition.csv',
     'product_feeding_purposes': SEED_DIR / 'product_feeding_purposes.csv',
     'product_ingredients': SEED_DIR / 'product_ingredients.csv',
+    'purchases': SEED_DIR / 'purchases.csv',
+    'reviews': SEED_DIR / 'reviews.csv',
 }
 
 # animal_categories / product_categories / feeding_purposes 는 여기에 없다.
