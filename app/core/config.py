@@ -14,7 +14,6 @@ DB_PATH = DATA_DIR / 'pet_reco.db'
 MASTER_DIR = DATA_DIR / 'master'
 LOG_PATH = ROOT / 'query_log.jsonl'
 SEED_DIR = DATA_DIR / 'seed'
-LOG_PATH = ROOT / 'query_log.jsonl'
 
 # 다국어 지원 모델(한국어 포함) - 문장을 고정 차원 벡터로 변환
 EMBED_MODEL = 'intfloat/multilingual-e5-small'
