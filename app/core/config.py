@@ -31,7 +31,6 @@ EMBED_NORMALIZE = True
 
 # 색인 대상 리뷰를 고르는 조건. pet_purchases 가 p 로 별칭된 쿼리에서 쓴다.
 # is_holdout=1 은 추천 성능 평가용으로 남겨둔 행이라 색인에서 뺀다.
-# build_index.py 와 search.py 가 같은 기준을 봐야 재색인 필요 여부를 판단할 수 있어 여기 둔다.
 INDEX_FILTER = """
     p.is_holdout = 0
     AND p.review IS NOT NULL

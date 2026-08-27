@@ -45,7 +45,7 @@ def save_chunks(con: sqlite3.Connection, chunks: list[dict]):
 
 
 def save_vectors(
-    con: sqlite3.Connection, chunks: list[dict], vectors: np.ndarray, dim, source: str
+    con: sqlite3.Connection, chunks: list[dict], vectors: np.ndarray, dim
 ):
     """chunk_vectors 테이블을 만들고 벡터에 적재한다. save_chunks가 선행되어야 함"""
 
@@ -98,8 +98,7 @@ def save_vectors(
         [
             ("model", EMBED_MODEL),
             ("dim", str(dim)),
-            ("count", str(len(chunks))),
-            ("source", source),
+            ("count", str(len(chunks))),            
         ],
     )
     con.commit()
