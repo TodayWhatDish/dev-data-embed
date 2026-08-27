@@ -23,7 +23,7 @@ DB 가 막지 못해 이 생성기가 책임지는 것 (docu/schema/ 에 "앱이
   2) 축종 정합성 — 개 pet 에 고양이 breed 를 붙여도 FK 는 통과한다. 여기서 막는다.
   3) UNIQUE — users.email, (auth_provider, auth_uid). breeds 는 마스터라 이미 유일.
   4) 판정 3분법이 실제로 관측되도록 분포를 섞는다 —
-     ingredients_verified = 0 인 제품과 product_animal_categories 0행 제품을 일부러 남긴다.
+     ingredients_verified = 0 인 제품과 product_animal_category 0행 제품을 일부러 남긴다.
      전부 1 / 전부 1행이면 v_product_safety 의 None(판정불가) 분기가 한 번도 안 나온다.
 
 실행: py src/make_data/gen_seed.py   (repo root 에서)
@@ -117,10 +117,10 @@ def read_master(name):
 # ---------------------------------------------------------------------------
 # 마스터 로드 — 여기서 만든 ID 만 참조한다
 
-allergen_rows = read_master('allergens')
-breed_rows = read_master('breeds')
-ingredient_rows = read_master('ingredients')
-ing_allergen_rows = read_master('ingredient_allergens')
+allergen_rows = read_master('allergen')
+breed_rows = read_master('breed')
+ingredient_rows = read_master('ingredient')
+ing_allergen_rows = read_master('ingredient_allergen')
 
 # 알러지원 트리. 펼침(하위 재귀)은 앱이 하는 일이고, 이 생성기가 그 앱 역할을 한다.
 ALLERGEN_CHILDREN = {}
@@ -251,7 +251,7 @@ BRANDS = ['멍푸드', '펫키친', '바크앤조이', '네이처독', '도그�
 CAT_BRANDS = BRANDS[-2:]
 DOG_BRANDS = BRANDS[:-2]
 
-# product_categories 시드(product_schema.py)에 있는 ID 만 쓴다.
+# product_category 시드(product_schema.py)에 있는 ID 만 쓴다.
 # 1 사료 / 2 간식 / 3 덴탈껌 / 4 트릿 / 5 수제간식
 CATEGORY_LABEL = {1: '사료', 2: '간식', 3: '덴탈껌', 4: '트릿', 5: '수제간식'}
 # feeding_purposes 시드: 1 관절 / 2 다이어트 / 3 피부 / 4 치아 / 5 신장 / 6 소화
@@ -325,7 +325,7 @@ def gen_users():
     for uid in range(1, N_USERS + 1):
         provider = pick(AUTH_PROVIDERS)
 
-        # uq_users_auth 가 단일이 아니라 (auth_provider, auth_uid) 복합 UNIQUE 인 이유는
+        # uq_user_auth 가 단일이 아니라 (auth_provider, auth_uid) 복합 UNIQUE 인 이유는
         # "같은 uid 라도 제공자가 다르면 다른 계정"이기 때문이다(user_schema.md).
         # 데이터에 그 쌍이 하나도 없으면 복합으로 만든 이유가 시험되지 않으므로,
         # 소수는 이미 쓰인 uid 를 **다른 제공자로** 재사용한다.
@@ -627,34 +627,34 @@ def gen_products():
 def main():
     print(f'seed={SEED}  today={TODAY}')
     print('\n[master] (읽기만 함)')
-    print(f'  allergens {len(allergen_rows)}행 / breeds {len(breed_rows)}행 / '
-          f'ingredients {len(ingredient_rows)}행 / ingredient_allergens {len(ing_allergen_rows)}행')
+    print(f'  allergen {len(allergen_rows)}행 / breed {len(breed_rows)}행 / '
+          f'ingredient {len(ingredient_rows)}행 / ingredient_allergen {len(ing_allergen_rows)}행')
 
     users = gen_users()
     pets, pet_breeds, pet_allergies = gen_pets(users)
     products, p_animals, nutrition, purposes, p_ings = gen_products()
 
     print('\n[seed]')
-    write_csv('users', ['user_id', 'auth_provider', 'auth_uid', 'email', 'name', 'phone',
+    write_csv('user', ['user_id', 'auth_provider', 'auth_uid', 'email', 'name', 'phone',
                         'region', 'last_login_at', 'withdrawn_at', 'created_at', 'updated_at'],
               users)
-    write_csv('pets', ['pet_id', 'user_id', 'animal_category_id', 'name', 'gender', 'birth_date',
+    write_csv('pet', ['pet_id', 'user_id', 'animal_category_id', 'name', 'gender', 'birth_date',
                        'weight_kg', 'size', 'body_type', 'neutered', 'inactive_at',
                        'created_at', 'updated_at'], pets)
-    write_csv('pet_breeds', ['pet_id', 'breed_id'], pet_breeds)
-    write_csv('pet_allergies', ['pet_id', 'allergen_id'], pet_allergies)
-    write_csv('products', ['product_id', 'product_category_id', 'brand', 'name', 'food_form',
+    write_csv('pet_breed', ['pet_id', 'breed_id'], pet_breeds)
+    write_csv('pet_allergy', ['pet_id', 'allergen_id'], pet_allergies)
+    write_csv('product', ['product_id', 'product_category_id', 'brand', 'name', 'food_form',
                            'price_krw', 'weight_g', 'kcal_per_100g',
                            'target_size_min', 'target_size_max',
                            'target_age_min_month', 'target_age_max_month',
                            'description', 'ingredients_verified', 'is_active',
                            'created_at', 'updated_at'], products)
-    write_csv('product_animal_categories', ['product_id', 'animal_category_id'], p_animals)
+    write_csv('product_animal_category', ['product_id', 'animal_category_id'], p_animals)
     write_csv('product_nutrition', ['product_id', 'crude_protein_pct', 'crude_fat_pct',
                                     'crude_fiber_pct', 'crude_ash_pct', 'moisture_pct',
                                     'calcium_pct', 'phosphorus_pct', 'sodium_pct'], nutrition)
-    write_csv('product_feeding_purposes', ['product_id', 'feeding_purpose_id'], purposes)
-    write_csv('product_ingredients', ['product_id', 'ingredient_id'], p_ings)
+    write_csv('product_feeding_purpose', ['product_id', 'feeding_purpose_id'], purposes)
+    write_csv('product_ingredient', ['product_id', 'ingredient_id'], p_ings)
 
     # 분포가 의도대로 나왔는지 — 여기가 무너지면 판정 3분법을 시험할 수 없다.
     no_animal = N_PRODUCTS - len({p for p, _ in p_animals})

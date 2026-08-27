@@ -2,8 +2,8 @@
 """
 계정 — 서비스 가입자(보호자).
 
-하위 테이블이 참조하는 소유자 키는 오직 users.user_id 다.
-외부 인증 ID(auth_uid)를 FK 로 쓰지 않는 이유는 docu/schema/user_schema.md#users 참고.
+하위 테이블이 참조하는 소유자 키는 오직 user.user_id 다.
+외부 인증 ID(auth_uid)를 FK 로 쓰지 않는 이유는 docu/schema/user_schema.md#user 참고.
 
 의존: 없음.
 
@@ -12,9 +12,9 @@
 
 TABLES = [
 
-# users — 보호자 계정. 컬럼 설명은 docu/schema/user_schema.md#users
+# user — 보호자 계정. 컬럼 설명은 docu/schema/user_schema.md#user
 '''
-CREATE TABLE users (
+CREATE TABLE user (
     user_id       INTEGER NOT NULL PRIMARY KEY,
     auth_provider TEXT    NOT NULL DEFAULT 'local'
                           CHECK (auth_provider IN ('google', 'firebase', 'kakao', 'apple', 'local')),
@@ -35,7 +35,7 @@ CREATE TABLE users (
 
 # 같은 외부 계정이 두 유저에 붙는 것을 DB 레벨에서 차단한다.
 # 로그인 처리는 이 인덱스를 그대로 타는 조회 하나로 끝난다:
-#   SELECT user_id FROM users WHERE auth_provider = ? AND auth_uid = ?
+#   SELECT user_id FROM user WHERE auth_provider = ? AND auth_uid = ?
 UNIQUE_INDEXES = [
-    'CREATE UNIQUE INDEX uq_users_auth     ON users(auth_provider, auth_uid)',
+    'CREATE UNIQUE INDEX uq_user_auth      ON user(auth_provider, auth_uid)',
 ]

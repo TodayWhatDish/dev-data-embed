@@ -5,11 +5,11 @@
 DDL 은 도메인별 모듈에 있고, 이 파일은 그것을 **모아서 순서대로 실행**하기만 한다.
 파일 구성은 docu/schema/ 문서 구성과 1:1 로 맞췄다.
 
-    common_schema.py   animal_categories, allergens          (공유 코드표)
-    user_schema.py     users
-    pet_schema.py      breeds, pets, pet_breeds, pet_allergies
+    common_schema.py   animal_category, allergen          (공유 코드표)
+    user_schema.py     user
+    pet_schema.py      breed, pet, pet_breed, pet_allergy
     product_schema.py  제품 8테이블 + 뷰 2개
-    purchase_schema.py purchases, reviews
+    purchase_schema.py purchase, review
 
 모듈 계약 — 각 모듈은 아래 이름을 **있는 것만** 모듈 수준 리스트로 노출한다.
 없으면 빈 리스트로 친다.
@@ -25,7 +25,7 @@ DROP 목록은 모듈이 갖지 않는다 — 이유는 drop_all() 주석 참고
 MODULES 의 순서가 곧 생성 순서다. 의존이 있는 쪽이 뒤에 온다:
     common (의존 없음) -> user (의존 없음) -> pet (common, user) -> product (common, pet)
     -> purchase (pet, product)
-purchase 가 맨 뒤인 이유는 pets 와 products 를 둘 다 참조하기 때문이다.
+purchase 가 맨 뒤인 이유는 pet 와 product 를 둘 다 참조하기 때문이다.
 테이블의 FK 는 참조 대상이 아직 없어도 CREATE 가 되지만, 뷰는 안 된다.
 순서가 틀어지면 check_fk_targets() 가 잡는다.
 
@@ -43,7 +43,7 @@ purchase 가 맨 뒤인 이유는 pets 와 products 를 둘 다 참조하기 때
 
      "한 마리가 여러 품종을 갖고, 한 품종은 여러 마리가 갖는다"를 이렇게 표현한다.
 
-         pet_breeds
+         pet_breed
          ┌────────┬──────────┐
          │ pet_id │ breed_id │
          ├────────┼──────────┤
@@ -81,8 +81,8 @@ purchase 가 맨 뒤인 이유는 pets 와 products 를 둘 다 참조하기 때
   5) 금액은 INTEGER(원 단위). REAL 은 반올림 오차가 생긴다.
 
   6) 불리언은 INTEGER + CHECK IN (0,1). SQLite 에 BOOL 이 없다.
-     현재 대상: pets.neutered, products.ingredients_verified, products.is_active,
-     reviews.is_holdout. reviews.allergy_reaction 은 NULL 을 더 허용한다(= 후기에 언급 없음).
+     현재 대상: pet.neutered, product.ingredients_verified, product.is_active,
+     review.is_holdout. review.allergy_reaction 은 NULL 을 더 허용한다(= 후기에 언급 없음).
 
   7) STRICT 테이블 — 손실 없이 변환되지 않는 값은 INSERT 가 거부된다. 끄지 않는다.
      "타입이 다르면 거부"가 아니다. INTEGER 컬럼 기준으로 실측하면:
@@ -139,7 +139,7 @@ def drop_all(con):
 
     모듈마다 DROP 목록을 따로 두지 않는 이유: 목록과 실제 테이블이 어긋나면
     옛 테이블이 유령으로 남는다. 실제로 겪었다 — 옛 스크립트가 만든
-    purchases/reviews/review_embeddings 가 DROP 목록에 없어서 계속 살아남아
+    purchase/review/review_embeddings 가 DROP 목록에 없어서 계속 살아남아
     객체 수가 17개로 잡혔다. 여기서는 '무엇을 만들었는지'가 아니라
     '지금 무엇이 있는지'를 보고 지우므로 그 어긋남 자체가 생기지 않는다.
 
@@ -234,7 +234,7 @@ def create_schema(db_path=DB_PATH, verbose=True):
         con.commit()
 
         # PRAGMA foreign_keys 는 트랜잭션 안에서 무시되므로 commit 뒤에 켠다.
-        # 시드를 FK 검증이 켜진 상태로 넣어야 product_categories 의 parent_id 같은
+        # 시드를 FK 검증이 켜진 상태로 넣어야 product_category 의 parent_id 같은
         # 자기참조가 실제로 검사된다.
         con.execute('PRAGMA foreign_keys = ON')
         for sql, rows in collect('SEEDS'):
