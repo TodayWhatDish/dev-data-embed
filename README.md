@@ -13,9 +13,31 @@
 | [`docu/DATAINFO.md`](docu/DATAINFO.md) | 더미 CSV 데이터 사전 (초기 버전 기준) |
 | [`docu/WORK.md`](docu/WORK.md) | 작업일지 |
 
+## 설치
+
+```bash
+python -m pip install langchain-text-splitters==1.1.2 transformers==5.14.1
+python -m pip install langchain-huggingface==1.2.2
+python -m pip install langchain-openai==1.4.3
+python -m pip install fastapi==0.141.1 uvicorn==0.52.0
+python -m pip install ragas==0.4.3
+python -m pip install langgraph==1.2.11
+```
+
 ## 실행
 
-스크립트는 상대 경로를 쓰므로 **저장소 루트에서** 실행합니다.
+스크립트는 상대 경로를 쓰므로 **저장소 루트에서** 실행합니다. DB가 두 갈래([`AGENTS.md`](AGENTS.md) 참고)로 나뉘니 섞지 마세요.
+
+### Track A — `pet_reco.db` (활성 파이프라인)
+
+```bash
+python -m pipeline.load_db        # data/*.csv -> pet_reco.db 적재
+python -m pipeline.chunk          # 리뷰 → 문장 조립 → 토큰 한도 내 조각
+python -m pipeline.embed_reviews  # 조각 → 벡터 저장
+python -m app.query "소형견 다이어트 사료 추천해줘"   # 검색 테스트
+```
+
+### Track B — `user.db` (설계 중, 아직 데이터 미적재)
 
 ```bash
 py src/create_schema/execute_schema.py   # user.db 스키마 생성 (16 테이블 + 2 뷰)

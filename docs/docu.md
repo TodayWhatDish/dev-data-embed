@@ -1,27 +1,4 @@
-
-## [패키지 설치]
->  python -m pip install langchain-text-splitters==1.1.2 transformers==5.14.1
-
->  python -m pip install langchain-huggingface==1.2.2
-
-
-## [실행 순서]
-### 1. DB 로드
-> python -m pipeline.load_db
-
-### 2. 청킹 (리뷰 → 문장 조립 → 토큰 한도 내 조각)
-> python -m pipeline.chunk
-
-### 3. 임베딩 (조각 → 벡터 저장)
-> python -m pipeline.embed_reviews
-
-### 4. 검색 테스트
-> python -m app.query "소형견 다이어트 사료 추천해줘"
-
-## [API]
-### 1. Fast Api
-> pip install fastapi "uvicorn[standard]"
-
+> 설치·실행 순서는 [`../README.md`](../README.md)로 옮겼습니다.
 
 # TODO
 
