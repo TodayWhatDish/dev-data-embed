@@ -66,11 +66,11 @@ def env(name: str, default: str) -> str:
 USE_API = env("USE_API",0) == "1"
 
 if USE_API:
-    LLM_BASE_URL = ... # OpenAI
-    LLM_API_KEY = ...
-    LLM_MODEL = ...
+    LLM_BASE_URL = "https://api.openai.com/v1"
+    LLM_API_KEY = env("OPENAI_API_KEY", "")
+    LLM_MODEL = env("API_MODEL", "gpt-4o-mini")
 else:
-    LLM_BASE_URL = ...
-    LLM_API_KEY = ...
-    LLM_MODEL = ...
+    LLM_BASE_URL = "http://localhost:11434/v1"
+    LLM_API_KEY = "ollama"
+    LLM_MODEL = "qwen2.5:3b"
 
