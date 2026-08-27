@@ -8,5 +8,6 @@
 
 from langchain_openai import ChatOpenAI
 
-# from app.core.config import 
-# from app.core.trace
+from app.core.config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL
+
+chat = ChatOpenAI(model=LLM_MODEL, base_url=LLM_BASE_URL, api_key=LLM_API_KEY, temperature=0)
