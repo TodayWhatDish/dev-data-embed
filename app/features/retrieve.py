@@ -1,4 +1,4 @@
-# LastUpdated : 2026-08-25
+# LastUpdated : 2026-08-26
 
 # chunk_vectors 에 저장된 조각 벡터로 유사 리뷰를 찾는 검색 모듈
 #

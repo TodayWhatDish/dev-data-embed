@@ -1,13 +1,5 @@
+> 설치·실행 순서는 [`../README.md`](../README.md)로 옮겼습니다.
 
-## [패키지 설치]
->  python -m pip install langchain-text-splitters==1.1.2 transformers==5.14.1
-
->  python -m pip install langchain-huggingface==1.2.2
-
-
-## [실행 순서]
-0. Python : Select Interpriter 설정.
-1. Task : Task Run에서 의존성 설치 (설정된 인터프리터에 설치됨.)
 # TODO
 
 스키마(`schema/`)에는 담기지 않지만 지켜야 하는 것들. **DB 가 강제하지 못하므로 앱·운영이 책임진다.**

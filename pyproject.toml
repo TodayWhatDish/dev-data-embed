@@ -5,6 +5,10 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "dev-data-embed"
 version = "0.1.0"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+]
 
 [tool.setuptools.packages.find]
 include = ["app*","pipeline*"]

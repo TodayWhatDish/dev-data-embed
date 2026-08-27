@@ -21,8 +21,10 @@ SCHEMAS = {
         ('name', 'TEXT'),
         ('phone', 'TEXT'),
         ('email', 'TEXT'),
-        ('city', 'TEXT'),
-        ('account_type', 'TEXT'),  # B2C / B2B
+        ('sms_consent', 'TEXT'),
+        ('marketing_consent', 'TEXT'),
+        ('gender', 'TEXT'),
+        ('member_status', 'TEXT'),
         ('joined_at', 'TEXT'),
     ],
     # 반려견 프로필 - 모든 추천의 출발점이 되는 개인화 정보
@@ -30,18 +32,13 @@ SCHEMAS = {
         ('pet_id', 'ID PRIMARY KEY'),
         ('customer_id', 'ID'),
         ('breed', 'TEXT'),
-        ('age', 'INTEGER'),
-        ('gender', 'TEXT'),
+        ('birth_date', 'TEXT'),           # ISO 날짜 (나이는 birth_date에서 계산)
+        ('gender', 'TEXT'),               # f/m
         ('weight_kg', 'REAL'),
-        ('body_type', 'TEXT'),             # 마름 / 표준 / 비만
-        ('neutered', 'INTEGER'),           # 중성화 여부(칼로리 산정에 영향)
-        ('allergies', 'TEXT'),             # 없음 / 닭고기 / 소고기 / 곡물 / 유제품
-        ('feeding_purpose', 'TEXT'),       # 관절 / 다이어트 / 피부 / 없음
-        ('diet_preference', 'TEXT'),       # 보통 / 식탐많음 / 식이까다로움
-        ('food_form_preference', 'TEXT'),  # 건식 / 습식 / 혼합
-        ('budget', 'INTEGER'),
-        ('place_type_preference', 'TEXT'),
-        ('updated_at', 'TEXT'),
+        ('neutered', 'INTEGER'),          # 0/1
+        ('allergies', 'TEXT'),            # '|' 구분: 닭고기|소고기 등
+        ('feeding_purpose', 'TEXT'),      # 관절|다이어트|피부|없음
+        ('food_form_preference', 'TEXT'), # 건식|습식|혼합
     ],
     # 사료/간식 상품 정보
     'pet_products': [
@@ -55,29 +52,29 @@ SCHEMAS = {
         ('target_feeding_purpose', 'TEXT'),   # 관절 / 다이어트 / 피부 / 공용
         ('target_food_form', 'TEXT'),         # 건식 / 습식 / 공용
         ('ingredients', 'TEXT'),              # '|' 로 구분된 원료 목록
-        ('tags', 'TEXT'),                     # '|' 로 구분. sub_category + feeding_purpose + 원료 + food_form
+        ('tags', 'TEXT'),                     # '|' 로 구분
         ('description', 'TEXT'),
     ],
     # 구매 이력 + 리뷰. RAG 검색 대상이 되는 핵심 테이블로,
     # 리뷰 작성 시점의 반려견 상태(견종/체급/알레르기 등)가 함께 비정규화되어 있다.
     'pet_purchases': [
-        ('purchase_id', 'ID PRIMARY KEY'),
-        ('customer_id', 'ID'),
-        ('pet_id', 'ID'),
-        ('product_id', 'ID'),
-        ('category', 'TEXT'),
-        ('breed', 'TEXT'),
-        ('size_category', 'TEXT'),      # 소형 / 중형 / 대형
-        ('weight_kg', 'REAL'),
-        ('age_group', 'TEXT'),          # 퍼피 / 성견 / 시니어
-        ('age_years', 'REAL'),
-        ('allergy', 'TEXT'),            # 리뷰 작성자 반려견의 알레르기(없으면 NULL)
-        ('health_condition', 'TEXT'),   # 관절이 약함 / 피부가 예민함 ... (없으면 NULL)
-        ('purchased_at', 'TEXT'),
-        ('quantity', 'INTEGER'),
-        ('rating', 'INTEGER'),
-        ('review', 'TEXT'),
-        ('is_holdout', 'INTEGER'),      # 1 = 추천 성능 평가용으로 남겨둔 행(임베딩 색인에서 제외)
+            ('purchase_id', 'ID PRIMARY KEY'),
+            ('customer_id', 'ID'),
+            ('pet_id', 'ID'),
+            ('product_id', 'ID'),
+            ('category', 'TEXT'),
+            ('breed', 'TEXT'),
+            ('size_category', 'TEXT'),      # 소형 / 중형 / 대형
+            ('weight_kg', 'REAL'),
+            ('age_group', 'TEXT'),          # 퍼피 / 성견 / 시니어
+            ('age_years', 'REAL'),
+            ('allergy', 'TEXT'),            # 리뷰 작성자 반려견의 알레르기(없으면 NULL)
+            ('health_condition', 'TEXT'),   # 관절이 약함 / 피부가 예민함 ... (없으면 NULL)
+            ('purchased_at', 'TEXT'),
+            ('quantity', 'INTEGER'),
+            ('rating', 'INTEGER'),
+            ('review', 'TEXT'),
+            ('is_holdout', 'INTEGER'),      # 1 = 평가용 holdout
     ],
 }
 
