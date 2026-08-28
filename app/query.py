@@ -42,8 +42,8 @@ def main():
         allergy = input('  알레르기(예: 닭고기 알레르기, 생략 가능): ').strip()
 
         profile = {}
-        # if species:
-        #     profile['animal_category'] = species
+        if species:
+            profile['animal_category'] = species
         if size:
             profile['size_category'] = size
         if allergy:
