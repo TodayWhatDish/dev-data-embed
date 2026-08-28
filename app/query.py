@@ -54,7 +54,8 @@ def main():
 
         for pid, score, doc in hits:
             text = doc.removeprefix('passage:\n')
-            print(f'  - {fmt_purchase_id(pid)} ({score:.3f}) {text}...')
+            print(f'\n  [{fmt_purchase_id(pid)}] 유사도 {score:.3f}')
+            print(f'  {text}')
 
         log_result(profile, query, hits)
 
