@@ -1,0 +1,20 @@
+{
+  // 디버거는 파일을 직접 실행해서 sys.path[0] 이 스크립트 폴더(pipeline/)가 된다.
+  // repo root 가 경로에 없으면 `import app.core.config` 가 실패한다 — PYTHONPATH 로 넣어준다.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python: 현재 파일 (repo root 기준)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        // 출력에 em-dash 가 있어 cp949 콘솔에서 UnicodeEncodeError 가 난다.
+        "PYTHONIOENCODING": "utf-8"
+      }
+    }
+  ]
+}

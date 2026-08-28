@@ -182,7 +182,7 @@ class VectorStore:
         # 저장할 때 정규화했으므로 내적만으로 코사인 유사도가 된다.
         # 질의 한 건마다 진행 바가 뜨면 대화형 출력이 지저분해져서 끈다.
         q = self.model.encode(
-            [query], normalize_embeddings=True, show_progress_bar=False
+            [f"query: {query}"], normalize_embeddings=True, show_progress_bar=False
         )[0]
         scores = self.matrix[idx] @ q
 

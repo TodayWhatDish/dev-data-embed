@@ -51,11 +51,14 @@ def count_tokens(text):
 def build_review_doc(row: sqlite3.Row) -> str:
     """리뷰 한 건을 임베딩용 문장으로 조립한다."""
     allergy = row["allergy"] or "알레르기 없음"
+    breed = row['breed'] or "견종 미상"
+    purpose = f"{row['target_feeding_purpose']} 목적" if row['target_feeding_purpose'] else "목적 미기재"
+    category = f"{row['category']}/{row['sub_category']}" if row['category'] else row['sub_category']
     return (
         "passage:\n"
-        f"{row['size_category']}견 생후 {row['age_month_at_purchase']}개월 {row['breed']}, {allergy}. "
-        f"{row['category']}/{row['sub_category']} {row['product_name']} "
-        f"({row['target_feeding_purpose']} 목적, {row['target_food_form']}) "
+        f"{row['size_category']}견 생후 {row['age_month_at_purchase']}개월 {breed}, {allergy}. "
+        f"{category} {row['product_name']} "
+        f"({purpose}, {row['target_food_form']}) "
         f"별점 {row['rating']}점 후기: {row['review']}"
     )
 
