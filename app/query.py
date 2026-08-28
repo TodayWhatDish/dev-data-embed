@@ -42,8 +42,8 @@ def main():
         allergy = input('  알레르기(예: 닭고기 알레르기, 생략 가능): ').strip()
 
         profile = {}
-        if species:
-            profile['animal_category'] = species
+        # if species:
+        #     profile['animal_category'] = species
         if size:
             profile['size_category'] = size
         if allergy:
@@ -53,7 +53,8 @@ def main():
         hits = store.search(query, where=where, params=params)
 
         for pid, score, doc in hits:
-            print(f'  - {fmt_purchase_id(pid)} ({score:.3f}) {doc}...')
+            text = doc.removeprefix('passage:\n')
+            print(f'  - {fmt_purchase_id(pid)} ({score:.3f}) {text}...')
 
         log_result(profile, query, hits)
 
