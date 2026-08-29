@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>오늘뭐멍냥 — 화면 구조 와이어프레임</title>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --line: #bbb;
+    --line-dark: #333;
+    --gray: #e4e4e4;
+    --gray-dark: #cfcfcf;
+    --accent: #2563eb;
+    --safe: #16a34a;
+    --unknown: #d97706;
+    --risk: #dc2626;
+    --ai: #7c3aed;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", "Malgun Gothic", sans-serif;
+    color: var(--ink);
+    background: #fafafa;
+    margin: 0;
+    padding: 40px 24px 100px;
+  }
+  h1 { font-size: 1.5em; margin: 0 0 2px; }
+  .sub { color: #777; margin: 0 0 40px; font-size: 0.9em; }
+  h2 {
+    font-size: 1.05em;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 6px;
+    margin: 56px 0 20px;
+    max-width: 1200px;
+  }
+
+  /* ---------- 트리(사이트 구조) ---------- */
+  .tree, .tree ul {
+    list-style: none;
+    margin: 0;
+    padding-left: 28px;
+  }
+  .tree { padding-left: 0; }
+  .tree li {
+    position: relative;
+    padding: 6px 0 6px 24px;
+    border-left: 1px solid var(--line);
+  }
+  .tree > li { border-left: none; padding-left: 0; }
+  .tree li::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 20px;
+    width: 20px; height: 1px;
+    background: var(--line);
+  }
+  .tree li:last-child { border-left: none; }
+  .tree li:last-child::after {
+    content: "";
+    position: absolute;
+    left: -1px; top: 0; bottom: calc(100% - 20px);
+    width: 1px;
+    background: var(--line);
+  }
+  .node {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 12px;
+    border: 1px solid var(--line-dark);
+    border-radius: 6px;
+    background: #fff;
+    font-size: 0.88em;
+  }
+  .node.root { font-weight: 700; background: var(--ink); color: #fff; }
+  .depth {
+    font-size: 0.7em;
+    padding: 1px 6px;
+    border-radius: 10px;
+    background: var(--gray);
+    color: #555;
+  }
+  .cond {
+    font-size: 0.75em;
+    color: #888;
+    margin-right: 2px;
+  }
+
+  /* ---------- 플로우(화면 배치) ---------- */
+  .flow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 28px;
+    align-items: flex-start;
+    max-width: 1400px;
+  }
+  .arrow {
+    align-self: center;
+    font-size: 1.4em;
+    color: var(--line-dark);
+    padding-top: 260px;
+  }
+  .arrow .label {
+    display: block;
+    font-size: 0.5em;
+    color: #888;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  /* ---------- 화면 프레임(브라우저/폰 목업) ---------- */
+  .frame {
+    background: #fff;
+    border: 1.5px solid var(--line-dark);
+    border-radius: 10px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .frame.mobile { width: 300px; }
+  .frame.desktop { width: 620px; }
+  .frame .titlebar {
+    background: var(--ink);
+    color: #fff;
+    font-size: 0.72em;
+    padding: 6px 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .frame .titlebar .dots { display: flex; gap: 3px; }
+  .frame .titlebar .dots span {
+    width: 6px; height: 6px; border-radius: 50%; background: #666;
+  }
+  .frame .titlebar .name { flex: 1; }
+  .frame .body { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+
+  /* ---------- 와이어프레임 부품 ---------- */
+  .wf-line { height: 9px; background: var(--gray); border-radius: 3px; }
+  .wf-line.w40 { width: 40%; }
+  .wf-line.w60 { width: 60%; }
+  .wf-line.w80 { width: 80%; }
+  .wf-line.w100 { width: 100%; }
+  .wf-line.bold { height: 14px; background: var(--gray-dark); }
+
+  .wf-img {
+    background: repeating-linear-gradient(45deg, #fff, #fff 6px, var(--gray) 6px, var(--gray) 7px);
+    border: 1px dashed var(--line-dark);
+    border-radius: 6px;
+  }
+
+  .wf-input {
+    border: 1px solid var(--line-dark);
+    border-radius: 5px;
+    padding: 7px 10px;
+    font-size: 0.72em;
+    color: #999;
+    background: #fff;
+  }
+
+  .wf-btn {
+    text-align: center;
+    border-radius: 6px;
+    padding: 8px;
+    font-size: 0.75em;
+    border: 1.5px solid var(--ink);
+    font-weight: 600;
+  }
+  .wf-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .wf-btn.ghost { background: #fff; color: var(--ink); }
+  .wf-btn.row { display: flex; gap: 8px; }
+  .wf-btn.row > div { flex: 1; }
+
+  .wf-block {
+    border: 1px solid var(--line-dark);
+    border-radius: 6px;
+    padding: 8px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .wf-grid { display: grid; gap: 8px; }
+  .wf-grid.g2 { grid-template-columns: repeat(2, 1fr); }
+  .wf-grid.g3 { grid-template-columns: repeat(3, 1fr); }
+
+  .tag {
+    font-size: 0.62em;
+    padding: 1px 7px;
+    border-radius: 9px;
+    display: inline-block;
+    color: #fff;
+  }
+  .tag.safe { background: var(--safe); }
+  .tag.unknown { background: var(--unknown); }
+  .tag.risk { background: var(--risk); }
+  .tag.hold { background: #9ca3af; }
+
+  .feat {
+    font-size: 0.68em;
+    color: var(--accent);
+    margin-top: -4px;
+  }
+
+  .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--gray); border: 1px solid var(--line-dark); flex-shrink: 0; }
+  .avatar.plus { display:flex; align-items:center; justify-content:center; font-size: 14px; color:#888; }
+
+  .stepper { display: flex; gap: 4px; }
+  .stepper div { flex: 1; height: 5px; border-radius: 3px; background: var(--gray); }
+  .stepper div.done { background: var(--ink); }
+  .stepper div.now { background: var(--accent); }
+
+  .tree-mini { display: flex; flex-direction: column; gap: 5px; padding-left: 4px; }
+  .tree-mini .row { display: flex; align-items: center; gap: 6px; }
+  .tree-mini .row.sub { padding-left: 18px; }
+  .chk { width: 12px; height: 12px; border: 1.5px solid var(--ink); border-radius: 3px; flex-shrink: 0; }
+
+  .sidebar-nav { display: flex; flex-direction: column; gap: 2px; }
+  .sidebar-nav .item {
+    padding: 8px 10px; font-size: 0.75em; border-radius: 5px; color: #555;
+  }
+  .sidebar-nav .item.active { background: var(--ink); color: #fff; font-weight: 600; }
+
+  table.wf-table { width: 100%; border-collapse: collapse; font-size: 0.7em; }
+  table.wf-table th, table.wf-table td { border-bottom: 1px solid var(--gray-dark); padding: 6px 4px; text-align: left; }
+  table.wf-table th { color: #888; font-weight: 600; }
+
+  .admin-split { display: grid; grid-template-columns: 1.1fr 1fr; gap: 10px; }
+  .cluster { border: 1px dashed var(--line-dark); border-radius: 6px; padding: 6px; display:flex; flex-direction:column; gap:4px; }
+
+  /* ---------- 관리자 AI 추론 패널 ---------- */
+  .ai-panel { background: linear-gradient(180deg, rgba(124,58,237,.06), rgba(124,58,237,0)); border-color: #c9b8f5; }
+  .feat.ai { display: flex; align-items: center; gap: 6px; color: var(--ai); }
+  .dup-pair { display: flex; align-items: center; gap: 6px; }
+  .dup-link { flex-shrink: 0; display: flex; align-items: center; gap: 3px; font-size: .62em; color: var(--ai); }
+  .score-chip { font-size: .95em; font-weight: 700; padding: 1px 6px; border-radius: 8px; background: #f3e8ff; color: #6d28d9; }
+  .rank-row { display: flex; align-items: center; gap: 6px; }
+  .rank-num {
+    width: 14px; height: 14px; flex-shrink: 0; border-radius: 50%;
+    background: var(--ai); color: #fff; font-size: .6em; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .rank-track { flex: 1; height: 6px; border-radius: 3px; background: var(--gray); overflow: hidden; }
+  .rank-bar { height: 100%; background: var(--ai); border-radius: 3px; }
+
+  /* ---------- AI 관여 지점 강조 ---------- */
+  .ai-badge {
+    font-size: 0.62em;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 9px;
+    background: var(--ai);
+    color: #fff;
+    display: inline-block;
+    letter-spacing: .02em;
+  }
+  .legend {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 0.8em; color: #555;
+    margin: -22px 0 40px;
+  }
+  .legend .swatch { width: 14px; height: 14px; border-radius: 4px; background: var(--ai); flex-shrink: 0; }
+  .frame.ai-zone { border-color: var(--ai); box-shadow: 0 0 0 3px rgba(124,58,237,.15); }
+  .frame.ai-zone .titlebar { background: var(--ai); }
+  .arrow.ai { color: var(--ai); font-weight: 700; }
+  .arrow.ai .label { color: var(--ai); font-weight: 700; }
+
+  .screen { display: flex; flex-direction: column; gap: 8px; }
+  .caption { font-size: 0.85em; font-weight: 500; color: #333; line-height: 1.45; margin: 0; }
+
+  /* ---------- polished presentation layer ---------- */
+  :root {
+    --ink: #172033;
+    --muted: #64748b;
+    --line: #d8dee9;
+    --line-dark: #64748b;
+    --gray: #eef2f7;
+    --gray-dark: #d7dee9;
+    --accent: #2563eb;
+    --safe: #059669;
+    --unknown: #d97706;
+    --risk: #dc2626;
+    --ai: #7c3aed;
+    --canvas: #f5f7fb;
+  }
+  html { scroll-behavior: smooth; }
+  body {
+    max-width: 1560px;
+    margin: 0 auto;
+    padding: 48px clamp(20px, 4vw, 64px) 96px;
+    background: radial-gradient(circle at 0% 0%, rgba(37,99,235,.08), transparent 28rem), var(--canvas);
+    font-size: 16px;
+    line-height: 1.5;
+  }
+  body::before {
+    content: "WIREFRAME / PRODUCT FLOW";
+    display: block;
+    margin-bottom: 12px;
+    color: var(--accent);
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .16em;
+  }
+  h1 {
+    max-width: 1200px;
+    margin: 0;
+    color: var(--ink);
+    font-size: clamp(1.7rem, 3vw, 2.5rem);
+    letter-spacing: -.045em;
+  }
+  .sub { max-width: 1200px; margin: 6px 0 30px; color: var(--muted); font-size: .92rem; }
+  h2 {
+    max-width: 1200px;
+    margin: 56px 0 22px;
+    padding: 0 0 10px;
+    border-bottom: 1px solid var(--line);
+    color: var(--ink);
+    font-size: 1rem;
+  }
+  h2::before {
+    content: "";
+    display: inline-block;
+    width: 4px;
+    height: 1em;
+    margin: 0 8px -2px 0;
+    border-radius: 99px;
+    background: var(--accent);
+  }
+  .legend {
+    width: fit-content;
+    margin: 0 0 34px;
+    padding: 9px 13px;
+    border: 1px solid #ddd3ff;
+    border-radius: 10px;
+    background: #faf9ff;
+    color: #5b21b6;
+    box-shadow: 0 4px 14px rgba(124,58,237,.06);
+  }
+  .tree {
+    max-width: 1200px;
+    padding: 22px 24px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: rgba(255,255,255,.82);
+    box-shadow: 0 12px 30px rgba(15,23,42,.05);
+  }
+  .node {
+    border-color: var(--line);
+    border-radius: 9px;
+    box-shadow: 0 2px 5px rgba(15,23,42,.04);
+    transition: transform .18s ease, box-shadow .18s ease;
+  }
+  .node:hover { transform: translateY(-1px); box-shadow: 0 6px 14px rgba(15,23,42,.09); }
+  .node.root { background: var(--ink); border-color: var(--ink); }
+  .depth { background: #e8eefc; color: #3157a6; }
+  .flow { gap: 24px; max-width: 1460px; align-items: flex-start; }
+  .screen { min-width: 300px; }
+  .frame {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: 0 14px 28px rgba(15,23,42,.08), 0 2px 5px rgba(15,23,42,.04);
+    transition: transform .2s ease, box-shadow .2s ease;
+  }
+  .frame:hover { transform: translateY(-3px); box-shadow: 0 20px 36px rgba(15,23,42,.12); }
+  .frame .titlebar { padding: 9px 12px; background: #202b42; font-weight: 700; letter-spacing: .01em; }
+  .frame .titlebar .dots span:nth-child(1) { background: #fb7185; }
+  .frame .titlebar .dots span:nth-child(2) { background: #fbbf24; }
+  .frame .titlebar .dots span:nth-child(3) { background: #34d399; }
+  .frame .body { padding: 16px; gap: 11px; }
+  .wf-line { background: #e8edf4; }
+  .wf-line.bold { background: #cbd5e1; }
+  .wf-img { background: repeating-linear-gradient(45deg, #fbfcfe, #fbfcfe 6px, #e8edf4 6px, #e8edf4 7px); border-color: #94a3b8; }
+  .wf-input { border-color: #cbd5e1; background: #fbfcfe; color: #94a3b8; }
+  .wf-btn { border-color: #cbd5e1; background: #fff; transition: filter .18s ease, transform .18s ease; }
+  .wf-btn:hover { filter: brightness(.98); transform: translateY(-1px); }
+  .wf-btn.primary { border-color: var(--accent); box-shadow: 0 4px 10px rgba(37,99,235,.2); }
+  .wf-block { border-color: #d6dde8; background: #fcfdff; }
+  .feat { font-weight: 700; }
+  .caption { color: #334155; }
+  .frame.ai-zone { border-color: #a78bfa; box-shadow: 0 0 0 3px rgba(124,58,237,.12), 0 14px 28px rgba(15,23,42,.08); }
+  .frame.ai-zone .titlebar { background: linear-gradient(135deg, #6d28d9, #8b5cf6); }
+  .sidebar-nav .item { color: #64748b; }
+  .sidebar-nav .item.active { background: var(--ink); }
+  table.wf-table th { color: #64748b; }
+  @media (max-width: 720px) {
+    body { padding: 30px 14px 64px; }
+    .tree { padding: 16px 12px; overflow-x: auto; }
+    .flow { gap: 18px; overflow-x: auto; padding: 4px 4px 16px; scroll-snap-type: x proximity; }
+    .screen, .frame.mobile { scroll-snap-align: start; }
+    .arrow { display: none; }
+    .frame.desktop { width: min(620px, calc(100vw - 42px)); }
+    .legend { width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<h1>오늘뭐멍냥 — 화면 구조 와이어프레임</h1>
+<p class="sub">페이지 뎁스 · 화면 배치 · 기능 요소만. 데이터/로직 설명 없음.</p>
+<div class="legend"><span class="swatch"></span> 보라 = AI가 관여하는 지점 (쿼리 제출 → 결과 수신 / 관리자 AI 추론)</div>
+
+<h2>사이트 구조 (뎁스)</h2>
+<ul class="tree">
+  <li>
+    <span class="node root">로그인 / 회원가입 <span class="depth">D0</span></span>
+    <ul>
+      <li><span class="cond">신규·미등록</span><span class="node">온보딩(반려동물 등록) <span class="depth">D1</span></span>
+        <ul><li><span class="node">홈(로비) <span class="depth">D2</span></span></li></ul>
+      </li>
+      <li><span class="cond">기존</span><span class="node">홈(로비) <span class="depth">D1</span></span>
+        <ul>
+          <li><span class="node">AI 추천 결과 <span class="depth">D2</span> <span class="ai-badge">AI</span></span>
+            <ul><li><span class="node">상품 소개 <span class="depth">D3</span></span></li></ul>
+          </li>
+        </ul>
+      </li>
+    </ul>
+  </li>
+  <li>
+    <span class="node root">관리자 <span class="depth">D0</span></span>
+    <ul>
+      <li><span class="node">제품/원료 관리 <span class="depth">D1</span></span></li>
+      <li><span class="node">알러지 트리 관리 <span class="depth">D1</span></span></li>
+      <li><span class="node">리뷰 AI 추론 <span class="depth">D1</span> <span class="ai-badge">AI</span></span></li>
+    </ul>
+  </li>
+</ul>
+
+<h2>화면 흐름 — 유저 기능구조</h2>
+<div class="flow">
+
+  <!-- 1. 로그인 -->
+  <div class="screen">
+  <div class="frame mobile">
+    <div class="titlebar"><span class="dots"><span></span><span></span><span></span></span><span class="name">로그인 · D0</span></div>
+    <div class="body">
+      <div class="wf-line bold w60" style="align-self:center;"></div>
+      <div class="wf-line w40" style="align-self:center;"></div>
+      <div style="height:14px;"></div>
+      <div class="wf-btn ghost">Google 로그인</div>
+      <div class="wf-btn ghost">Kakao 로그인</div>
+      <div class="wf-line w40" style="align-self:center; margin-top:6px;"></div>
+      <div class="wf-input">이메일</div>
+      <div class="wf-input">비밀번호 <span class="tag hold">방향 미정</span></div>
+      <div class="wf-btn primary">로그인</div>
+      <div class="wf-line w60" style="align-self:center; margin-top:8px;"></div>
+    </div>
+  </div>
+  <p class="caption">소셜/자체 로그인. 로그인 후 반려동물 등록 여부로 온보딩·로비 분기</p>
+  </div>
+
+  <span class="arrow">→<span class="label">신규+반려동물 없음</span></span>
+
+  <!-- 2. 온보딩 -->
+  <div class="screen">
+  <div class="frame mobile">
+    <div class="titlebar"><span class="dots"><span></span><span></span><span></span></span><span class="name">온보딩 · D1</span></div>
+    <div class="body">
+      <div class="stepper"><div class="done"></div><div class="done"></div><div class="now"></div><div></div><div></div></div>
+      <div class="wf-line bold w80"></div>
+      <div class="wf-grid g3">
+        <div class="wf-block"><div class="wf-img" style="height:40px;"></div><div class="wf-line w80"></div></div>
+        <div class="wf-block"><div class="wf-img" style="height:40px;"></div><div class="wf-line w80"></div></div>
+        <div class="wf-block"><div class="wf-img" style="height:40px;"></div><div class="wf-line w80"></div></div>
+      </div>
+      <div class="feat">축종 → 품종 → 나이 → 체중/체구 → 알러지</div>
+      <div class="wf-btn row" style="margin-top:auto;"><div class="wf-btn ghost">이전</div><div class="wf-btn primary">다음</div></div>
+    </div>
+  </div>
+  <p class="caption">축종·품종·나이·체중·알러지를 받는 5단계 공용 등록 마법사</p>
+  </div>
+
+  <!-- 2b. 온보딩 - 알러지 단계 변형 -->
+  <div class="screen">
+  <div class="frame mobile">
+    <div class="titlebar"><span class="dots"><span></span><span></span><span></span></span><span class="name">온보딩 · 알러지 단계</span></div>
+    <div class="body">
+      <div class="stepper"><div class="done"></div><div class="done"></div><div class="done"></div><div class="done"></div><div class="now"></div></div>
+      <div class="wf-line bold w80"></div>
+      <div class="tree-mini">
+        <div class="row"><div class="chk"></div><div class="wf-line w60"></div></div>
+        <div class="row sub"><div class="chk"></div><div class="wf-line w40"></div></div>
+        <div class="row sub"><div class="chk"></div><div class="wf-line w40"></div></div>
+        <div class="row"><div class="chk"></div><div class="wf-line w60"></div></div>
+        <div class="row sub"><div class="chk"></div><div class="wf-line w40"></div></div>
+      </div>
+      <div class="feat">상위 선택 → 하위 트리 자동 펼침(다중선택)</div>
+      <div class="wf-btn primary" style="margin-top:auto;">완료</div>
+    </div>
+  </div>
+  <p class="caption">알러지만 트리형 다중선택 — 상위 카테고리 고르면 하위가 자동으로 펼쳐짐</p>
+  </div>
+
+  <span class="arrow">→</span>
+
+  <!-- 3. 홈/로비 -->
+  <div class="screen">
+  <div class="frame mobile">
+    <div class="titlebar"><span class="dots"><span></span><span></span><span></span></span><span class="name">홈(로비) · D1~2</span></div>
+    <div class="body">
+      <div style="display:flex; gap:6px;">
+        <div class="avatar"></div><div class="avatar"></div>
+        <div class="avatar plus">+</div>
+      </div>
+      <div class="wf-block" style="min-height:70px; justify-content:center;">
+        <div class="wf-line w80"></div>
+        <div class="wf-line w60"></div>
+      </div>
+      <div class="feat">자연어 입력 히어로</div>
+      <div class="wf-input">카테고리 ▾</div>
+      <div class="wf-input">예산 범위</div>
+      <div class="wf-btn primary">추천받기</div>
+    </div>
+  </div>
+  <p class="caption">반려동물 선택 + 정형 입력 + 자연어 입력으로 추천 요청 작성</p>
+  </div>
+
+  <span class="arrow ai">→<span class="label">쿼리 제출<br><span class="ai-badge">AI 호출</span></span></span>
+
+  <!-- 4. AI 추천 결과 -->
+  <div class="screen">
+  <div class="frame mobile ai-zone">
+    <div class="titlebar"><span class="dots"><span></span><span></span><span></span></span><span class="name">AI 추천 결과 · D2</span><span class="ai-badge">결과 수신</span></div>
+    <div class="body">
+      <div class="wf-line w100" style="background:#ddd;"></div>
+      <div class="wf-block">
+        <div style="display:flex; gap:8px;">
+          <div class="wf-img" style="width:44px; height:44px; flex-shrink:0;"></div>
+          <div style="flex:1; display:flex; flex-direction:column; gap:5px;">
+            <div class="wf-line w80"></div><div class="wf-line w40"></div>
+            <span class="tag safe">안전</span>
+          </div>
+        </div>
+        <div class="wf-line w60" style="opacity:.5;"></div>
+      </div>
+      <div class="wf-block">
+        <div style="display:flex; gap:8px;">
+          <div class="wf-img" style="width:44px; height:44px; flex-shrink:0;"></div>
+          <div style="flex:1; display:flex; flex-direction:column; gap:5px;">
+            <div class="wf-line w80"></div><div class="wf-line w40"></div>
+            <span class="tag unknown">판정불가</span>
+          </div>
+        </div>
+      </div>
+      <div class="wf-line w40" style="margin-top:4px;"></div>
+    </div>
+  </div>
+  <p class="caption">AI가 추천 카드 3~5개 + 근거 리뷰 + 안전배지를 단발성으로 응답</p>
+  </div>
+
+  <span class="arrow">→<span class="label">상세 보기</span></span>
+
+  <!-- 5. 상품 소개 -->
+  <div class="screen">
+  <div class="frame mobile">
+    <div class="titlebar"><span class="dots"><span></span><span></span><span></span></span><span class="name">상품 소개 · D3</span></div>
+    <div class="body">
+      <div class="wf-img" style="height:110px;"></div>
+      <div class="wf-line bold w60"></div>
+      <div class="wf-line w40"></div>
+      <span class="tag risk">위험</span>
+      <div class="wf-line w80" style="opacity:.5;"></div>
+      <div class="wf-line w40" style="margin-top:6px;"></div>
+      <div class="wf-block">
+        <div class="wf-line w80"></div><div class="wf-line w60"></div>
+      </div>
+      <div class="wf-block">
+        <div class="wf-line w80"></div><div class="wf-line w60"></div>
+      </div>
+      <div class="wf-btn ghost" style="margin-top:auto;">구매하기(외부) <span class="tag hold">보류</span></div>
+    </div>
+  </div>
+  <p class="caption">상품 상세 + 안전배지 사유 + 관련 후기, 구매는 외부 링크</p>
+  </div>
+
+</div>
+
+<h2>화면 흐름 — 관리자</h2>
+<div class="flow">
+  <div class="frame desktop ai-zone">
+    <div class="titlebar"><span class="dots"><span></span><span></span><span></span></span><span class="name">관리자 · D0~D1</span><span class="ai-badge">AI 추론</span></div>
+    <div class="body" style="flex-direction:row;">
+      <div style="width:130px; border-right:1px solid var(--gray-dark); padding-right:10px;">
+        <div class="sidebar-nav">
+          <div class="item">제품 관리</div>
+          <div class="item">원료 관리</div>
+          <div class="item">알러지 트리</div>
+          <div class="item active">리뷰 AI 추론 <span class="ai-badge">AI</span></div>
+          <div class="item">캐시 무효화</div>
+        </div>
+      </div>
+      <div style="flex:1; display:flex; flex-direction:column; gap:10px;">
+        <div class="wf-line bold w40"></div>
+        <div class="admin-split">
+          <div class="wf-block ai-panel">
+            <div class="feat ai">리뷰 도배(복붙) 탐지 <span class="ai-badge">AI</span></div>
+            <div class="cluster">
+              <div class="dup-pair">
+                <div class="wf-line w60"></div>
+                <div class="dup-link">≈ <span class="score-chip">92%</span></div>
+                <div class="wf-line w60"></div>
+              </div>
+              <span class="tag hold">중복 의심</span>
+            </div>
+            <div class="cluster">
+              <div class="dup-pair">
+                <div class="wf-line w40"></div>
+                <div class="dup-link">≈ <span class="score-chip">74%</span></div>
+                <div class="wf-line w40"></div>
+              </div>
+            </div>
+          </div>
+          <div class="wf-block ai-panel">
+            <div class="feat ai">반려동물별 선호 제품 추론 <span class="ai-badge">AI</span></div>
+            <div class="wf-input">반려동물 선택 ▾</div>
+            <div class="rank-row"><span class="rank-num">1</span><div class="wf-line w40"></div><div class="rank-track"><div class="rank-bar" style="width:88%"></div></div></div>
+            <div class="rank-row"><span class="rank-num">2</span><div class="wf-line w40"></div><div class="rank-track"><div class="rank-bar" style="width:63%"></div></div></div>
+            <div class="rank-row"><span class="rank-num">3</span><div class="wf-line w40"></div><div class="rank-track"><div class="rank-bar" style="width:41%"></div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <span class="arrow" style="padding-top:110px;">→</span>
+
+  <div class="frame desktop">
+    <div class="titlebar"><span class="dots"><span></span><span></span><span></span></span><span class="name">제품 관리 · D1</span></div>
+    <div class="body" style="flex-direction:row;">
+      <div style="width:130px; border-right:1px solid var(--gray-dark); padding-right:10px;">
+        <div class="sidebar-nav">
+          <div class="item active">제품 관리</div>
+          <div class="item">원료 관리</div>
+          <div class="item">알러지 트리</div>
+          <div class="item">리뷰 AI 추론 <span class="ai-badge">AI</span></div>
+          <div class="item">캐시 무효화</div>
+        </div>
+      </div>
+      <div style="flex:1; display:flex; flex-direction:column; gap:10px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div class="wf-line bold w40"></div>
+          <div class="wf-btn primary" style="padding:5px 14px;">+ 등록</div>
+        </div>
+        <table class="wf-table">
+          <tr><th>제품명</th><th>축종</th><th>원료매핑</th><th>배지</th></tr>
+          <tr><td><div class="wf-line w80"></div></td><td><div class="wf-line w60"></div></td><td>✓</td><td><span class="tag safe">안전</span></td></tr>
+          <tr><td><div class="wf-line w80"></div></td><td><div class="wf-line w60"></div></td><td>—</td><td><span class="tag unknown">판정불가</span></td></tr>
+          <tr><td><div class="wf-line w80"></div></td><td><div class="wf-line w60"></div></td><td>✓</td><td><span class="tag risk">위험</span></td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

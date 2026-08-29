@@ -53,7 +53,9 @@ def main():
         hits = store.search(query, where=where, params=params)
 
         for pid, score, doc in hits:
-            print(f'  - {fmt_purchase_id(pid)} ({score:.3f}) {doc}...')
+            text = doc.removeprefix('passage:\n')
+            print(f'\n  [{fmt_purchase_id(pid)}] 유사도 {score:.3f}')
+            print(f'  {text}')
 
         log_result(profile, query, hits)
 
