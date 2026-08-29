@@ -49,14 +49,16 @@ def count_tokens(text):
     return len(get_tokenizer().encode(text))
 
 def build_review_doc(row: sqlite3.Row) -> str:
-    """리뷰 한 건을 임베딩용 문장으로 조립한다."""
-    allergy = row["allergy"] or "알레르기 없음"
-    breed = row['breed'] or "견종 미상"
+    """리뷰 한 건을 임베딩용 문장으로 조립한다.
+
+    size_category/breed/allergy는 안 넣는다 - retrieve.py의 FILTERS가 이미
+    SQL WHERE로 걸러주는 값이라, 여기 또 넣으면 모든 문서가 거의 같은
+    보일러플레이트가 돼서 코사인 유사도가 내용과 무관하게 뭉친다.
+    """
     purpose = f"{row['target_feeding_purpose']} 목적" if row['target_feeding_purpose'] else "목적 미기재"
     category = f"{row['category']}/{row['sub_category']}" if row['category'] else row['sub_category']
     return (
         "passage: " # 공식 e5 포맷
-        f"{row['size_category']}견 생후 {row['age_month_at_purchase']}개월 {breed}, {allergy}. "
         f"{category} {row['product_name']} "
         f"({purpose}, {row['target_food_form']}) "
         f"별점 {row['rating']}점 후기: {row['review']}"
@@ -64,23 +66,28 @@ def build_review_doc(row: sqlite3.Row) -> str:
 
 #  리뷰 하나가 조각 여러 개로 쪼개질 수 있으니(긴 리뷰의 경우), 
 #  쪼갠 뒤에도 "이 조각이 원래 몇 번 리뷰에서 나왔나"를 알아야함.
-def split_review(purchase_id: int, doc: str):
-    """한도 안이면 조각 1개, 넘으면 문장/구두점 경계로 여러 개."""
+def split_review(purchase_id: int, doc: str, product_name: str):
+    """한도 안이면 조각 1개, 넘으면 문장/구두점 경계로 여러 개.
+
+    쪼갠 뒤 조각마다 상품명을 다시 접두어로 붙인다 - 안 그러면 뒤쪽 조각은
+    어느 상품 얘기인지 알려주는 토큰이 하나도 안 남는다.
+    """
     n_tokens = count_tokens(doc)
     if n_tokens <= CHUNK_SIZE:
         return [{'purchase_id': purchase_id, 'chunk_index': 0, 'body': doc, 'n_tokens': n_tokens}]
 
     parts = get_splitter().split_text(doc)
+    tagged = [f"[{product_name}] {body}"for body in parts]
     return [
         {'purchase_id': purchase_id, 'chunk_index': i, 'body': body, 'n_tokens': count_tokens(body)}
-        for i, body in enumerate(parts)
+        for i, body in enumerate(tagged)
     ]
 
 
 def split_reviews(docs: list[tuple]):
     """[(purchase_id, doc), ...] 전체를 조각 목록으로. 부르는 쪽은 이 함수 하나만 알면 된다."""
     chunks = []
-    for purchase_id, doc in docs:
-        chunks.extend(split_review(purchase_id, doc))
+    for purchase_id, doc, product_name in docs:
+        chunks.extend(split_review(purchase_id, doc, product_name))
     return chunks
 

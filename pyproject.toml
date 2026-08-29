@@ -8,6 +8,7 @@ version = "0.1.0"
 dependencies = [
     "fastapi",
     "uvicorn[standard]",
+    "sqlite-vec",
 ]
 
 [tool.setuptools.packages.find]

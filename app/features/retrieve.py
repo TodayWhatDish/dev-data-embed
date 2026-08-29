@@ -23,18 +23,21 @@ FILTERS = {
             WHEN 2 THEN '소형' WHEN 3 THEN '중형' WHEN 4 THEN '대형'
         END = ?
     """,
+    # 사용자가 "소고기 알레르기"라고 입력하면, 이건 "소고기 알레르기 있는 개가 쓴 리뷰는 빼자"일 뿐 — 그 상품에 소고기가 들어있는지는 전혀 안 보기에 수정
+    # pet_allergy(리뷰어의 알레르기) 기준 → product_ingredient+ingredient_allergen(상품 원료의 알레르겐) 기준
     "allergy": """
         NOT EXISTS (
-            SELECT 1 FROM pet_allergy AS pa
-            JOIN allergen AS al ON al.allergen_id = pa.allergen_id
-            WHERE pa.pet_id = pu.pet_id AND al.name_ko = ?
+            SELECT 1 FROM product_ingredient AS pi
+            JOIN ingredient_allergen AS ia ON ia.ingredient_id = pi.ingredient_id
+            JOIN allergen AS al ON al.allergen_id = ia.allergen_id
+            WHERE pi.product_id = pu.product_id AND al.name_ko = ?
         )
     """,
     "animal_category": """
         EXISTS (
-            SELECT 1 FROM product_animal_category AS pac
-            JOIN animal_category AS ac ON ac.animal_category_id = pac.animal_category_id
-            WHERE pac.product_id = pu.product_id AND ac.name_ko = ?
+            SELECT 1 FROM pet AS pe
+            JOIN animal_category AS ac ON ac.animal_category_id = pe.animal_category_id
+            WHERE pe.pet_id = pu.pet_id AND ac.name_ko = ?
         )
     """,
 }

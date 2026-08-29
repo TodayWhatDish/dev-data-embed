@@ -6,9 +6,9 @@ import json
 import sqlite3
 from datetime import datetime
 
-from app.core.config import DB_PATH,LOG_PATH
-from app.features.retrieve import VectorStore,build_where,fmt_purchase_id
-
+from app.core.config import LOG_PATH
+from app.features.retrieve import build_where,fmt_purchase_id
+from pipeline.vector_db import search,connect  # VectorStore 대신
 
 def log_result(profile, query, hits):
     record = {
@@ -28,9 +28,8 @@ def log_result(profile, query, hits):
 
 
 def main():
-    con = sqlite3.connect(DB_PATH)
+    con = connect()
     # 모델 로딩과 벡터 읽기를 여기서 한 번만 치른다. 이후 질문은 이 캐시를 재사용한다.
-    store = VectorStore(con)
 
     print('질문을 입력하세요 (빈 줄 입력 시 종료)')
     while True:
@@ -50,10 +49,10 @@ def main():
             profile['allergy'] = allergy
 
         where, params = build_where(profile)
-        hits = store.search(query, where=where, params=params)
+        hits = search(con, query, where=where, params=params)
 
         for pid, score, doc in hits:
-            text = doc.removeprefix('passage:\n')
+            text = doc.removeprefix('passage: ')
             print(f'\n  [{fmt_purchase_id(pid)}] 유사도 {score:.3f}')
             print(f'  {text}')
 

@@ -70,7 +70,7 @@ def main():
 
     # (purchase_id, 문서) 쌍으로 넘긴다. 한 리뷰가 조각 여러 개로 쪼개져도
     # 그 조각이 원래 어느 리뷰에서 나왔는지 따라붙어야 하기 때문이다.
-    docs = [(row["purchase_id"], chunking.build_review_doc(row)) for row in rows]
+    docs = [(row["purchase_id"], chunking.build_review_doc(row), row["product_name"]) for row in rows]
     chunks = chunking.split_reviews(docs)
     storage.save_chunks(con, chunks)
 
