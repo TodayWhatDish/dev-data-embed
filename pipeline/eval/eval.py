@@ -13,22 +13,22 @@ from app.features.retrieve import build_where, VectorStore  # 프로필 딕셔�
 from app.core.config import DB_PATH  # DB 경로
 from app.core.embedder import get_embeddings
 from sentence_transformers import SentenceTransformer
-
+from pipeline.vector_db import search
 
 def load_product_map(con: sqlite3.Connection)->dict[int,int]:
     """purchase_id -> product_id 사전을 만든다 검색 결과(purchase_id)를 상품으로 해석할 때 쓴다."""
-    rows = con.execute('SELECT purchase_id, product_id FROM pet_purchases').fetchall()  # 전체 구매의 (purchase_id, product_id) 쌍을 가져옴
+    rows = con.execute('SELECT purchase_id, product_id FROM purchase').fetchall()  # 전체 구매의 (purchase_id, product_id) 쌍을 가져옴
     return dict(rows)  # {purchase_id, product_id}
 
 
 def load_holdout(con: sqlite3.Connection):
-    # 색인(chunks / chunk_vectors)에서 빠진, 정답(product_id)을 이미 아는 평가용 표본을 가져온다
+    """색인(chunks / chunk_vectors)에서 빠진, 정답(product_id)을 이미 아는 평가용 표본을 가져온다."""
     return con.execute("""
-    SELECT purchase_id, product_id, size_category, allergy, review
-    FROM pet_purchases
-    WHERE is_holdout = 1
-    AND review IS NOT NULL
-    AND TRIM(review) <> ''
+        SELECT purchase_id, product_id, size_category, allergy, review
+        FROM purchase
+        WHERE is_holdout = 1
+        AND review IS NOT NULL
+        AND TRIM(review) <> ''
     """).fetchall()  # 원본 테이블에서 is_holdout=1(색인에서 빠진 것)이고 리뷰가 있는 행만
 
 

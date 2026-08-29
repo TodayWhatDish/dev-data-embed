@@ -40,7 +40,7 @@
             "detail": "CSV 가 바뀌었을 때 쓴다. 1, 2, 3 을 순서대로 실행한다.",
             "dependsOrder": "sequence",
             "dependsOn": [
-                "1. DB 적재 (load_db)",
+                "1. DB 적재 (load_csv)",
                 "2. 조각 만들기 (chunk)",
                 "3. 색인 생성 (embed_reviews)"
             ],
