@@ -74,12 +74,16 @@ def save_vectors(con, chunks, vectors, dim, source): # 안전비교작업.chunk_
     )
     con.commit() # 이때 DB 확정저장임 커밋해야함.
 
+from app.features.retrieve import check_freshness
 
 def search(con, query, where = "1=1", params: tuple = (), top_k: int = 3):
-    
+
+    for line in check_freshness(con):
+        print(f"[경고] {line}")
+
     model = get_embeddings()
     q_vec = sqlite_vec.serialize_float32(
-        model.encode([query], normalize_embeddings=True, show_progress_bar=False)[0] 
+        model.encode([f"query: {query}"], normalize_embeddings=True, show_progress_bar=False)[0] 
     )
     # 1 con : 사용자검색하면 FastAPI 엔드포인트가 요청받고 엔드포인트 함수 동작함. 
     # 2 con이 DB에 SQL날려서 정보를 가지고 con통로로 다시 보내줌
@@ -89,7 +93,7 @@ def search(con, query, where = "1=1", params: tuple = (), top_k: int = 3):
         SELECT v.purchase_id, c.body, vec_distance_cosine(v.vector, ?) AS distance
         FROM chunk_vectors AS v
         JOIN chunks AS c ON c.purchase_id = v.purchase_id AND c.chunk_index = v.chunk_index
-        JOIN pet_purchases AS p ON p.purchase_id = v.purchase_id
+        JOIN purchase AS p ON p.purchase_id = v.purchase_id
         WHERE {where}
         ORDER BY distance
     """, (q_vec, *params)).fetchall()
