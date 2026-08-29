@@ -93,7 +93,7 @@ def search(con, query, where = "1=1", params: tuple = (), top_k: int = 3):
         SELECT v.purchase_id, c.body, vec_distance_cosine(v.vector, ?) AS distance
         FROM chunk_vectors AS v
         JOIN chunks AS c ON c.purchase_id = v.purchase_id AND c.chunk_index = v.chunk_index
-        JOIN purchase AS p ON p.purchase_id = v.purchase_id
+        JOIN purchase AS pu ON pu.purchase_id = v.purchase_id
         WHERE {where}
         ORDER BY distance
     """, (q_vec, *params)).fetchall()

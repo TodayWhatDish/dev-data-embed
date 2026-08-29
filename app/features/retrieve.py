@@ -32,9 +32,9 @@ FILTERS = {
     """,
     "animal_category": """
         EXISTS (
-            SELECT 1 FROM product_animal_category AS pac
-            JOIN animal_category AS ac ON ac.animal_category_id = pac.animal_category_id
-            WHERE pac.product_id = pu.product_id AND ac.name_ko = ?
+            SELECT 1 FROM pet AS pe
+            JOIN animal_category AS ac ON ac.animal_category_id = pe.animal_category_id
+            WHERE pe.pet_id = pu.pet_id AND ac.name_ko = ?
         )
     """,
 }

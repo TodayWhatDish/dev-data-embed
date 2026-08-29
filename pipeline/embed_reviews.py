@@ -17,7 +17,8 @@
 import sqlite3
 from app.core.embedder import get_embeddings
 from app.core.config import DB_PATH, EMBED_MODEL, EMBED_BATCH_SIZE,EMBED_NORMALIZE
-from pipeline.prep import storage
+# from pipeline.prep import storage
+from pipeline import vector_db
 
 def fetch_chunks(cur: sqlite3.Cursor) -> list[sqlite3.Row]:
     """색인 대상 조각을 chunks 테이블에서 읽어온다.
@@ -46,8 +47,9 @@ def main():
         docs, batch_size=32, normalize_embeddings=True, show_progress_bar=True
     )
     # 3. 저장
-    storage.save_vectors(
-        con, chunks, vectors, vectors.shape[1]
+    source = f"{len(chunks)}:{sum(c['purchase_id'] for c in chunks)}:{sum(c['n_tokens'] for c in chunks)}"
+    vector_db.save_vectors(
+        con, chunks, vectors, vectors.shape[1], source
     )
     print(f"\n임베딩 {len(chunks)}개, 차원 {vectors.shape[1]}, 모델 : {EMBED_MODEL}")
     print("검색은 query.py 를 실행하세요.")
