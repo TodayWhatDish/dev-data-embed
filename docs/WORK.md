@@ -1182,3 +1182,70 @@ recall@3 : 13/66 (19.7%)  원료 슬롯 추가 (데이터 재생성으로 홀드
 - `app/main.py`가 여전히 옛 `VectorStore`(JSON)를 참조한다. `chunk_vectors`가 BLOB로
   바뀐 뒤로 죽어 있는 코드지만 `recommend.py`가 비어 있어 아직 안 터짐 — `vector_db.py`로
   갈아타야 함(`con.clost()` 오타도 같이).
+
+## 2026-08-31
+## 작업일지
+> "top50에도 안 잡힘" 21/66을 이어서 팠다. `eval.py` 자체의 필터 누락을 먼저 잡고
+> (recall@3 18.2% → 21.2%), 원료 슬롯 가설을 기각한 뒤, 미스 케이스를 직접 까서
+> 두 갈래(데이터 오염 13.3% / 진짜 랭킹-변별력 문제 86.7%)로 쪼갰다.
+
+### 1. `eval.py` 자체가 `animal_category` 필터를 빼고 측정하고 있었다
+
+`load_holdout()`이 `animal_category`를 셀렉트하지 않아서, `evaluate()`/`diagnose_top50_miss()`가
+`app/query.py`가 실제 사용자에게 주는 필터(종/체급/알레르기 3종) 중 종 필터 없이 측정하고
+있었다 — 측정 대상과 실제 서비스 조건이 어긋나 있었다. `load_holdout()`에 `animal_category`
+서브쿼리를 추가하고 `evaluate()`/`diagnose_top50_miss()`의 `build_where()` 호출에 반영.
+
+recall@3 : 12/66 (18.2%) → 14/66 (21.2%)
+
+### 2. 원료 슬롯 가설(2026-08-29 남은 과제) 기각
+
+"top50 미스가 원료 슬롯 없는 리뷰에 쏠려 있다"를 `diagnose_top50_miss()`로 직접 세봄:
+top50 미스 45.5% vs 적중 54.5% — 표본 크기(각 33건) 대비 표준오차(~8.7pp) 안이라 상관관계
+없음. 이 가설은 폐기.
+
+### 3. `inspect_misses()`로 미스 케이스 직접 열람 → 두 갈래로 분리
+
+미스 5건을 정답/실제 top-3/점수와 함께 찍어보니 `product_id=183`(와일드포 사료 09호)이
+두 번(purchase 1478, 1510) 등장. 1478은 구매자 반려동물의 등록 알레르기(참치)가 정답
+상품에 실제로 들어있어 `FILTERS["allergy"]`(`retrieve.py:26-33`)가 정답 자체를 걸러낸
+경우였다. `gen_seed.py:592`, `:652`는 구매 상품을 고를 때 `animal_category`만 보고
+`pet_allergies`는 아예 안 본다 — 알레르기는 `review_body()` 후기 문장 생성에만 쓰인다.
+그래서 "이 아이가 알레르기 있는 원료가 든 상품을 산" 모순된 구매가 만들어질 수 있다.
+
+`is_allergy_contaminated()`/`count_allergy_contamination()`으로 전체 top50 미스 30건 중
+몇 건이 이 패턴인지 세봄: **4/30 (13.3%)**. 나머지 26/30(86.7%)은 이 패턴이 아니다 —
+1462, 1479는 top50 안에는 있는데(11위, 7위) 순위가 밀렸고, 무관한 1~3위 점수가 여전히
+0.86~0.91 사이에 뭉쳐 있다(2026-08-29 §3에서 이미 지적된 것과 같은 현상, 그때 고친 건
+프로필 필드 제거였지 이 압축 자체는 안 풀렸다).
+
+### 원인 — `build_review_doc()`에 상품을 구별할 신호가 부족하다
+
+`chunking.py:60-65`가 만드는 문서에 `product_name`은 들어가지만 **원료(ingredient) 목록은
+안 들어간다.** 질의(`query:` 접두어, 사용자 후기/입력)에도 상품명이 없으니, 코사인 유사도는
+사실상 "질의 문장이 문서의 후기 부분과 얼마나 비슷하냐"로 좁혀진다. 그런데 `gen_seed.py`의
+`review_body()`가 만드는 후기는 상품별이 아니라 슬롯(구매 이유/식감/크기 등) 조합으로
+찍혀나오는 템플릿이라, 같은 슬롯을 쓴 서로 다른 상품끼리 문서가 후기 본문 기준으로는
+거의 같아진다 — 상품명 토큰 몇 개로는 이걸 못 이긴다.
+
+### 측정
+
+```
+recall@3 : 12/66 (18.2%)  eval.py의 animal_category 필터 누락 발견 시점
+recall@3 : 14/66 (21.2%)  animal_category 필터 추가
+top50 미스 30건 중 원료 슬롯 있음 비율 43.3% / 적중 36건 중 55.6%  (가설 기각, 노이즈 수준)
+top50 미스 30건 중 알레르기 오염(정답이 필터에 걸림) 4건 (13.3%)
+```
+
+### 남은 과제
+
+- **(다음 세션 시작점) `build_review_doc()`에 원료 목록을 추가한다.** `pipeline/chunk.py`의
+  `fetch_rows()`가 `product_ingredient`/`ingredient`를 조인해 `GROUP_CONCAT(DISTINCT i.name_ko)`로
+  가져오게 하고, `chunking.py`의 `build_review_doc()`이 그걸 문서에 넣는다(예:
+  `주원료: {ingredients}`). 재청킹(`chunk.py`) + 재임베딩(`embed_reviews.py`) 후 `eval.py`로
+  recall@3 변화를 재본다 — 남은 미스 26/30(86.7%)이 여기서 줄어드는지가 검증 포인트.
+- `eval.py`의 `is_allergy_contaminated()`/`count_allergy_contamination()`은 역할상
+  recall 측정이 아니라 데이터 정합성 검사다 — `pipeline/check_data.py`로 옮기는 게
+  아키텍처상 맞다. 급하지 않아 미룸.
+- `has_ingredient_slot()`/`diagnose_top50_miss()`(2026-08-29에 추가, 위 §2에서 가설 기각)는
+  `eval.py`에서 삭제함.
