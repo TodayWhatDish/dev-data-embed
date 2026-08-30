@@ -14,7 +14,7 @@
 import sqlite3
 
 from app.features.retrieve import build_where  # 프로필 딕셔너리 -> SQL where절 변환
-from app.core.config import DB_PATH  # DB 경로
+from app.core.config import DB_PATH, SIZE_CASE  
 from pipeline.vector_db import search,connect
 
 def load_product_map(con: sqlite3.Connection)->dict[int,int]:
@@ -25,13 +25,11 @@ def load_product_map(con: sqlite3.Connection)->dict[int,int]:
 
 def load_holdout(con: sqlite3.Connection):
     """색인(chunks / chunk_vectors)에서 빠진, 정답(product_id)을 이미 아는 평가용 표본을 가져온다."""
-    return con.execute("""
+    return con.execute(f"""
         SELECT
             pu.purchase_id,
             pu.product_id,
-            CASE pu.size_at_purchase
-                WHEN 2 THEN '소형' WHEN 3 THEN '중형' WHEN 4 THEN '대형'
-            END AS size_category,
+            {SIZE_CASE} AS size_category,
             (SELECT al.name_ko FROM pet_allergy AS pa
                 JOIN allergen AS al ON al.allergen_id = pa.allergen_id
                 WHERE pa.pet_id = pu.pet_id LIMIT 1) AS allergy,
@@ -65,7 +63,37 @@ def evaluate(con : sqlite3.Connection, k:int=3)->float:
     return rate
 
 
+def has_ingredient_slot(con: sqlite3.Connection, prouct_id: int, review: str) -> bool:
+    """리뷰 본문에 그 상품의 원료(재료)명이 하나라도 등장하는지."""
+    names = con.execute("""
+        SELECT i.name_ko
+        FROM product_ingredient AS pi
+        JOIN ingredient AS i ON i.ingredient_id = pi.ingredient_id
+        WHERE pi.product_id = ?
+    """, (prouct_id,)).fetchall()
+    return any(name in review for (name,) in names)
+
+def diagnose_top50_miss(con: sqlite3.Connection, top_k_wide: int=50) -> None:
+    """top50 미스가 '원료 슬롯 없음'에 쏠려있는지 확인한다"""
+    product_of = load_product_map(con)
+    holdout = load_holdout(con)
+
+    top50_miss, top50_hit =[],[]
+    for purchase_id, product_id, size, allergy, review in holdout:
+        where, params = build_where({'size_category':size, 'allergy':allergy})
+        results = search(con,review,where=where,params=params,top_k=top_k_wide)
+        slot = has_ingredient_slot(con,product_id,review)
+        bucket = top50_hit if any(product_of[r_pid] == product_id for r_pid, _, _ in results) else top50_miss
+        bucket.append(slot)
+
+    def slot_rate(bucket: list[bool]) -> float:
+        return sum(bucket) / len(bucket) if bucket else 0.0
+
+    print(f'top50 미스 {len(top50_miss)}건 중 원료 슬롯 있음 비율: {slot_rate(top50_miss):.1%}')
+    print(f'top50 적중 {len(top50_hit)}건 중 원료 슬롯 있음 비율: {slot_rate(top50_hit):.1%}')
+
 if __name__ == '__main__':
     con = connect()
     evaluate(con)  # 평가 실행 -> recall@3 출력
+    diagnose_top50_miss(con) # top50 미스 vs 원료 슬롯 상관관계 확인
     con.close()  

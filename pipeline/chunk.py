@@ -19,7 +19,7 @@ sys.stdout.reconfigure(errors="replace")
 # 중요한 에러 문구는 그대로 출력 처리
 hf_logging.set_verbosity_error()
 
-from app.core.config import DB_PATH, EMBED_MAX_TOKENS, INDEX_FILTER
+from app.core.config import DB_PATH, EMBED_MAX_TOKENS, INDEX_FILTER, SIZE_CASE
 from pipeline.prep import chunking, storage
 
 
@@ -35,10 +35,7 @@ def fetch_rows(cur: sqlite3.Cursor):
         SELECT
             r.purchase_id, r.rating, r.body AS review,
             pu.age_month_at_purchase,
-            CASE pu.size_at_purchase
-                WHEN 1 THEN '초소형' WHEN 2 THEN '소형' WHEN 3 THEN '중형'
-                WHEN 4 THEN '대형' WHEN 5 THEN '초대형'
-            END AS size_category,
+            {SIZE_CASE} AS size_category,
             GROUP_CONCAT(DISTINCT br.name_ko) AS breed,
             GROUP_CONCAT(DISTINCT al.name_ko) AS allergy,
             pc_parent.name_ko AS category, pc.name_ko AS sub_category,

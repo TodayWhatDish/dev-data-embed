@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = ROOT / 'data'
 DB_PATH = DATA_DIR / 'pet_reco.db'
 MASTER_DIR = DATA_DIR / 'master'
-LOG_PATH = ROOT / 'query_log.jsonl'
+LOG_PATH = ROOT / 'logs'
 SEED_DIR = DATA_DIR / 'seed'
 
 # 다국어 지원 모델(한국어 포함) - 문장을 고정 차원 벡터로 변환
@@ -40,6 +40,12 @@ INDEX_FILTER = """
     AND TRIM(r.body) <> ''
 """
 
+SIZE_CASE = """
+    CASE pu.size_at_purchase
+        WHEN 1 THEN '초소형' WHEN 2 THEN '소형' WHEN 3 THEN '중형'
+        WHEN 4 THEN '대형' WHEN 5 THEN '초대형'
+    END
+"""
 if not Path(DB_PATH).exists():
     print(f"알림: DB 가 아직 없다 -> {DB_PATH}")
 

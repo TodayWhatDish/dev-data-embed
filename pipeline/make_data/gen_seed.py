@@ -515,7 +515,7 @@ def age_group(age_month):
     return '퍼피' if age_month < 12 else '시니어' if age_month >= 84 else '성견'
 
 
-def review_body(pet, product, rating, age_month, allergen, purposes):
+def review_body(pet, product, rating, age_month, allergen, purposes, ingredients):
     """후기 한 건을 그 구매의 사실만으로 조립한다.
 
     같은 행의 pet / product / rating 에서만 문장을 고르므로, 축종·체구·분류가
@@ -537,11 +537,17 @@ def review_body(pet, product, rating, age_month, allergen, purposes):
         parts.append(rng.choice([
             f'{allergen} 알레르기가 있어 원료를 하나하나 확인하고 샀어요.',
             f'{allergen}이 들어간 걸 먹으면 긁어서 성분표부터 봤습니다.']))
+    if ingredients and rng.random() < 0.5:
+        # 원료는 같은 카테고리 안에서 상품을 가르는 유일한 고유 신호라 본문에 남긴다.
+        picked = '·'.join(rng.sample(sorted(ingredients), k=min(2, len(ingredients))))
+        parts.append(rng.choice([
+            f'{picked} 들어간 게 마음에 들어서 골랐어요.',
+            f'{picked} 배합이라길래 믿고 샀어요.']))
     parts.append(rng.choice(CLOSING[rating]))
     return ' '.join(parts)
 
 
-def from_source(pets, products, animals_of, allergen_of, purpose_of):
+def from_source(pets, products, animals_of, allergen_of, purpose_of,ingredient_of):
     """data/review.csv 를 purchase / review 두 테이블로 나눈다. 파일이 없으면 빈 결과.
 
     원본에서 가져오는 것은 **구조뿐**이다 — 언제 몇 개 샀고 별점·holdout 이 무엇인지.
@@ -604,14 +610,14 @@ def from_source(pets, products, animals_of, allergen_of, purpose_of):
                           product[5], age_month, pet[7], dt(bought)))
         reviews.append((purchase_id, rating,
                         review_body(pet, product, rating, age_month,
-                                    allergen_of.get(pet_id), purpose_of.get(product[0])),
+                                    allergen_of.get(pet_id), purpose_of.get(product[0]),ingredient_of.get(product[0])),
                         int(src['is_holdout']), dt(bought)))
 
     print(f'  {SOURCE_REVIEWS.name} {len(purchases)}건 연결 (펫 보정 {remapped}건, 축종 안 맞아 제품 교체 {swapped}건)')
     return purchases, reviews
 
 
-def gen_purchases(pets, products, p_animals, pet_allergies, purposes):
+def gen_purchases(pets, products, p_animals, pet_allergies, purposes, p_ings):
     """원본을 먼저 옮기고, 모자란 만큼 시드끼리 이어 붙여 합성한다."""
     # 후기가 인용할 사실. 알러지는 펼쳐 저장돼 있어 그대로 쓰면 한 아이가 29개까지 나온다.
     # 보호자가 실제로 고른 최상위(부모가 함께 선택되지 않은 것)만 남겨 하나 뽑는다.
@@ -630,7 +636,10 @@ def gen_purchases(pets, products, p_animals, pet_allergies, purposes):
     for pid, a in p_animals:
         animals_of.setdefault(pid, set()).add(a)
 
-    purchases, reviews = from_source(pets, products, animals_of, allergen_of, purpose_of)
+    ingredient_of = {}
+    for pid, ild in p_ings:
+        ingredient_of.setdefault(pid,set()).add(INGREDIENT_NAME[ild])
+    purchases, reviews = from_source(pets, products, animals_of, allergen_of, purpose_of, ingredient_of)
 
     live_pets = [p for p in pets if p[10] is None]           # inactive_at NULL
     live_products = [p for p in products if p[14] == 1]      # is_active
@@ -655,7 +664,7 @@ def gen_purchases(pets, products, p_animals, pet_allergies, purposes):
         reviews.append((
             purchase_id, rating,
             review_body(pet, product, rating, age_month,
-                        allergen_of.get(pet[0]), purpose_of.get(product[0])),
+                        allergen_of.get(pet[0]), purpose_of.get(product[0]),ingredient_of.get(product[0])),
             1 if rng.random() < 0.10 else 0,                # is_holdout. 색인에서 뺀다
             dt(min(NOW, bought + timedelta(days=rng.randint(1, 14)))),
         ))
@@ -674,7 +683,7 @@ def main():
     users = gen_users()
     pets, pet_breeds, pet_allergies = gen_pets(users)
     products, p_animals, nutrition, purposes, p_ings = gen_products()
-    purchases, reviews = gen_purchases(pets, products, p_animals, pet_allergies, purposes)
+    purchases, reviews = gen_purchases(pets, products, p_animals, pet_allergies, purposes,p_ings)
 
     print('\n[seed]')
     write_csv('user', ['user_id', 'auth_provider', 'auth_uid', 'email', 'name', 'phone', 'region',
