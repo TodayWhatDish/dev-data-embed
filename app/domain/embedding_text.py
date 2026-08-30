@@ -23,11 +23,28 @@ def product_text(row: Mapping[str, Any] | tuple) -> str:
     # dict 형태로 들어온다면 tuple 형태로 바꾼다
     if isinstance(row, Mapping):
         row = tuple(row[field] for field in PRODUCT_FIELDS)
-    pass
+
+
+    # ==== wip =====
+    # brand, name, category, sub_category, purpose, food_form, ingredients, tags, _description = row
+
+    # # category(상위 분류)가 없는 상품(예: '사료'처럼 그 자체가 최상위)은
+    # # sub_category만 쓴다 - 안 그러면 "None/사료"처럼 리터럴 None이 문서에 박힌다.
+    # category_text = f"{category}/{sub_category}" if category else sub_category
+    # tags_text = f" 태그: {tags}" if tags else ""
+
+    # return (
+    #     "passage: "
+    #     f"{brand} {name} "
+    #     f"({category_text}, {food_form}) "
+    #     f"{purpose} 목적 "
+    #     f"주원료: {ingredients}"
+    #     f"{tags_text}"
+    # )
 
 
 def source_hash(text: str) -> str:
     """문장의 지문. 같은 문장이면 같은 값 → 재임베딩 스킵 판단에 씀."""
-    pass
+    return hashlib.sha256(text.encode()).hexdigest()
 
 
