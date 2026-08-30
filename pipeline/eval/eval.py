@@ -63,7 +63,37 @@ def evaluate(con : sqlite3.Connection, k:int=3)->float:
     return rate
 
 
+def has_ingredient_slot(con: sqlite3.Connection, prouct_id: int, review: str) -> bool:
+    """리뷰 본문에 그 상품의 원료(재료)명이 하나라도 등장하는지."""
+    names = con.execute("""
+        SELECT i.name_ko
+        FROM product_ingredient AS pi
+        JOIN ingredient AS i ON i.ingredient_id = pi.ingredient_id
+        WHERE pi.product_id = ?
+    """, (prouct_id,)).fetchall()
+    return any(name in review for (name,) in names)
+
+def diagnose_top50_miss(con: sqlite3.Connection, top_k_wide: int=50) -> None:
+    """top50 미스가 '원료 슬롯 없음'에 쏠려있는지 확인한다"""
+    product_of = load_product_map(con)
+    holdout = load_holdout(con)
+
+    top50_miss, top50_hit =[],[]
+    for purchase_id, product_id, size, allergy, review in holdout:
+        where, params = build_where({'size_category':size, 'allergy':allergy})
+        results = search(con,review,where=where,params=params,top_k=top_k_wide)
+        slot = has_ingredient_slot(con,product_id,review)
+        bucket = top50_hit if any(product_of[r_pid] == product_id for r_pid, _, _ in results) else top50_miss
+        bucket.append(slot)
+
+    def slot_rate(bucket: list[bool]) -> float:
+        return sum(bucket) / len(bucket) if bucket else 0.0
+
+    print(f'top50 미스 {len(top50_miss)}건 중 원료 슬롯 있음 비율: {slot_rate(top50_miss):.1%}')
+    print(f'top50 적중 {len(top50_hit)}건 중 원료 슬롯 있음 비율: {slot_rate(top50_hit):.1%}')
+
 if __name__ == '__main__':
     con = connect()
     evaluate(con)  # 평가 실행 -> recall@3 출력
+    diagnose_top50_miss(con) # top50 미스 vs 원료 슬롯 상관관계 확인
     con.close()  
