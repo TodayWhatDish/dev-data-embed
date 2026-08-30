@@ -15,10 +15,16 @@ PRODUCT_FIELDS = (
 )
 
 def product_text(row: Mapping[str, Any] | tuple) -> str:
-    """상품 한 건(dict)을 검색용 문장 하나로 만든다. 어떤 키가 오든 있는 값만 이어붙인다."""
-    data = row if isinstance(row, Mapping) else dict(zip(PRODUCT_FIELDS, row))
-    parts = [str(data[field]) for field in PRODUCT_FIELDS if data.get(field)]
-    return "passage:\n" + " ".join(parts)
+    """
+    상품 한 건(dict/tuple)을 검색용 문장 하나로 만든다.
+    row: Mapping[str, Any] | tuple => `dict 형태 또는 tuple 형태로 인자가 들어온다.`
+    """
+
+    # dict 형태로 들어온다면 tuple 형태로 바꾼다
+    if isinstance(row, Mapping):
+        row = tuple(row[field] for field in PRODUCT_FIELDS)
+    pass
+
 
 def source_hash(text: str) -> str:
     """문장의 지문. 같은 문장이면 같은 값 → 재임베딩 스킵 판단에 씀."""
