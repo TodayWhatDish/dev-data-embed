@@ -40,6 +40,12 @@ INDEX_FILTER = """
     AND TRIM(r.body) <> ''
 """
 
+SIZE_CASE = """
+    CASE pu.size_at_purchase
+        WHEN 1 THEN '초소형' WHEN 2 THEN '소형' WHEN 3 THEN '중형'
+        WHEN 4 THEN '대형' WHEN 5 THEN '초대형'
+    END
+"""
 if not Path(DB_PATH).exists():
     print(f"알림: DB 가 아직 없다 -> {DB_PATH}")
 
