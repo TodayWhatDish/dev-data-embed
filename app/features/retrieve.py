@@ -11,17 +11,15 @@ import numpy as np
 
 from collections import defaultdict
 from sentence_transformers import SentenceTransformer
-from app.core.config import EMBED_MODEL
+from app.core.config import EMBED_MODEL,SIZE_CASE
 from app.core.embedder import get_embeddings
 
 # 프로필 키 -> SQL 조건절. 값이 들어온 키만 WHERE 에 붙는다.
-# size_at_purchase 는 1~5 코드라 CASE 로 사람이 쓰는 말(소형/중형/대형)로 바꿔 비교한다.
+# size_at_purchase 는 1~5 코드라 SIZE_CASE(config.py)로 사람이 쓰는 말로 바꿔 비교한다.
 # 알러지는 pet_allergy 가 다대다라 EXISTS 로 "그 알러지가 등록돼 있는가"를 확인한다.
 FILTERS = {
-    "size_category": """
-        CASE pu.size_at_purchase
-            WHEN 2 THEN '소형' WHEN 3 THEN '중형' WHEN 4 THEN '대형'
-        END = ?
+    "size_category": f"""
+        {SIZE_CASE} = ?
     """,
     # 사용자가 "소고기 알레르기"라고 입력하면, 이건 "소고기 알레르기 있는 개가 쓴 리뷰는 빼자"일 뿐 — 그 상품에 소고기가 들어있는지는 전혀 안 보기에 수정
     # pet_allergy(리뷰어의 알레르기) 기준 → product_ingredient+ingredient_allergen(상품 원료의 알레르겐) 기준

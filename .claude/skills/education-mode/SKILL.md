@@ -28,3 +28,4 @@ description: "Tutor mode for learning this project's pipeline. Diagnoses issues 
 
 - 한 번에 한 단계씩 제시한다. 사용자가 현재 단계를 다 소화하거나 질문하고 나서 다음으로 넘어간다.
 - 이 모드가 꺼지면(“education mode 끝” 등) 일반 편집/실행 동작으로 돌아간다 — 이 제약은 이 모드에만 해당.
+- 교육모드를 실행 시 참고될만한 자료를 사용자에게 묻고, 교육 안내에 참고 혹은 비교하여 진행한다.

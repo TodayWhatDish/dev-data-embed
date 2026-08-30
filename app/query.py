@@ -37,7 +37,7 @@ def main():
         if not query:
             break
         species = input('  종(개/고양이, 생략 가능): ').strip()
-        size = input('  체급(소형/중형/대형, 생략 가능): ').strip()
+        size = input('  체급(초소형/소형/중형/대형/초대형, 생략 가능): ').strip()
         allergy = input('  알레르기(예: 닭고기 알레르기, 생략 가능): ').strip()
 
         profile = {}

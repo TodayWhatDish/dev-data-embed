@@ -14,7 +14,7 @@
 import sqlite3
 
 from app.features.retrieve import build_where  # 프로필 딕셔너리 -> SQL where절 변환
-from app.core.config import DB_PATH  # DB 경로
+from app.core.config import DB_PATH, SIZE_CASE  
 from pipeline.vector_db import search,connect
 
 def load_product_map(con: sqlite3.Connection)->dict[int,int]:
@@ -25,13 +25,11 @@ def load_product_map(con: sqlite3.Connection)->dict[int,int]:
 
 def load_holdout(con: sqlite3.Connection):
     """색인(chunks / chunk_vectors)에서 빠진, 정답(product_id)을 이미 아는 평가용 표본을 가져온다."""
-    return con.execute("""
+    return con.execute(f"""
         SELECT
             pu.purchase_id,
             pu.product_id,
-            CASE pu.size_at_purchase
-                WHEN 2 THEN '소형' WHEN 3 THEN '중형' WHEN 4 THEN '대형'
-            END AS size_category,
+            {SIZE_CASE} AS size_category,
             (SELECT al.name_ko FROM pet_allergy AS pa
                 JOIN allergen AS al ON al.allergen_id = pa.allergen_id
                 WHERE pa.pet_id = pu.pet_id LIMIT 1) AS allergy,
