@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = ROOT / 'data'
 DB_PATH = DATA_DIR / 'pet_reco.db'
 MASTER_DIR = DATA_DIR / 'master'
-LOG_PATH = ROOT / 'logs'
+LOG_PATH = ROOT / 'logs' / 'query_log.jsonl'
 SEED_DIR = DATA_DIR / 'seed'
 
 # 다국어 지원 모델(한국어 포함) - 문장을 고정 차원 벡터로 변환
