@@ -19,6 +19,9 @@ SEED_DIR = DATA_DIR / 'seed'
 # 다국어 지원 모델(한국어 포함) - 문장을 고정 차원 벡터로 변환
 EMBED_MODEL = 'intfloat/multilingual-e5-small'
 
+# EMBED_MODEL이 뱉는 벡터의 차원 수. verify.py가 저장된 벡터 크기와 대조하는 기준값.
+EMBED_DIM = 384
+
 # 특정 임베딩 모델로 청킹하고 토큰화 했다면 값비교도 무조건 같은 모델로 비교해야함
 EMBED_TOKENIZER = "intfloat/multilingual-e5-small"
 
