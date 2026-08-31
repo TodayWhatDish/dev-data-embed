@@ -6,9 +6,10 @@ import json
 import sqlite3
 from datetime import datetime
 from app.core.config import LOG_PATH
+from app.core.config import SIZE_LABELS
 from app.features.retrieve import build_where,fmt_purchase_id
 from pipeline.vector_db import search,connect  
-from app.features.profile import build_profile
+from app.features.profile import list_pets, pet_profile
 
 def log_result(profile, query, hits):
     record = {
@@ -26,28 +27,48 @@ def log_result(profile, query, hits):
     with open(LOG_PATH, 'a', encoding='utf-8') as f:
         f.write(json.dumps(record, ensure_ascii=False,indent=2) + '\n')
 
+def choose_pet():
+    """user_id 를 받아 그 사용자의 펫 하나를 고르게 한다. 못 고르면 None."""
+    raw = input('user_id: ').strip()
+    if not raw.isdigit():
+        print('  숫자로 입력하세요.')
+        return None
+
+    pets = list_pets(int(raw))
+    if not pets:
+        print('  등록된 펫이 없습니다.')
+        return None
+
+    print('\n누구의 상품을 추천받을까요?')
+    for pet in pets:
+        allergies = pet['allergies'] or '없음'
+        print(f"  [{pet['pet_id']}] {pet['name']} "
+              f"({pet['animal_category']}, {SIZE_LABELS[pet['size']]}, 알레르기: {allergies})")
+
+    picked = input('pet_id: ').strip()
+    if not any(str(pet['pet_id']) == picked for pet in pets):
+        print('  목록에 없는 pet_id 입니다.')
+        return None
+    return int(picked)
+
+
 def main():
     con = connect()
     # 모델 로딩과 벡터 읽기를 여기서 한 번만 치른다. 이후 질문은 이 캐시를 재사용한다.
+
+    pet_id = None
+    while pet_id is None:
+        pet_id = choose_pet()
+
+    profile = pet_profile(pet_id)   # 종/체급/알레르기를 DB 에서 확정한다. 사람이 다시 안 친다.
+    print(f'\n적용된 프로필: {profile}')
 
     print('질문을 입력하세요 (빈 줄 입력 시 종료)')
     while True:
         query = input('\n질문: ').strip()
         if not query:
             break
-        species = input('  종(개/고양이, 생략 가능): ').strip()
-        size = input('  체급(초소형/소형/중형/대형/초대형, 생략 가능): ').strip()
-        allergy = input('  알레르기(예: 닭고기 알레르기, 생략 가능): ').strip()
 
-        profile = {}
-        if species:
-            profile['animal_category'] = species
-        if size:
-            profile['size_category'] = size
-        if allergy:
-            profile['allergy'] = allergy
-
-        profile = build_profile(profile)
         where, params = build_where(profile)
         hits = search(con, query, where=where, params=params)
 
