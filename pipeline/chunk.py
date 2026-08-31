@@ -54,6 +54,8 @@ def fetch_rows(cur: sqlite3.Cursor):
         LEFT JOIN product_category AS pc_parent ON pc_parent.product_category_id = pc.parent_id
         LEFT JOIN product_feeding_purpose AS pfp ON pfp.product_id = p.product_id
         LEFT JOIN feeding_purpose AS fp ON fp.feeding_purpose_id = pfp.feeding_purpose_id
+        LEFT JOIN product_ingredient AS pi ON pi.product_id = p.product_id
+        LEFT JOIN ingredient AS ing ON ing.ingredient_id = pi.ingredient_id
         WHERE {INDEX_FILTER}
         GROUP BY r.purchase_id
         ORDER BY r.purchase_id

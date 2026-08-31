@@ -1228,6 +1228,29 @@ top50 미스 45.5% vs 적중 54.5% — 표본 크기(각 33건) 대비 표준오
 찍혀나오는 템플릿이라, 같은 슬롯을 쓴 서로 다른 상품끼리 문서가 후기 본문 기준으로는
 거의 같아진다 — 상품명 토큰 몇 개로는 이걸 못 이긴다.
 
+### 4. `build_review_doc()`에 원료 목록 추가 → 재측정
+
+`pipeline/chunk.py`의 `fetch_rows()`에 `product_ingredient`/`ingredient` LEFT JOIN을 추가해
+`GROUP_CONCAT(DISTINCT ing.name_ko) AS ingredients`로 가져오고, `chunking.py`의
+`build_review_doc()`이 `주원료: {ingredients}`를 문서에 넣도록 고침 (`size_category`/`breed`/`allergy`는
+여전히 안 넣음 — FILTERS가 이미 SQL WHERE로 걸러줘서 넣으면 보일러플레이트만 늘어남).
+재청킹(`chunk.py`) + 재임베딩(`embed_reviews.py`) 후 `eval.py`로 재측정:
+
+```
+recall@3 : 14/66 (21.2%) -> 16/66 (24.2%)
+top50 미스 30건 -> 27건 (알레르기 오염 4건은 그대로 — 필터가 정답을 거른 거라 원료 신호로 못 고침)
+```
+
+미스 사례 중 반복 관찰되는 두 건의 순위가 눈에 띄게 올라감: purchase 1462(펫키친 트릿 01호)
+11위 → 4위, purchase 1479(헬시포 간식 02호) 7위 → 5위. 방향은 진단대로 맞지만 top-3 밖이라
+recall@3엔 안 잡힘. purchase 1478/1505는 여전히 top50 밖 — 1478은 §3에서 확인한 알레르기
+오염 케이스라 원료 신호로 못 고치는 게 정상.
+
++3pp는 표본 66건의 표준오차(~5pp) 안이라 확신할 수치는 아니지만, 반복 케이스의 순위가 같은
+방향으로 개선된 게 노이즈만은 아니라는 정황 근거. 합성 리뷰가 템플릿 슬롯 기반이라(gen_seed.py)
+천장 자체가 낮고, 여기서 더 파는 것(임베딩 모델 교체, 리뷰 생성 로직 재작성 등)은 이 프로젝트
+비용 대비 안 맞다고 판단 — **이 라인의 개선 작업은 여기서 정리.**
+
 ### 측정
 
 ```
@@ -1235,15 +1258,12 @@ recall@3 : 12/66 (18.2%)  eval.py의 animal_category 필터 누락 발견 시점
 recall@3 : 14/66 (21.2%)  animal_category 필터 추가
 top50 미스 30건 중 원료 슬롯 있음 비율 43.3% / 적중 36건 중 55.6%  (가설 기각, 노이즈 수준)
 top50 미스 30건 중 알레르기 오염(정답이 필터에 걸림) 4건 (13.3%)
+recall@3 : 14/66 (21.2%) -> 16/66 (24.2%)  build_review_doc()에 원료 목록 추가
+top50 미스 30건 -> 27건 (알레르기 오염 4건 그대로 — 필터 문제라 원료 신호로 안 풀림)
 ```
 
 ### 남은 과제
 
-- **(다음 세션 시작점) `build_review_doc()`에 원료 목록을 추가한다.** `pipeline/chunk.py`의
-  `fetch_rows()`가 `product_ingredient`/`ingredient`를 조인해 `GROUP_CONCAT(DISTINCT i.name_ko)`로
-  가져오게 하고, `chunking.py`의 `build_review_doc()`이 그걸 문서에 넣는다(예:
-  `주원료: {ingredients}`). 재청킹(`chunk.py`) + 재임베딩(`embed_reviews.py`) 후 `eval.py`로
-  recall@3 변화를 재본다 — 남은 미스 26/30(86.7%)이 여기서 줄어드는지가 검증 포인트.
 - `eval.py`의 `is_allergy_contaminated()`/`count_allergy_contamination()`은 역할상
   recall 측정이 아니라 데이터 정합성 검사다 — `pipeline/check_data.py`로 옮기는 게
   아키텍처상 맞다. 급하지 않아 미룸.

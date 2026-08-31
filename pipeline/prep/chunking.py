@@ -54,13 +54,17 @@ def build_review_doc(row: sqlite3.Row) -> str:
     size_category/breed/allergy는 안 넣는다 - retrieve.py의 FILTERS가 이미
     SQL WHERE로 걸러주는 값이라, 여기 또 넣으면 모든 문서가 거의 같은
     보일러플레이트가 돼서 코사인 유사도가 내용과 무관하게 뭉친다.
+    ingredients는 반대다 - 필터가 안 걸러주는 값이면서, 같은 카테고리·같은 급여목적
+    안에서 상품을 실제로 가르는 유일한 객관적 신호라서 넣는다.
     """
     purpose = f"{row['target_feeding_purpose']} 목적" if row['target_feeding_purpose'] else "목적 미기재"
     category = f"{row['category']}/{row['sub_category']}" if row['category'] else row['sub_category']
+    ingredients = f"주원료: {row['ingredients']} " if row['ingredients'] else ""
     return (
         "passage: " # 공식 e5 포맷
         f"{category} {row['product_name']} "
         f"({purpose}, {row['target_food_form']}) "
+        f"{ingredients} "
         f"별점 {row['rating']}점 후기: {row['review']}"
     )
 

@@ -49,20 +49,17 @@ def load_product_names(con: sqlite3.Connection) -> dict[int, str]:
     rows = con.execute('SELECT product_id, name FROM product').fetchall()
     return dict(rows)
 
-def inspect_misses(con: sqlite3.Connection, n: int = 5, top_k_wide: int = 50) -> None:
+def inspect_misses(con: sqlite3.Connection, runs: list[tuple], n: int = 5) -> None:
     """미스 케이스 n건을 골라, 정답과 실제 상위 결과를 나란히 찍는다."""
     product_of = load_product_map(con)
     name_of = load_product_names(con)
-    holdout = load_holdout(con)
 
     shown = 0
-    for purchase_id, product_id, animal_category, size, allergy, review in holdout:
-        where, params = build_where({'animal_category': animal_category, 'size_category': size, 'allergy': allergy})
-        results = search(con, review, where=where, params=params, top_k=top_k_wide)
+    for purchase_id, product_id, allergy, review, results in runs:
         ranked_products = [product_of[r_pid] for r_pid, _, _ in results]
 
         if product_id in ranked_products[:3]:
-            continue  # top-3 hit은 건너뛰고 미스만 본다
+            continue
 
         print(f"\n[{purchase_id}] 정답: {name_of[product_id]} (product_id={product_id})")
         print(f"  질의: {review[:60]}")
@@ -74,27 +71,6 @@ def inspect_misses(con: sqlite3.Connection, n: int = 5, top_k_wide: int = 50) ->
         shown += 1
         if shown == n:
             break
-                                                               
-def evaluate(con : sqlite3.Connection, k:int=3)->float:
-    """홀드아웃 리뷰 하나하나를 질의로 넣어 recall@k를 잰다."""
-    product_of = load_product_map(con)  # 검색 결과(purchase_id) 상품 번호 사전
-    holdout = load_holdout(con)         # 채점할 문제 (구매 건, 정답 상품)
-
-    if not holdout:
-        raise SystemExit(
-            'is_holdout=1인 리뷰가 없습니다.'
-        )
-
-    hits = 0
-    for purchase_id, product_id, animal_category, size, allergy, review in holdout:
-        where, params = build_where({'animal_category':animal_category, 'size_category':size, 'allergy': allergy})
-        results = search(con, review, where=where, params=params, top_k=k)
-        if any(product_of[r_pid] == product_id for r_pid, _, _ in results):
-            hits+=1
-
-    rate = hits/len(holdout)
-    print(f'recall@{k} : {hits}/{len(holdout)} = {rate:.1%}')
-    return rate
 
 def is_allergy_contaminated(con: sqlite3.Connection, product_id: int, allergy: str) -> bool:
     """정답 상품에 그 pet의 등록 알레르기 원료가 실제로 들어있는지.
@@ -112,29 +88,45 @@ def is_allergy_contaminated(con: sqlite3.Connection, product_id: int, allergy: s
     """, (product_id, allergy)).fetchone()
     return row is not None
 
-def count_allergy_contamination(con: sqlite3.Connection, top_k_wide: int = 50) -> None:
+def count_allergy_contamination(con: sqlite3.Connection, runs: list[tuple]) -> None:
     """top50 미스 중 알레르기 필터가 정답 자체를 걸러낸 오염 건수를 센다."""
     product_of = load_product_map(con)
-    holdout = load_holdout(con)
-
     contaminated = 0
     n_miss = 0
-    for purchase_id, product_id, animal_category, size, allergy, review in holdout:
-        where, params = build_where({'animal_category': animal_category, 'size_category': size, 'allergy': allergy})
-        results = search(con, review, where=where, params=params, top_k=top_k_wide)
+    for purchase_id, product_id, allergy, review, results in runs:
         if any(product_of[r_pid] == product_id for r_pid, _, _ in results):
-            continue  # 적중은 오염 여부를 셀 필요 없음
-
+            continue
         n_miss += 1
         if is_allergy_contaminated(con, product_id, allergy):
             contaminated += 1
-
     rate = contaminated / n_miss if n_miss else 0.0
     print(f'top50 미스 {n_miss}건 중 알레르기 오염(정답이 필터에 걸림) {contaminated}건 ({rate:.1%})')
 
+def run_holdout_search(con: sqlite3.Connection, top_k_wide: int = 50) -> list[tuple]:
+    """홀드아웃 66건을 한 번씩만 검색해서, 이후 지표 계산 함수들이 재사용하게 한다."""
+    holdout = load_holdout(con)
+    runs = []
+    for purchase_id, product_id, animal_category, size, allergy, review in holdout:
+        where, params = build_where({'animal_category': animal_category, 'size_category': size, 'allergy': allergy})
+        results = search(con, review, where=where, params=params, top_k=top_k_wide)
+        runs.append((purchase_id, product_id, allergy, review, results))
+    return runs
+
+def evaluate(con: sqlite3.Connection, runs: list[tuple], k:int = 3) -> float:
+    """run_holdout_search()가 만든 결과 앞 k개만 잘라 recall@k를 잰다."""
+    product_of = load_product_map(con)
+    hits = 0
+    for purchase_id, product_id, allergy, review, results in runs:
+        if any(product_of[r_pid] == product_id for r_pid, _, _ in results[:k]):
+            hits+=1
+    rate = hits / len(runs)
+    print(f'recall@{k} : {hits}/{len(runs)} = {rate:.1%}')
+    return rate
+
 if __name__ == '__main__':
     con = connect()
-    evaluate(con)  # 평가 실행 -> recall@3 출력
-    count_allergy_contamination(con)  # top50 미스 중 알레르기 오염 비율 확인
-    inspect_misses(con)
+    runs = run_holdout_search(con)
+    evaluate(con, runs)
+    count_allergy_contamination(con, runs)
+    inspect_misses(con, runs)
     con.close()

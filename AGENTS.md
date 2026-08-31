@@ -45,3 +45,8 @@ API, Key 등 민감정보가 포함된 데이터는 .env폴더에서 별도로 �
 ## Architecture
 
 > data/*.csv → load_db.py → pet_reco.db → check_data.py(검증) → prepare.py(청킹) → build_index.py(임베딩) → chunk_vectors/review_vectors 테이블 → query.py/app/features/retrieve.py(검색). app/core/db.py가 DB 접근을 전부 모아둠 — 다른 파일은 from app.core.db import query, one, dicts로만 접근.
+
+
+## Logging
+
+모든 로그로 사용할 수 있는 데이터들은 logs 폴더에 적재한다.
