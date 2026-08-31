@@ -17,7 +17,9 @@ from fastapi.responses import StreamingResponse
 
 from app.core import trace, usage
 
+from app.app_logger.logger import init_logger
 
+init_logger()
 app = FastAPI()
 
 from pipeline.vector_db import connect

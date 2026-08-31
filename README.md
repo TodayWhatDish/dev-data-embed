@@ -33,7 +33,7 @@ python -m pip install langgraph==1.2.11
 ```bash
 python -m pipeline.load_db        # data/*.csv -> pet_reco.db 적재
 python -m pipeline.chunk          # 리뷰 → 문장 조립 → 토큰 한도 내 조각
-python -m pipeline.embed_reviews  # 조각 → 벡터 저장
+python -m pipeline.embed  # 조각 → 벡터 저장
 python -m app.query "소형견 다이어트 사료 추천해줘"   # 검색 테스트
 ```
 

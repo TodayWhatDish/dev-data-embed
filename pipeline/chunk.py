@@ -54,6 +54,8 @@ def fetch_rows(cur: sqlite3.Cursor):
         LEFT JOIN product_category AS pc_parent ON pc_parent.product_category_id = pc.parent_id
         LEFT JOIN product_feeding_purpose AS pfp ON pfp.product_id = p.product_id
         LEFT JOIN feeding_purpose AS fp ON fp.feeding_purpose_id = pfp.feeding_purpose_id
+        LEFT JOIN product_ingredient AS pi ON pi.product_id = p.product_id
+        LEFT JOIN ingredient AS ing ON ing.ingredient_id = pi.ingredient_id
         WHERE {INDEX_FILTER}
         GROUP BY r.purchase_id
         ORDER BY r.purchase_id
@@ -85,7 +87,7 @@ def main():
             f"주의: 모델 한도({EMBED_MAX_TOKENS} 토큰)를 넘는 조각 {over}개 - 뒤가 잘려 누락된다"
         )
 
-    print("벡터는 여기서 만들지 않는다. 이어서 embed_reviews.py 를 실행하세요.")
+    print("벡터는 여기서 만들지 않는다. 이어서 embed.py 를 실행하세요.")
     con.close()
 
 

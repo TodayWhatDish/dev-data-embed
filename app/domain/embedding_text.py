@@ -28,6 +28,6 @@ def product_text(row: Mapping[str, Any] | tuple) -> str:
 
 def source_hash(text: str) -> str:
     """문장의 지문. 같은 문장이면 같은 값 → 재임베딩 스킵 판단에 씀."""
-    pass
+    return hashlib.sha256(text.encode()).hexdigest()
 
 

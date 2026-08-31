@@ -5,10 +5,10 @@
 import json
 import sqlite3
 from datetime import datetime
-
 from app.core.config import LOG_PATH
 from app.features.retrieve import build_where,fmt_purchase_id
-from pipeline.vector_db import search,connect  # VectorStore 대신
+from pipeline.vector_db import search,connect  
+from app.features.profile import build_profile
 
 def log_result(profile, query, hits):
     record = {
@@ -16,7 +16,7 @@ def log_result(profile, query, hits):
         'profile': profile,
         'query': query,
         'hits': [
-            {'id': fmt_purchase_id(pid), 'score': round(score, 3), 'doc': doc}
+            {'id': fmt_purchase_id(pid), 'score': round(score, 3), 'doc': doc.removeprefix('passage: ')}
             for pid, score, doc in hits
         ],
     }
@@ -25,7 +25,6 @@ def log_result(profile, query, hits):
     # ensure_ascii=False가 없으면 한글이 \uXXXX로 저장돼서 눈으로 못 읽게됨
     with open(LOG_PATH, 'a', encoding='utf-8') as f:
         f.write(json.dumps(record, ensure_ascii=False,indent=2) + '\n')
-
 
 def main():
     con = connect()
@@ -48,6 +47,7 @@ def main():
         if allergy:
             profile['allergy'] = allergy
 
+        profile = build_profile(profile)
         where, params = build_where(profile)
         hits = search(con, query, where=where, params=params)
 
@@ -59,7 +59,6 @@ def main():
         log_result(profile, query, hits)
 
     con.close()
-
 
 if __name__ == '__main__':
     main()

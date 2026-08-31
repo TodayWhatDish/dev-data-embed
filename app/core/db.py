@@ -1,8 +1,5 @@
-"""데이터베이스에 닿는 자리를 여기 하나로 모은다.
-
-다른 파일은 전부 이렇게 쓴다 ─
-    from app.core.db import query, one, dicts
-"""
+# Last Updated : 2026-08-31
+"""데이터베이스에 닿는 자리를 여기 하나로 모은다."""
 
 import sqlite3
 import json
@@ -27,8 +24,8 @@ def dicts(sql, params=()) -> list[dict]:
     columns = [c[0] for c in cur.description]
     return [dict(zip(columns, row)) for row in cur.fetchall()]
 
-# 문자로 넣어둔 백터정보를 Numpy 행렬로 숫자화해서 되살리는 함수
 def load_vectors(table, key, connection=None):
+    """문자로 넣어둔 백터정보를 Numpy 행렬로 숫자화해서 되살리는 함수"""
     import numpy as np
 
     # 만약 해당 함수를 호출하는 파일에 con접속객체가 있으면 그걸 재활용하고 없으면 새로 만들어서 전달
