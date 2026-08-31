@@ -87,7 +87,7 @@ def main():
             f"주의: 모델 한도({EMBED_MAX_TOKENS} 토큰)를 넘는 조각 {over}개 - 뒤가 잘려 누락된다"
         )
 
-    print("벡터는 여기서 만들지 않는다. 이어서 embed_reviews.py 를 실행하세요.")
+    print("벡터는 여기서 만들지 않는다. 이어서 embed.py 를 실행하세요.")
     con.close()
 
 

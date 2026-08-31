@@ -1,7 +1,7 @@
 {
     // 실행 순서가 고정된 파이프라인이라 태스크로 묶어둔다.
-    //   data/*.csv --[load_db]--> pet_reco.db --[chunk]--> chunks --[embed_reviews]--> chunk_vectors --[query]--> 검색
-    // load_db 를 돌리면 pet_purchases 가 새로 만들어지므로 chunk 와 embed_reviews 도 다시 돌려야 한다.
+    //   data/*.csv --[load_db]--> pet_reco.db --[chunk]--> chunks --[embed]--> chunk_vectors --[query]--> 검색
+    // load_db 를 돌리면 pet_purchases 가 새로 만들어지므로 chunk 와 embed 도 다시 돌려야 한다.
     // 잊더라도 retrieve.py 의 check_freshness() 가 검색 시작 시 경고한다.
     //
     // 각 스크립트가 app.core 를 import 하므로 파일 경로가 아니라 모듈(-m)로 실행한다.
@@ -27,11 +27,11 @@
             "presentation": { "clear": true }
         },
         {
-            "label": "3. 색인 생성 (embed_reviews)",
+            "label": "3. 색인 생성 (embed)",
             "detail": "chunks 의 조각을 벡터로 변환해 chunk_vectors 에 저장한다. 모델 로딩 포함 20초 남짓 걸린다.",
             "type": "shell",
             "command": "${command:python.interpreterPath}",
-            "args": ["-m", "pipeline.embed_reviews"],
+            "args": ["-m", "pipeline.embed"],
             "problemMatcher": [],
             "presentation": { "clear": true }
         },
@@ -42,7 +42,7 @@
             "dependsOn": [
                 "1. DB 적재 (load_csv)",
                 "2. 조각 만들기 (chunk)",
-                "3. 색인 생성 (embed_reviews)"
+                "3. 색인 생성 (embed)"
             ],
             "problemMatcher": [],
             "group": { "kind": "build", "isDefault": true }

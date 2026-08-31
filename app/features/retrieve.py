@@ -77,7 +77,7 @@ def check_freshness(con: sqlite3.Connection):
         )
    
     if problems:
-        problems.append("embed_reviews.py 를 다시 실행하세요.")
+        problems.append("embed.py 를 다시 실행하세요.")
     return problems
 
 

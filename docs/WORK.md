@@ -858,7 +858,7 @@ C블록(`purchases`/`reviews`)과 D블록(`review_embeddings`)은 아직 새 스
 
 ### 후속
 
-`user.db` 재생성, `load_db.py` 재작성, 더미 CSV 재생성, `embed_reviews.py` 포팅.
+`user.db` 재생성, `load_db.py` 재작성, 더미 CSV 재생성, `embed.py` 포팅.
 상세는 `local/ToDo.md` §9.
 
 ## query.py
@@ -1234,7 +1234,7 @@ top50 미스 45.5% vs 적중 54.5% — 표본 크기(각 33건) 대비 표준오
 `GROUP_CONCAT(DISTINCT ing.name_ko) AS ingredients`로 가져오고, `chunking.py`의
 `build_review_doc()`이 `주원료: {ingredients}`를 문서에 넣도록 고침 (`size_category`/`breed`/`allergy`는
 여전히 안 넣음 — FILTERS가 이미 SQL WHERE로 걸러줘서 넣으면 보일러플레이트만 늘어남).
-재청킹(`chunk.py`) + 재임베딩(`embed_reviews.py`) 후 `eval.py`로 재측정:
+재청킹(`chunk.py`) + 재임베딩(`embed.py`) 후 `eval.py`로 재측정:
 
 ```
 recall@3 : 14/66 (21.2%) -> 16/66 (24.2%)
