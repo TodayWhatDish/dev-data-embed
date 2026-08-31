@@ -57,6 +57,60 @@ class CommonMgr:
 
         return self._allergen_hierarchy.get(allergen_id)
 
+    def get_allergen_names(self) -> list[str]:
+        """
+        # Summary
+        * 등록된 알러지원 이름(name_ko) 전체를 반환
+        * 자유 텍스트에서 알러지 이름을 찾을 때 사용 (features/profile.py)
+        """
+        return [node['name_ko'] for node in self._allergen_hierarchy.values()]
+
+    def set_animal_category(self, rows: list[dict]):
+        """
+        # Summary
+        * animal_category 테이블을 SELECT한 결과를 메모리에 저장
+        # info
+        * k: animal_category_id
+        * v: animal_category_info
+        """
+        self._animal_category = {row['animal_category_id']: row for row in rows}
+
+    def get_animal_category(self, animal_category_id: int | None = None):
+        """
+        # Summary
+        * animal_category_id = id -> 해당 축종 정보
+        * animal_category_id = None -> {id: 축종 정보} 전체
+        """
+        if not animal_category_id:
+            return self._animal_category
+
+        return self._animal_category.get(animal_category_id)
+
+    def set_breeds(self, rows: list[dict]):
+        """
+        # Summary
+        * breed 테이블을 SELECT한 결과를 축종별로 묶어 메모리에 저장
+        * 품종 드롭다운을 animal_category_id 로 걸러 채워야 하기 때문 (docs/docu.md §1)
+        # info
+        * k: animal_category_id
+        * v: [breed_info, ...]
+        """
+        breeds = {}
+        # 동물 축종에 대한 종 정보를 저장
+        # ex) 강아지 - [포메, 웰시, 겨울이, 시바견, 진도개...]
+        # ex) 고양이 - [먼치킨, 코숏...]
+        for row in rows:
+            breeds.setdefault(row['animal_category_id'], []).append(row)
+
+        self._breeds = breeds
+
+    def get_breeds(self, animal_category_id: int) -> list[dict]:
+        """
+        # Summary
+        * 해당 축종에 속한 품종 목록을 반환, 없는 축종이면 빈 리스트
+        """
+        return self._breeds.get(animal_category_id, [])
+
     @classmethod
     def get_inst(cls): #싱글턴 패턴을 위한
         if cls._instance == None:

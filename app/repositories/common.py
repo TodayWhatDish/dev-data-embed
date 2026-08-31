@@ -9,3 +9,9 @@ def get_allgens():
     FROM allergen
     ORDER BY allergen_id, parent_id;
 """)
+
+def get_animal_categories():
+    return dicts("SELECT * FROM animal_category")
+
+def get_breeds():
+    return dicts("SELECT * FROM breed")
