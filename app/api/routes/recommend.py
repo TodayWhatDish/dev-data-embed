@@ -21,4 +21,4 @@ def recommend_route(req: RecommendRequest) -> RecommendResponse:
         raise HTTPException(404,"조건에 맞는 후보를 찾지 못했습니다.")
 
     picks, retries, error = recommend(matches, profile, req.n_pick)
-    return RecommendResponse(picks=picks, retries=retires, error=error)
+    return RecommendResponse(picks=picks, retries=retries, error=error)
