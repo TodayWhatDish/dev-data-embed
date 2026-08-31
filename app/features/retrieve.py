@@ -45,6 +45,7 @@ def fmt_purchase_id(pid: int):
     """
     return f"O{pid:05d}"
 
+MIN_RATING = 3
 
 def build_where(profile):
     """프로필 딕셔너리를 WHERE 절과 바인딩 파라미터로 바꾼다.
@@ -52,7 +53,7 @@ def build_where(profile):
     값이 있는 키만 조건절로 만들고, 아무것도 없으면 '1=1'(조건 없음)을 돌려준다.
     params 로 바인딩하므로 사용자 입력을 SQL 문자열에 이어붙이지 않는다.
     """
-    clauses, params = [], []
+    clauses, params = [f"r.rating >= {MIN_RATING}"], []
     for key, clause in FILTERS.items():
         if profile.get(key):
             clauses.append(clause)
