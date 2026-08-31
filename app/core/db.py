@@ -8,7 +8,7 @@ import sqlite3
 import json
 from app.core.config import DB_PATH, INDEX_FILTER
 
-con = sqlite3.connect(DB_PATH)
+con = sqlite3.connect(DB_PATH, check_same_thread=False)
 
 
 def query(sql, params=()) -> list[tuple]:

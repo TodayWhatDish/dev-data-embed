@@ -6,7 +6,6 @@
   3. 벡터의 현재 저장 크기와 BLOB 예상 크기를 계산한다.
   4. 임베딩 토큰 상한을 넘는 문서 조각이 있는지 검사한다.
   5. 세 가지 추천 방식의 hit@1·3·5 결과를 비교한다.
-  6. 예시 질문으로 실제 검색 결과를 확인한다.
 
   verify.py는 검사 순서와 입력값을 보여 주고,
   verifying.py는 각 검사를 실제로 수행한다.
@@ -24,9 +23,9 @@ con.enable_load_extension(False)
 
 problems = []  # 문제들을 모아놓을 예정
 
-# 검사할 테이블 이름. 지금 DB에 실제로 있는 7개.
+# 검사할 테이블 이름. 지금 DB에 실제로 있는 8개.
 TABLE_NAMES = (
-    "pet_customers", "pet_products", "pet_profiles", "pet_purchases",
+    "user", "product", "pet", "purchase", "review",
     "chunks", "chunk_vectors", "embedding_meta",
 )
 
@@ -65,13 +64,6 @@ token_result = verifying.check_token_sizes(con, EMBED_MAX_TOKENS, problems)
 
 # pipeline/prep_rec.py를 먼저 돌려야 홀드아웃/product_vectors/customer_vectors가 채워진다.
 hit_results = verifying.compare_recommendations(con, vectors, token_result)
-
-#===========   6. 예시 질문으로 실제 검색 결과를 확인한다. ====================================>
-
-verifying.search_any(con, "chunk", ["환불하고 싶은데 어떻게 하나요?"])
-
-# 조각이 아닌 다른 자료를 근거로 찾고 싶으면 search_any()에 종류 이름만 넘긴다.
-# verifying.search_any(con, "product", ["건성 피부에 좋은 수분 크림"])
 
 #===========   여섯 단계에서 발견한 문제를 모아 최종 출력한다. ====================================>
 

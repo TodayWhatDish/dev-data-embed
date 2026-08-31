@@ -15,10 +15,8 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
-from app.core import trace, usage
-
-
-app = FastAPI()
+from app.api.routes.recommend import router as recommend_router
+from app.api.routes.auth import router as auth_router
 
 from pipeline.vector_db import connect
 
@@ -26,10 +24,14 @@ from pipeline.vector_db import connect
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """uvicorn이 요청을 받기 전/후에 앱에게 보내는 ASGI lifespan 이벤트를 처리, yield 앞은 시작 시, 뒤는 종료 시 1회씩 실행"""
-    """[미구현]"""    
     app.state.con = connect()
     yield
     app.state.con.close()
+
+
+app = FastAPI(lifespan=lifespan)
+app.include_router(recommend_router)
+app.include_router(auth_router)
 
 @app.get("/health")
 def health():
