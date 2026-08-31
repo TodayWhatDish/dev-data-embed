@@ -1,5 +1,6 @@
-from app.repositories.common import get_col_names
+from app.repositories.common import get_col_names, get_allgens
 from app.domain.product import ProductMgr
+from app.domain.common import CommonMgr
 import logging
 
 """
@@ -18,4 +19,8 @@ def init_from_db():
     
     logger.info('Get product table columns')
     logger.info(f'product col: {product_mgr.get_col()}')
+
+    common_mgr = CommonMgr.get_inst()
+    common_mgr.set_allergen_info(get_allgens())
+    
     
