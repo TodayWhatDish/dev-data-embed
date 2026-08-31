@@ -16,6 +16,8 @@ MASTER_DIR = DATA_DIR / 'master'
 LOG_PATH = ROOT / 'logs' / 'query_log.jsonl'
 SEED_DIR = DATA_DIR / 'seed'
 
+LOGGER_DIR = ROOT / 'log'
+
 # 다국어 지원 모델(한국어 포함) - 문장을 고정 차원 벡터로 변환
 EMBED_MODEL = 'intfloat/multilingual-e5-small'
 
