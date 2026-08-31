@@ -1,7 +1,7 @@
-# Last Updated : 2026-08-27
+# Last updated: 2026-08-31
 
-""" 사용자 입력(자유 형식)을 products.candidates()와 recommending.recommend() 
-    둘 다 받는 dict 형태로 통일하는 자리. 
+""" 사용자 입력(자유 형식)을 searching.candidates()와 recommending.recommend()
+    둘 다 받는 dict 형태로 통일하는 자리.
     안 두면 입력 파싱을 두 함수가 각자 다르게 하게 됨.
 """
 
@@ -22,7 +22,7 @@ def resolve_allergy(raw_text: str) -> str | None:
     return matches[0]
 
 def build_profile(raw: dict[str, Any]) -> dict[str, Any]:
-    """자유 형식 입력을 products.candidates()/recommending.recommend()가 공통으로 쓰는 dict로 통일한다."""
+    """자유 형식 입력을 searching.candidates()/recommending.recommend()가 공통으로 쓰는 dict로 통일한다."""
     profile = {}
     if raw.get('animal_category'):
         profile["animal_category"] = raw["animal_category"]
