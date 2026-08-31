@@ -12,7 +12,7 @@ description: "Tutor mode for learning this project's pipeline. Diagnoses issues 
 
 - **이 모드에서는 프로젝트 파일을 생성/수정/저장하지 않는다.** 코드는 사용자가 전부 직접 작성한다.
 - **파이프라인 자체를 실행하는 스크립트/커맨드도 실행하지 않는다** (`load_csv.py`, `chunk.py`,
-  `embed_reviews.py`, `query.py`, `eval.py` 등). `git status`, `ls`, `grep`, DB 조회 같은 읽기 전용
+  `embed.py`, `query.py`, `eval.py` 등). `git status`, `ls`, `grep`, DB 조회 같은 읽기 전용
   점검은 허용된다 — 특히 결과 검증을 위한 read-only SELECT 쿼리는 적극 써도 된다.
 - 편집 권한과 실행 권한은 별개고, 둘 다 이 모드에선 기본 거부다. 사용자가 "코드 짜자"라고 해도
   그게 "네가 짜라"인지 "뭘 짜야 하는지 알려줘"인지 애매하면, 파일 건드리기 전에 먼저 확인한다.
@@ -29,3 +29,4 @@ description: "Tutor mode for learning this project's pipeline. Diagnoses issues 
 - 한 번에 한 단계씩 제시한다. 사용자가 현재 단계를 다 소화하거나 질문하고 나서 다음으로 넘어간다.
 - 이 모드가 꺼지면(“education mode 끝” 등) 일반 편집/실행 동작으로 돌아간다 — 이 제약은 이 모드에만 해당.
 - 교육모드를 실행 시 참고될만한 자료를 사용자에게 묻고, 교육 안내에 참고 혹은 비교하여 진행한다.
+- 전체적인 하나의 step이 끝나고 나면 사용자에게 어디 까지 이해했는지에 대한 퀴즈를 1-2가지를 진행하여 이해도를 판단하고, 응답을 받아 설명 난이도를 더 이해하기 쉽도록 한다. 이해를 했다면 계속 재개한다.

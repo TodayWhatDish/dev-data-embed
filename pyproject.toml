@@ -9,6 +9,7 @@ dependencies = [
     "fastapi",
     "uvicorn[standard]",
     "sqlite-vec",
+    "sentence-transformers",
 ]
 
 [tool.setuptools.packages.find]
