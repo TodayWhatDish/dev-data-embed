@@ -72,7 +72,10 @@ def env(name: str, default: str) -> str:
     value = os.environ.get(name,"").strip()
     return default if value == "" else value
 
-USE_API = env("USE_API",0) == "1"
+# 읽기 전에 올려야 한다. 순서가 반대면 .env 를 만들어놔도 항상 기본값(로컬)이 잡힌다.
+load_env()
+
+USE_API = env("USE_API", "0") == "1"
 
 if USE_API:
     LLM_BASE_URL = "https://api.openai.com/v1"

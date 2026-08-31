@@ -1,5 +1,5 @@
-# Last updated: 2026-08-27
-# LastUpdated : 2026-08-26
+# Last Updated: 2026-08-27
+
 
 """chunk_vectors를 기반으로 유사리뷰를 찾는 행위를한다. (검색)
    
@@ -36,7 +36,6 @@ FILTERS = {
     """,
 }
 
-
 def fmt_purchase_id(pid: int):
     """정수 purchase_id 를 사람이 읽기 쉬운 원래 표기로 되돌린다. 418 -> 'O00418'
 
@@ -44,6 +43,15 @@ def fmt_purchase_id(pid: int):
     검색 결과에 ID만 덩그러니 나오면 어느 테이블 것인지 알아보기 어렵기 때문이다.
     """
     return f"O{pid:05d}"
+
+
+def fmt_product_id(pid: int):
+    """정수 product_id 를 원본 표기로 되돌린다. 182 -> 'F0182'
+
+    LLM 응답을 검증할 때 이 문자열이 후보 집합의 키가 된다. 상품명으로 대조하면
+    모델이 이름을 한 글자 바꿔 써도 잡아낼 수 없어서, 짧고 고유한 ID 로 오가게 한다.
+    """
+    return f"F{pid:04d}"
 
 
 def build_where(profile):

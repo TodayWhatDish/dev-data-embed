@@ -1,4 +1,4 @@
-# Last updated: 2026-08-28
+# Last updated: 2026-08-31
 
 """data/seed/*.csv 를 만든다. 16테이블 스키마용 합성 데이터.
 
@@ -11,6 +11,10 @@
     data/review.csv 는 **있으면 쓰고 없으면 건너뛴다.** 있으면 그 후기 본문을
     review.body 로 그대로 옮기고(임베딩 대상이라 템플릿으로 덮으면 신호가 사라진다),
     없으면 구매·후기 전량을 합성한다. 어느 쪽이든 시드가 같으면 결과가 같다.
+
+    두 경로는 총량(2039건)과 홀드아웃 수(66건)를 맞춰 둔다. 파일 유무로 평가
+    조건이 달라지면 recall 을 나란히 놓을 수 없어서, 원본이 없는 환경에서 잰 수치가
+    '성능이 나쁜 것'인지 '조건이 다른 것'인지 구분되지 않는다.
 
     CSV 규약 : 파일 1개 = 테이블 1개, 헤더는 DDL 컬럼 순서대로,
                NULL 은 빈 칸, UTF-8 BOM 없음, 줄바꿈 LF.
@@ -47,7 +51,16 @@ SEED = 20260812        # 고정. 재실행해도 같아야 벤치·평가 비교
 N_USERS = 300
 N_PRODUCTS = 200
 N_EXTRA_PURCHASES = 600      # 원본이 있을 때 덧붙이는 양
-N_SOLO_PURCHASES = 2000      # 원본이 없을 때 전량 합성하는 양
+N_SOLO_PURCHASES = 2039      # 원본이 없을 때 전량 합성하는 양. 원본 경로의 총량과 맞춘다
+
+# 홀드아웃(평가용으로 색인에서 빼는 후기) 비율. 두 경로의 recall 을 나란히 놓으려면
+# 이 값이 경로마다 달라야 한다 — 원본 경로는 review.csv 1439건에 홀드아웃이 하나도
+# 없어서, 전체 비율이 '600건 중 10%'가 2039건으로 희석된 3.2% 가 되기 때문이다.
+# 전량 합성 경로에 같은 10% 를 쓰면 홀드아웃이 3배로 잡히고, 색인이 그만큼 얇아져
+# recall 이 구조적으로 낮게 나온다. 성능 차이가 아니라 조건 차이인데 수치만 보면 구분이 안 된다.
+HOLDOUT_RATE_EXTRA = 0.10    # 원본이 있을 때 덧붙이는 600건에 적용 (결과 66건)
+N_SOLO_HOLDOUT = 66          # 원본이 없을 때. 비율이 아니라 개수로 못박는다 — 확률로 두면
+                             # 시드에 따라 표본이 59~73 건 사이에서 흔들려 분모가 매번 달라진다
 
 TODAY = date(2026, 8, 25)               # date.today() 는 실행마다 값이 흔들린다
 SERVICE_OPEN = date(2023, 1, 1)
@@ -645,8 +658,11 @@ def gen_purchases(pets, products, p_animals, pet_allergies, purposes, p_ings):
     live_products = [p for p in products if p[14] == 1]      # is_active
 
     n = N_EXTRA_PURCHASES if purchases else N_SOLO_PURCHASES
+    # 원본이 없을 때만 홀드아웃을 미리 뽑는다. 원본이 있을 때는 None 이라 아래 루프가
+    # 예전처럼 확률로 정하고, 그래서 이 분기를 넣어도 원본 경로 결과는 그대로다.
+    solo_holdouts = None if purchases else set(rng.sample(range(n), N_SOLO_HOLDOUT))
     next_id = max((r[0] for r in purchases), default=0) + 1
-    for purchase_id in range(next_id, next_id + n):
+    for offset, purchase_id in enumerate(range(next_id, next_id + n)):
         pet = rng.choice(live_pets)
         # 축종이 맞는 제품만 산다. 후보가 없으면(축종 0행뿐) 아무거나 — FK 는 통과한다.
         cands = [p for p in live_products if pet[2] in animals_of.get(p[0], ())]
@@ -665,7 +681,10 @@ def gen_purchases(pets, products, p_animals, pet_allergies, purposes, p_ings):
             purchase_id, rating,
             review_body(pet, product, rating, age_month,
                         allergen_of.get(pet[0]), purpose_of.get(product[0]),ingredient_of.get(product[0])),
-            1 if rng.random() < 0.10 else 0,                # is_holdout. 색인에서 뺀다
+            # rng.random() 은 어느 경로든 반드시 소비한다. 건너뛰면 뒤따르는 난수가
+            # 통째로 밀려서 원본 경로의 나머지 컬럼까지 바뀐다.
+            (1 if rng.random() < HOLDOUT_RATE_EXTRA else 0) if solo_holdouts is None
+            else (1 if offset in solo_holdouts else 0),      # is_holdout. 색인에서 뺀다
             dt(min(NOW, bought + timedelta(days=rng.randint(1, 14)))),
         ))
 
