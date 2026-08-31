@@ -40,7 +40,8 @@ def fetch_rows(cur: sqlite3.Cursor):
             GROUP_CONCAT(DISTINCT al.name_ko) AS allergy,
             pc_parent.name_ko AS category, pc.name_ko AS sub_category,
             p.name AS product_name, p.food_form AS target_food_form,
-            GROUP_CONCAT(DISTINCT fp.name_ko) AS target_feeding_purpose
+            GROUP_CONCAT(DISTINCT fp.name_ko) AS target_feeding_purpose,
+            GROUP_CONCAT(DISTINCT ing.name_ko) AS ingredients
         FROM review AS r
         JOIN purchase AS pu ON pu.purchase_id = r.purchase_id
         JOIN pet AS pe ON pe.pet_id = pu.pet_id
