@@ -1,19 +1,17 @@
 # Last Updated : 2026-08-30
 
-"""파이프라인 결과를 실제로 검사하는 함수들을 모아둔다.
+"""
+파이프라인 결과를 실제로 검사하는 함수들을 모아둔다.
 
 검증 방법을 담당하며, @verify.py는 필요한 값을 준비하고 이 함수들을 순서대로 호출한다.
 """
 
-import time
 import json
 import sqlite3
 from collections import defaultdict
 
 import numpy as np
-import sqlite_vec
 from numpy.typing import NDArray
-from app.core.embedder import get_embeddings
 
 
 def check(ok: bool, error_msg: str, problems: list[str]):
@@ -192,17 +190,25 @@ def compare_recommendations(
     product_ids, product_mat = vectors["product_vectors"]
     chunk_ids, chunk_mat = vectors["chunk_vectors"]  # chunk_ids[j] = 그 조각의 purchase_id
 
-    product_of = dict(con.execute("SELECT purchase_id, product_id FROM pet_purchases"))
+    product_of = dict(con.execute("SELECT purchase_id, product_id FROM purchase"))
 
     bought = defaultdict(set)
-    for customer_id, product_id in con.execute(
-        "SELECT customer_id, product_id FROM pet_purchases WHERE is_holdout = 0"
-    ):
+    for customer_id, product_id in con.execute("""
+        SELECT pe.user_id, pu.product_id
+        FROM purchase AS pu
+        JOIN pet AS pe ON pe.pet_id = pu.pet_id
+        JOIN review AS r ON r.purchase_id = pu.purchase_id
+        WHERE r.is_holdout = 0
+    """):
         bought[customer_id].add(product_id)
 
-    answers = dict(con.execute(
-        "SELECT customer_id, product_id FROM pet_purchases WHERE is_holdout = 1"
-    ))
+    answers = dict(con.execute("""
+        SELECT pe.user_id, pu.product_id
+        FROM purchase AS pu
+        JOIN pet AS pe ON pe.pet_id = pu.pet_id
+        JOIN review AS r ON r.purchase_id = pu.purchase_id
+        WHERE r.is_holdout = 1
+    """))
 
     scores = calculate_scores(customer_mat, product_mat, chunk_mat, chunk_ids, product_ids, product_of)
 
@@ -212,61 +218,6 @@ def compare_recommendations(
         rates = ", ".join(f"hit@{k}={v:.1f}%" for k, v in results[label].items())
         print(f"[5단계] {label}: {rates}")
     return results
-
-
-def search_any(
-    con: sqlite3.Connection,
-    kind: str,
-    questions: list,
-    top_k: int = 3,
-    wosk: bool = False,       # True면 점수·본문 출력 없이 결과만 조용히 반환
-):
-    """질문을 벡터로 바꿔 kind 벡터 테이블에서 코사인 거리로 top_k개를 찾아온다. (6단계, 육안 확인용)"""
-    table = "chunk_vectors" if kind in ("chunk", "review") else f"{kind}_vectors"
-    exists = con.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,)
-    ).fetchone()
-    if not exists:
-        print(f"[6단계] {table} 테이블이 없어 '{kind}' 검색을 건너뜁니다.")
-        return {}
-
-    try:
-        con.enable_load_extension(True)
-        sqlite_vec.load(con)
-        con.enable_load_extension(False)
-    except sqlite3.OperationalError:
-        pass  # 커넥션에 이미 로드돼 있으면 여기서 에러가 나므로 무시한다.
-
-    model = get_embeddings()
-    results = {}
-    for question in questions:
-        started = time.time()
-        q_vec = sqlite_vec.serialize_float32(
-            model.encode([question], normalize_embeddings=True, show_progress_bar=False)[0]
-        )
-        rows = con.execute(f"""
-            SELECT v.purchase_id, c.body, vec_distance_cosine(v.vector, ?) AS distance
-            FROM {table} AS v
-            JOIN chunks AS c
-              ON c.purchase_id = v.purchase_id AND c.chunk_index = v.chunk_index
-            ORDER BY distance
-            LIMIT {int(top_k) * 5}
-        """, (q_vec,)).fetchall()
-
-        best = {}
-        for pid, body, distance in rows:
-            if pid not in best or distance < best[pid][1]:
-                best[pid] = (body, distance)
-        ranked = sorted(best.items(), key=lambda item: item[1][1])[:top_k]
-        results[question] = ranked
-
-        if not wosk:
-            elapsed = time.time() - started
-            print(f"\n[6단계] 질문: {question}  ({elapsed:.2f}초)")
-            for pid, (body, distance) in ranked:
-                print(f"  [{1 - distance:.3f}] purchase_id={pid} :: {body[:60]}")
-    return results
-
 
 def print_final_result(problems: list[str]) -> None:
     """여섯 단계에서 발견된 문제를 마지막에 모아서 출력하는 함수"""
