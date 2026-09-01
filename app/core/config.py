@@ -18,19 +18,58 @@ SEED_DIR = DATA_DIR / 'seed'
 
 LOGGER_DIR = ROOT / 'log'
 
-# 다국어 지원 모델(한국어 포함) - 문장을 고정 차원 벡터로 변환
-EMBED_MODEL = 'intfloat/multilingual-e5-small'
+# .env 를 환경변수로 올린다.
+def load_env(path=ROOT / ".env"):
+    """.env를 환경변수로 올린다."""
+    if not Path(path).exists():
+        return
+    for line in Path(path).read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k,v = line.split("=", 1)
+        k = k.strip()
+        v = v.strip().strip('"').strip("'")
+        os.environ.setdefault(k,v)
 
-# EMBED_MODEL이 뱉는 벡터의 차원 수. verify.py가 저장된 벡터 크기와 대조하는 기준값.
-EMBED_DIM = 384
+def env(name: str, default: str) -> str:
+    """환경변수를 읽되, 빈 문자열은 기본값으로 친다."""
+    value = os.environ.get(name,"").strip()
+    return default if value == "" else value
 
-# 특정 임베딩 모델로 청킹하고 토큰화 했다면 값비교도 무조건 같은 모델로 비교해야함
-EMBED_TOKENIZER = "intfloat/multilingual-e5-small"
+# 모델마다 다른 값을 한 표에 모은다. 접두사를 코드 여러 곳에 적으면 반드시 어긋난다.
+# query_prefix/passage_prefix: e5 계열은 필수, bge 계열은 붙이면 오히려 성능이 떨어진다.
+# 모델을 비교할 때 이 표만 늘리고 코드는 건드리지 않는 것이 목표다.
+EMBED_PROFILES = {
+    'intfloat/multilingual-e5-small': {
+        'dim': 384, 'max_tokens': 512, 'batch_size': 32,
+        'query_prefix': 'query: ', 'passage_prefix': 'passage: ',
+    },
+    'intfloat/multilingual-e5-base': {
+        'dim': 768, 'max_tokens': 512, 'batch_size': 16,
+        'query_prefix': 'query: ', 'passage_prefix': 'passage: ',
+    },
+    'BAAI/bge-m3': {
+        'dim': 1024, 'max_tokens': 8192, 'batch_size': 8,
+        'query_prefix': '', 'passage_prefix': '',
+    },
+}
 
-# 해당 모델의 최대 토큰수가 512인데 전달의 문자정보의 토큰갯수가 넘어설떄 512넘어서는 정보값은 짤려서 누락됨
-EMBED_MAX_TOKENS = 512
+# 재색인 없이 실험하려면 셸에서 바꾼다:  $env:EMBED_MODEL = 'BAAI/bge-m3'
+EMBED_MODEL = env('EMBED_MODEL', 'intfloat/multilingual-e5-small')
 
-EMBED_BATCH_SIZE = 32
+if EMBED_MODEL not in EMBED_PROFILES:
+    raise SystemExit(f"EMBED_PROFILES 에 없는 모델입니다: {EMBED_MODEL}")
+
+_profile = EMBED_PROFILES[EMBED_MODEL]
+
+# 토큰화는 임베딩과 반드시 같은 모델이어야 한다 - 따로 적을 이유가 없어 파생값으로 둔다.
+EMBED_TOKENIZER = EMBED_MODEL
+EMBED_DIM = _profile['dim']
+EMBED_MAX_TOKENS = _profile['max_tokens']
+EMBED_BATCH_SIZE = _profile['batch_size']
+QUERY_PREFIX = _profile['query_prefix']
+PASSAGE_PREFIX = _profile['passage_prefix']
 
 EMBED_DEVICE = "cpu"
 
@@ -56,26 +95,6 @@ SIZE_CASE = "CASE pu.size_at_purchase " + " ".join(
 
 if not Path(DB_PATH).exists():
     print(f"알림: DB 가 아직 없다 -> {DB_PATH}")
-
-
-# .env 를 환경변수로 올린다.
-def load_env(path=ROOT / ".env"):
-    """.env를 환경변수로 올린다."""
-    if not Path(path).exists():
-        return
-    for line in Path(path).read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        k,v = line.split("=", 1)
-        k = k.strip()
-        v = v.strip().strip('"').strip("'")
-        os.environ.setdefault(k,v)
-
-def env(name: str, default: str) -> str:
-    """환경변수를 읽되, 빈 문자열은 기본값으로 친다."""
-    value = os.environ.get(name,"").strip()
-    return default if value == "" else value
 
 USE_API = env("USE_API",0) == "1"
 

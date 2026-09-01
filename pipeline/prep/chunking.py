@@ -18,7 +18,7 @@ import sqlite3
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from transformers import AutoTokenizer
 
-from app.core.config import EMBED_TOKENIZER
+from app.core.config import EMBED_TOKENIZER, PASSAGE_PREFIX
 from pipeline.prep.options import CHUNK_OVERLAP, CHUNK_SIZE, SEPARATORS
 
 _tokenizer = None
@@ -60,7 +60,7 @@ def build_review_doc(row: sqlite3.Row) -> str:
     category = f"{row['category']}/{row['sub_category']}" if row['category'] else row['sub_category']
     ingredients = f"주원료: {row['ingredients']} " if row['ingredients'] else ""
     return (
-        "passage: " # 공식 e5 포맷
+        PASSAGE_PREFIX  # 모델 프로파일이 정한다 (e5는 'passage: ', bge는 빈 문자열)
         f"{category} {row['product_name']} "
         f"({purpose}, {row['target_food_form']}) "
         f"{ingredients} "

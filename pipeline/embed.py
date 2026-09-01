@@ -44,7 +44,8 @@ def main():
     # 2. 모델로 벡터화 (+) 벡터 정규화
     model = get_embeddings()
     vectors = model.encode(
-        docs, batch_size=EMBED_BATCH_SIZE, normalize_embeddings=True, show_progress_bar=True
+        docs, batch_size=EMBED_BATCH_SIZE, normalize_embeddings=EMBED_NORMALIZE,
+        show_progress_bar=True
     )
     # 3. 저장
     source = f"{len(chunks)}:{sum(c['purchase_id'] for c in chunks)}:{sum(c['n_tokens'] for c in chunks)}"

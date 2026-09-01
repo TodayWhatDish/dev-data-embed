@@ -5,7 +5,7 @@
 import json
 import sqlite3
 from datetime import datetime
-from app.core.config import LOG_PATH
+from app.core.config import LOG_PATH, PASSAGE_PREFIX
 from app.core.config import SIZE_LABELS
 from app.features.retrieve import build_where,fmt_purchase_id
 from pipeline.vector_db import search,connect  
@@ -17,7 +17,7 @@ def log_result(profile, query, hits):
         'profile': profile,
         'query': query,
         'hits': [
-            {'id': fmt_purchase_id(pid), 'score': round(score, 3), 'doc': doc.removeprefix('passage: ')}
+            {'id': fmt_purchase_id(pid), 'score': round(score, 3), 'doc': doc.removeprefix(PASSAGE_PREFIX)}
             for pid, score, doc in hits
         ],
     }
@@ -73,7 +73,7 @@ def main():
         hits = search(con, query, where=where, params=params)
 
         for pid, score, doc in hits:
-            text = doc.removeprefix('passage: ')
+            text = doc.removeprefix(PASSAGE_PREFIX)
             print(f'\n  [{fmt_purchase_id(pid)}] 유사도 {score:.3f}')
             print(f'  {text}')
 
