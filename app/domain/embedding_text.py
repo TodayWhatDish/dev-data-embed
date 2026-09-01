@@ -7,6 +7,7 @@
 
 import hashlib
 from typing import Any,Mapping
+from app.core.config import PASSAGE_PREFIX
 
 PRODUCT_FIELDS = (
     "brand", "product_name", "category", "sub_category",
@@ -23,7 +24,8 @@ def product_text(row: Mapping[str, Any] | tuple) -> str:
     # dict 형태가 아닌 자료형(tuple)이라면, dict 형태로 만든다.
     data = row if isinstance(row, Mapping) else dict(zip(PRODUCT_FIELDS, row))
     parts = [str(data[field]) for field in PRODUCT_FIELDS if data.get(field)] # 행에 있는 정보를 문자열 리스트로 저장한다
-    return "passage:\n" + " ".join(parts)
+    return PASSAGE_PREFIX + " ".join(parts)
+
 
 
 def source_hash(text: str) -> str:

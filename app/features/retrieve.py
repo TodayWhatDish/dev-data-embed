@@ -1,5 +1,4 @@
-# Last updated: 2026-08-27
-# LastUpdated : 2026-08-26
+# Last Updated: 2026-09-01
 
 """chunk_vectors를 기반으로 유사리뷰를 찾는 행위를한다. (검색)
    
@@ -8,7 +7,8 @@
 
 import sqlite3
 
-from app.core.config import EMBED_MODEL,SIZE_CASE
+from app.core.config import EMBED_MODEL, EMBED_DIM, SIZE_CASE
+
 
 # 프로필 키 -> SQL 조건절. 값이 들어온 키만 WHERE 에 붙는다.
 # size_at_purchase 는 1~5 코드라 SIZE_CASE(config.py)로 사람이 쓰는 말로 바꿔 비교한다.
@@ -55,12 +55,23 @@ def build_where(profile):
     """
     clauses, params = [f"r.rating >= {MIN_RATING}"], []
     for key, clause in FILTERS.items():
-        if profile.get(key):
+        value = profile.get(key)
+        if not value:
+            continue
+        # 알레르기처럼 값이 여러 개면 같은 조건절을 값마다 반복해 AND 로 묶는다.
+        # 하나만 걸면 나머지 알레르겐이 든 상품이 그대로 통과한다.
+        for item in (value if isinstance(value, list) else [value]):
             clauses.append(clause)
-            params.append(profile[key])
+            params.append(item)
 
     return " AND ".join(clauses) or "1=1", tuple(params)
 
+def chunk_fingerprint(con: sqlite3.Connection) -> str:
+    """지금 chunks 테이블의 지문. embed.py:50 이 색인 때 남기는 것과 같은 식으로 계산한다."""
+    n, id_sum, token_sum = con.execute(
+        "SELECT COUNT(*), COALESCE(SUM(purchase_id), 0), COALESCE(SUM(n_tokens), 0) FROM chunks"
+    ).fetchone()
+    return f"{n}:{id_sum}:{token_sum}"
 
 def check_freshness(con: sqlite3.Connection):
     """색인 시점의 모델,데이터 지문을 지금 DB와 비교해 어긋난 점을 문장 목록으로 돌려준다. 맞으면 빈 목록.
@@ -76,9 +87,23 @@ def check_freshness(con: sqlite3.Connection):
             f"색인은 '{meta.get('model')}' 모델로 만들었는데 지금 설정은 '{EMBED_MODEL}' 입니다. "
             "벡터 공간이 달라 유사도가 의미를 잃습니다."
         )
-   
+
+    if meta.get("dim") != str(EMBED_DIM):
+        problems.append(
+            f"색인 벡터는 {meta.get('dim')}차원인데 지금 모델은 {EMBED_DIM}차원입니다."
+        )
+
+    # embed.py:50 이 색인 시점에 남긴 조각 지문을 지금 chunks 로 다시 계산해 대조한다.
+    # chunk.py 만 돌리고 embed.py 를 잊는 게 재색인 사이클에서 가장 흔한 실수다.
+    now = chunk_fingerprint(con)
+    if meta.get("source") != now:
+        problems.append(
+            f"색인 당시 조각 지문은 '{meta.get('source')}' 인데 지금 chunks 는 '{now}' 입니다."
+        )
+
     if problems:
-        problems.append("embed.py 를 다시 실행하세요.")
+        problems.append("chunk.py 와 embed.py 를 다시 실행하세요.")
     return problems
+
 
 

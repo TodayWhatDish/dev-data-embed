@@ -2,12 +2,14 @@ import sqlite3
 
 import sqlite_vec
 
-from app.core.config import DB_PATH, EMBED_MODEL
+from app.core.config import DB_PATH, EMBED_MODEL, EMBED_NORMALIZE, QUERY_PREFIX
 from app.core.embedder import get_embeddings
 from app.features.retrieve import check_freshness
 
 def connect(): # DB연결하고 VEC 확장을 추가해서 벡터거리계산하는 함수를 쓸수있는 커넥션을 만들었음
-    con = sqlite3.connect(DB_PATH)
+    # check_same_thread=False : FastAPI sync 엔드포인트는 요청마다 스레드풀의 다른 스레드에서 도는데
+    # lifespan에서 만든 커넥션 하나를 여러 요청이 재사용하므로 필요함 (읽기 전용 쿼리만 하므로 안전)
+    con = sqlite3.connect(DB_PATH, check_same_thread=False)
     con.enable_load_extension(True) # 확장로딩이 기본값 False라 문을 열어줌
     sqlite_vec.load(con) # sqlite에 없는 함수를 vec.load로 con에 추가해준다 
     con.enable_load_extension(False) # 보안을 위해 문을 다시 닫아줌
@@ -83,8 +85,10 @@ def search(con, query, where = "1=1", params: tuple = (), top_k: int = 3):
 
     model = get_embeddings()
     q_vec = sqlite_vec.serialize_float32(
-        model.encode([f"query: {query}"], normalize_embeddings=True, show_progress_bar=False)[0] 
+    model.encode([f"{QUERY_PREFIX}{query}"], normalize_embeddings=EMBED_NORMALIZE,
+                     show_progress_bar=False)[0]
     )
+
     # 1 con : 사용자검색하면 FastAPI 엔드포인트가 요청받고 엔드포인트 함수 동작함. 
     # 2 con이 DB에 SQL날려서 정보를 가지고 con통로로 다시 보내줌
     # query : FastAPI 엔드포인트가 요청으로 받은 사용자가 타이핑한 자연어를 얘가 받음.

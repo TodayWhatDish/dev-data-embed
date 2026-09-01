@@ -9,7 +9,14 @@
 DB가 두 갈래로 나뉜다: pet_reco.db (실제 데이터가 적재되고 파이프라인이 돌아가는 활성 트랙), user.db (src/make_db/create_db_schema.py가 스키마만 짜둔 설계 단계 — 아직 어떤 데이터도 연결 안 됨). 헷갈리지 않게 이 둘을 구분해서 작업할 것.
 <!-- 이 저장소가 무엇인지 한두 문단. CLAUDE.md의 "What this repo is"와 겹치지 않게, 도구 무관하게 맞는 사실만. -->
 
+## Reference projects
+
+> API·인프라·배선 작업 전에 [`docs/REFERENCES.md`](docs/REFERENCES.md)를 먼저 읽고,
+> 거기 적힌 경로의 파일을 직접 열어서 확인한다. 그 파일에 "베끼면 안 되는 것" 목록도 있다.
+<!-- 목록 본문은 docs/REFERENCES.md 한 곳에만 둔다. 여기 복사하면 반드시 어긋난다. -->
+
 ## Setup / commands
+
 
 > 전부 **저장소 루트**에서, `-m` 모듈 형태로 실행한다(상대 경로 임포트 때문).
 
@@ -51,6 +58,10 @@ API, Key 등 민감정보가 포함된 데이터는 .env폴더에서 별도로 �
 
 > data/*.csv → load_db.py → pet_reco.db → check_data.py(검증) → prepare.py(청킹) → build_index.py(임베딩) → chunk_vectors/review_vectors 테이블 → query.py/app/features/retrieve.py(검색). app/core/db.py가 DB 접근을 전부 모아둠 — 다른 파일은 from app.core.db import query, one, dicts로만 접근.
 
+> app 구조
+- api(컨트롤러): HTTP 관련 일만 담당 — 요청 받기, 인증(caller), 쿼터 체크(guard), 404/429 같은 상태 코드 결정. SQL이나 비즈니스 로직은 모른다.
+- features(서비스): 실제 업무 로직 — "고객 목록에 구매 건수를 붙인다", "추천은 몇 개까지 고른다" 같은 규칙. HTTP도 모르고 SQL도 모른다.
+- repositories: DB 접근만 담당 — 실제 SQL 쿼리. 비즈니스 규칙은 모른다.
 
 ## Logging
 

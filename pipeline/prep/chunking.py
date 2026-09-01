@@ -3,10 +3,10 @@
 """ 리뷰(접두어 포함 문서)를 토큰 한도 안 조각으로 자른다. 
 
     어떻게 자르는지는 앎 (토큰 한도, 문장과 구두점의 경계)
-    DB는 모른다 : 이게 어디서 왔는지, 어디에 저장할지는 모름.
+    DB는 모른다 : 이게 어디서 왔는지, 어디에 저장할지는 모름. 
     인자로 받은 (purchase_id,doc) 목록만 보고 조각 목록을 돌려줄 뿐이다.
 
-    Input :  [(purchase_id, "passage:\n..."), ...]       
+    Input :  [(purchase_id, "passage :..."), ...]       
     Output :  [{"purchase_id", "chunk_index", "body", "n_tokens"}, ...]
 
     리뷰는 마크다운 헤더 같은 사람이 만든 절 경계가 딱히 없는 자연어라, 
@@ -18,7 +18,7 @@ import sqlite3
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from transformers import AutoTokenizer
 
-from app.core.config import EMBED_TOKENIZER
+from app.core.config import EMBED_TOKENIZER, PASSAGE_PREFIX
 from pipeline.prep.options import CHUNK_OVERLAP, CHUNK_SIZE, SEPARATORS
 
 _tokenizer = None
@@ -60,7 +60,7 @@ def build_review_doc(row: sqlite3.Row) -> str:
     category = f"{row['category']}/{row['sub_category']}" if row['category'] else row['sub_category']
     ingredients = f"주원료: {row['ingredients']} " if row['ingredients'] else ""
     return (
-        "passage: " # 공식 e5 포맷
+        PASSAGE_PREFIX+  # 모델 프로파일이 정한다 (e5는 'passage: ', bge는 빈 문자열)
         f"{category} {row['product_name']} "
         f"({purpose}, {row['target_food_form']}) "
         f"{ingredients} "

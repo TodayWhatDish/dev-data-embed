@@ -1,5 +1,5 @@
-from app.core.db import query, dicts
-
+from app.core.db import query, dicts,one,con
+import sqlite3
 
 # def get_product_detail_info():
 #     query("""
@@ -45,5 +45,36 @@ def get_product_ingredient_ids():
 def get_product_nutritions():
     return dicts("SELECT * FROM product_nutrition")
 
+def find_by_id(product_id: int) -> dict | None:
+    """상품 한 건 조회"""
+    rows = dicts("SELECT * FROM product WHERE product_id = ?", (product_id,))
+    return rows[0] if rows else None
+
+def find_page(page: int, size: int) -> list[dict]:
+    """상품 여러 건 조회"""
+    offset = page * size
+    return dicts("SELECT * FROM product LIMIT ? OFFSET ?", (size, offset))
+
+def insert(values: dict) -> int:
+    """상품 한 건을 등록하고 새로 생긴 product_id를 돌려준다."""
+    cols = ", ".join(values.keys())
+    placeholders = ", ".join("?" for _ in values)
+    cur = con.execute(f"INSERT INTO product ({cols}) VALUES ({placeholders})",
+                          tuple(values.values()))
+    con.commit()
+    return cur.lastrowid
+
+def update(product_id: int, values: dict) -> None:
+    """상품 한 건을 수정한다."""
+    sets = ", ".join(f"{k} = ?" for k in values)
+    con.execute(f"UPDATE product SET {sets} WHERE product_id = ?",
+               (*values.values(), product_id))
+    con.commit()
+
+def delete(product_id: int) -> None:
+    """상품 한 건을 삭제한다."""
+    con.execute("DELETE FROM product WHERE product_id = ?", (product_id,))
+    con.commit()
+    
 def get_ingredient_allergen_ids():
     return query("SELECT ingredient_id, allergen_id FROM ingredient_allergen")
