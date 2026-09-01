@@ -112,7 +112,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import common_schema
 import user_schema
-import admin_schema
 import pet_schema
 import product_schema
 import purchase_schema
@@ -120,7 +119,7 @@ import purchase_schema
 DB_PATH = 'user.db'
 
 # 순서가 곧 생성 순서다. 의존이 있는 쪽이 뒤.
-MODULES = (common_schema, user_schema, admin_schema, pet_schema, product_schema, purchase_schema)
+MODULES = (common_schema, user_schema, pet_schema, product_schema, purchase_schema)
 
 # 모듈에서 걷어오는 이름. 실행 순서이기도 하다 —
 # 테이블이 다 생긴 뒤에 인덱스, 그 다음 뷰, 시드는 맨 마지막(FK 검증을 켜고 넣는다).

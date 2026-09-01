@@ -77,6 +77,7 @@ def env(name: str, default: str) -> str:
     value = os.environ.get(name,"").strip()
     return default if value == "" else value
 
+load_env()
 USE_API = env("USE_API",0) == "1"
 
 if USE_API:
@@ -94,3 +95,4 @@ GOOGLE_CLIENT_ID = env("GOOGLE_CLIENT_ID", "")
 JWT_SECRET = env("JWT_SECRET", "")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = 60 * 24 * 7  # 7일
+ADMIN_PASSWORD = env("ADMIN_PASSWORD", "")

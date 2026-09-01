@@ -38,5 +38,4 @@ class AuthResponse(BaseModel):
 
 # 관리자 로그인
 class AdminLoginRequest(BaseModel):
-    username: str
     password: str

@@ -10,19 +10,6 @@ from app.core.config import JWT_SECRET,JWT_ALGORITHM
 
 PBKDF2_ITERATIONS = 200_000
 
-def hash_password(password: str, salt: bytes = None) -> tuple[bytes, bytes]:
-    """비밀번호를 해시하고 salt를 반환한다. salt가 주어지면 그걸 쓰고, 없으면 새로 만든다."""
-    if salt is None:
-        salt = secrets.token_bytes(16)
-    digest = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, PBKDF2_ITERATIONS)
-    return f"{salt}${digest}"
-
-
-def verify_password(password: str, password_hash: str) -> bool:
-    """비밀번호를 검증한다. salt와 해시값이 주어져야 한다."""
-    salt, digest = password_hash.split('$',1)
-    new_digest = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, PBKDF2_ITERATIONS).hex()
-    return secrets.compare_digest(digest, new_digest)
 
 def get_current_admin(authorization: str = Header(None)) -> int:
     """Authorization: Bearer <jwt> 를 검증하고 admin_id를 돌려준다. 실패하면 401."""
@@ -50,4 +37,3 @@ def get_current_admin(authorization: str = Header(None)) -> int:
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    return payload["admin_id"]

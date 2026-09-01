@@ -14,6 +14,8 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
+from app.api.routes.admin_auth import router as admin_auth_router
 
 from app.app_logger.logger import init_logger
 
@@ -36,6 +38,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 app.include_router(recommend_router)
 app.include_router(auth_router)
+app.include_router(admin_auth_router)
+app.mount("/static/admin",StaticFiles(directory="web/admin"), name="admin_static")
 
 @app.get("/health")
 def health():
