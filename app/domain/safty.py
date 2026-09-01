@@ -8,7 +8,7 @@
 """
 
 from app.domain.common import CommonMgr
-from app.domain.product import ProductMgr
+from app.domain.products import ProductMgr
 
 WARN = '위험'
 UNKNOWN = '판정불가'
