@@ -11,10 +11,12 @@
 검색 로직 자체는 pipeline/vector_db.py 의 search() 를 그대로 재사용한다.
 """
 
+import json
+import random
 import sqlite3
 
 from app.features.retrieve import build_where  # 프로필 딕셔너리 -> SQL where절 변환
-from app.core.config import DB_PATH, SIZE_CASE  
+from app.core.config import DB_PATH, SIZE_CASE, EVAL_DIR, EMBED_MODEL, EMBED_DIM
 from pipeline.vector_db import search,connect
 
 def load_product_map(con: sqlite3.Connection)->dict[int,int]:
@@ -112,21 +114,84 @@ def run_holdout_search(con: sqlite3.Connection, top_k_wide: int = 50) -> list[tu
         runs.append((purchase_id, product_id, allergy, review, results))
     return runs
 
-def evaluate(con: sqlite3.Connection, runs: list[tuple], k:int = 3) -> float:
-    """run_holdout_search()가 만든 결과 앞 k개만 잘라 recall@k를 잰다."""
+def rank_of_answer(product_of: dict[int, int], product_id: int, results: list[tuple]) -> int | None:
+    """정답 상품이 검색 결과의 몇 번째에 나왔는지(1부터). 없으면 None.
+
+    recall@k도 MRR도 전부 이 정수 하나에서 파생된다 - k마다 결과를 다시 훑을 이유가 없다.
+    """
+    for position, (r_pid, _, _) in enumerate(results, start=1):
+        if product_of[r_pid] == product_id:
+            return position
+    return None
+
+
+def score_runs(con: sqlite3.Connection, runs: list[tuple]) -> list[dict]:
+    """검색 결과를 표본별 한 줄 기록으로 압축한다. 모델 비교는 이 기록끼리 한다."""
     product_of = load_product_map(con)
-    hits = 0
-    for purchase_id, product_id, allergy, review, results in runs:
-        if any(product_of[r_pid] == product_id for r_pid, _, _ in results[:k]):
-            hits+=1
-    rate = hits / len(runs)
-    print(f'recall@{k} : {hits}/{len(runs)} = {rate:.1%}')
-    return rate
+    return [
+        {'purchase_id': purchase_id,
+         'product_id': product_id,
+         'rank': rank_of_answer(product_of, product_id, results)}
+        for purchase_id, product_id, allergy, review, results in runs
+    ]
+
+
+def summarize(records: list[dict], ks: tuple = (1, 3, 10)) -> dict:
+    """기록에서 지표를 뽑는다.
+
+    recall@k 하나만 보면 k 경계에서 우연히 갈린 표본에 결론이 휘둘린다.
+    MRR 은 순위를 통째로 반영해서(1위=1.0, 5위=0.2) 그 흔들림이 덜하다.
+    """
+    ranks = [record['rank'] for record in records]
+    n = len(ranks)
+    metrics = {f'recall@{k}': sum(1 for r in ranks if r is not None and r <= k) / n for k in ks}
+    metrics['mrr'] = sum(1 / r for r in ranks if r is not None) / n
+    metrics['n'] = n
+    return metrics
+
+
+def noise_band(records: list[dict], k: int = 3, trials: int = 2000, seed: int = 0) -> tuple:
+    """같은 표본을 복원추출로 다시 뽑았을 때 recall@k 가 흔들리는 폭(95%).
+
+    표본이 66건뿐이라 1건 = 1.5%p 다. 이 폭 안의 모델 간 차이는 '차이'가 아니라
+    어느 리뷰가 홀드아웃으로 뽑혔느냐의 운이다. 모델을 고르기 전에 이 폭부터 안다.
+    """
+    hits = [1 if (r['rank'] is not None and r['rank'] <= k) else 0 for r in records]
+    n = len(hits)
+    rng = random.Random(seed)
+    rates = sorted(sum(rng.choice(hits) for _ in range(n)) / n for _ in range(trials))
+    return rates[int(trials * 0.025)], rates[int(trials * 0.975)]
+
+
+def save_run(records: list[dict], metrics: dict) -> None:
+    """모델 이름으로 결과 파일을 남긴다.
+
+    모델을 바꿔 재색인하면 chunk_vectors 가 DROP 되므로(vector_db.py:38) 이전 모델의
+    결과는 DB 에 남지 않는다. 비교하려면 DB 밖에 이렇게 남겨두는 수밖에 없다.
+    """
+    EVAL_DIR.mkdir(parents=True, exist_ok=True)
+    path = EVAL_DIR / f"{EMBED_MODEL.replace('/', '__')}.json"
+    path.write_text(
+        json.dumps({'model': EMBED_MODEL, 'dim': EMBED_DIM,
+                    'metrics': metrics, 'records': records},
+                   ensure_ascii=False, indent=2),
+        encoding='utf-8')
+    print(f'결과 저장: {path}')
 
 if __name__ == '__main__':
     con = connect()
     runs = run_holdout_search(con)
-    evaluate(con, runs)
+    records = score_runs(con, runs)
+    metrics = summarize(records)
+
+    print(f'모델: {EMBED_MODEL} ({EMBED_DIM}차원)')
+    for name, value in metrics.items():
+        print(f'  {name:<12} {value:.3f}' if isinstance(value, float) else f'  {name:<12} {value}')
+
+    low, high = noise_band(records, k=3)
+    print(f'  recall@3 95% 구간 {low:.1%} ~ {high:.1%} - 이 폭 안의 차이는 무시한다')
+
+    save_run(records, metrics)
     count_allergy_contamination(con, runs)
     inspect_misses(con, runs)
     con.close()

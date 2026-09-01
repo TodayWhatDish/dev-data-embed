@@ -15,6 +15,9 @@ DB_PATH = DATA_DIR / 'pet_reco.db'
 MASTER_DIR = DATA_DIR / 'master'
 LOG_PATH = ROOT / 'logs' / 'query_log.jsonl'
 SEED_DIR = DATA_DIR / 'seed'
+# 모델별 평가 결과를 남긴다. 모델을 바꿔 재색인하면 이전 결과는 DB에서 사라지므로
+# 비교하려면 DB 밖에 남겨둬야 한다.
+EVAL_DIR = DATA_DIR / 'eval'
 
 LOGGER_DIR = ROOT / 'log'
 
