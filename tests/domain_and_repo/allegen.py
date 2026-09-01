@@ -1,3 +1,6 @@
+import logging
+
+from app.app_logger.logger import init_logger
 from app.domain.common import CommonMgr
 from app.repositories.common import get_allgens
 
@@ -8,7 +11,7 @@ def print_allerge_child(child, parent_allergen : str | None = None, tab_cnt = 0)
     재귀 함수를 통해, 자식들을 순회하고 모든 자식을 출력
     """
     if parent_allergen:
-        print("\t"*tab_cnt + f"{parent_allergen}")
+        logger.info("\t"*tab_cnt + f"{parent_allergen}")
 
     for c in child:
         print_allerge_child(c["children"], c["name_ko"], tab_cnt+1)
@@ -18,7 +21,7 @@ def print_allerge_parent(allergen_hirarchy, allergen_id : int, tab_cnt = 0):
     # summary
         재귀 함수를 통해, 부모들을 출력
     """
-    print("\t" * tab_cnt + f"{allergen_hirarchy[allergen_id]["name_ko"]}")
+    logger.info("\t" * tab_cnt + f"{allergen_hirarchy[allergen_id]["name_ko"]}")
     if allergen_hirarchy[allergen_id]["parent_id"]:
         print_allerge_parent(allergen_hirarchy, allergen_hirarchy[allergen_id]["parent_id"], tab_cnt+1)
 
@@ -34,7 +37,11 @@ def get_parents(allergen_hirarchy, allergen_id):
         ret_val = ret_val + get_parents(allergen_hirarchy, allergen_hirarchy[allergen_id]["parent_id"])
     return ret_val
 
+logger = logging.getLogger()
+
+
 if __name__ == '__main__':
+    init_logger('test_allegen')
     mgr = CommonMgr.get_inst()
     
     mgr.set_allergen_info(get_allgens())
@@ -44,37 +51,37 @@ if __name__ == '__main__':
         print_allerge_child(r["children"], r["name_ko"], 0)
 
 
-    print("#"*20)
+    logger.info("#"*20)
     select_allergen1 = mgr.get_allergen(3)
-    print("select allergen1")
+    logger.info("select allergen1")
     print_allerge_child(select_allergen1["children"], select_allergen1["name_ko"], 0)
-    print("#"*20)
+    logger.info("#"*20)
 
     select_allergen2 = mgr.get_allergen(5)
-    print("select allergen2")
+    logger.info("select allergen2")
     print_allerge_child(select_allergen2["children"], select_allergen2["name_ko"], 0)
-    print("#"*20)
+    logger.info("#"*20)
 
 
-    print("reverse iterate")
+    logger.info("reverse iterate")
     allergen_hirarchy = mgr.get_all_allergen_hierarchy()
     print_allerge_parent(allergen_hirarchy, 7) #11번 알러지의 부모들을 출력
     to_par_ids = get_parents(allergen_hirarchy, 7)
     tt  = []
     for id in to_par_ids:
         tt.append(allergen_hirarchy[id]["name_ko"])
-    print(tt)
-    print("#"*20)
+    logger.info(tt)
+    logger.info("#"*20)
 
     select_allergen3 = mgr.get_allergen(500)
-    print("존재하지 않는 알러지 id - select allergen4")
+    logger.info("존재하지 않는 알러지 id - select allergen4")
     if not select_allergen3:
-        print("None!!!")
+        logger.info("None!!!")
     else:
         raise ValueError(select_allergen3)
-    print("#"*20)
+    logger.info("#"*20)
     
-    print('ok')
+    logger.info('ok')
 
 """
 단백질
