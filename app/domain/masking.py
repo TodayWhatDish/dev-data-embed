@@ -1,41 +1,155 @@
 """
-[아직 검수 안된 코드]
-문장에서 전화번호와 이메일 같은 개인정보를 가린다.
+문장에서 전화번호·이메일·연락 유도 같은 개인정보를 가린다.
+되돌릴 수 없는 파괴적 변환이므로 저장이 아니라 '나가는 글'에만 쓴다.
+
+**새는 쪽을 택한다.** 사람이 손으로 다 거르지 못하니 자동 필터를 두는 거지, 완벽하게 막으려고
+두는 게 아니다. 우회 수법을 다 쫓다 보면 규칙이 조여져서 평범한 후기가 먼저 지워진다.
+전화번호·이메일처럼 형식이 뚜렷한 것만 확실히 막고, 애매하면 남긴다.
+
+연락 수단이 있는 '부분'만 치환하고 문장은 남긴다.
+문장째 지우면 마침표가 없는 글(당근마켓 글이 대개 그렇다)에서 상품 설명까지 통째로 날아가고,
+'배송 문의했더니 친절했어요' 같은 평범한 후기도 오탐 한 번에 사라진다.
 """
 
 import re
 
-PHONE = re.compile(r"01[016-9][-.\s]?\d{3,4}[-.\s]?\d{4}")
+# 자간을 벌리는 구분자. 공백만 막으면 '오@픈@채@팅', '010~1231~1241' 로 바로 빠져나간다.
+# \W* 로 뭉뚱그리면 문장부호까지 먹어서 '오! 카레맛' 이 '오카' 가 된다. 우회에 실제로 쓰는
+# 기호만 받는다 — 개수는 안 막는다. 낱말 건너뛰기는 한글·영문이 이미 막고 있고,
+# 개수를 막으면 '오                     픈채 팅' 처럼 대놓고 벌려 쓴 게 그냥 통과한다
+_SEP = r"[\s._\-~*@/|+#]*"
+# 낱말 사이에 끼우는 우회는 숫자도 쓴다('채2팅'). 전화번호는 숫자가 값이라 이걸 못 쓰고
+# 낱말 패턴에서만 쓴다
+_SEP_T = r"[\s._\-~*@/|+#\d]*"
+
+# 010-1234-5678 / 01012345678 / 010.1234.5678 / 010~1234~5678 / 010 1234 5678
+# 휴대폰만 막으면 '031-111-1111' 같은 유선·인터넷전화(070)·대표번호(080/0505)가 그대로 샌다.
+# 국번은 목록이 정해져 있으니 박아둔다 — \d{2,3} 으로 열면 '2026.08.13' 류가 걸린다
+# 0 을 알파벳 O 로 바꾸는 건 필터를 피하는 흔한 수법이라 [0Oo] 로 같이 받는다 (O1O-...)
+_AREA = r"[0Oo]1[0Oo16-9]|0(?:2|[3-6][1-5]|70|505|80)"
+PHONE = re.compile(rf"(?:{_AREA}){_SEP}\d{{3,4}}{_SEP}\d{{4}}")
+
+# 공일공 일이삼사 오육칠팔 — 숫자를 한글로 풀어 쓰는 우회
+# 8자 이상 연속은 자연스러운 한국어에 나오지 않아 오탐이 사실상 없다
+HANGUL_PHONE = re.compile(r"(?:[공영일이둘삼셋사넷오육륙칠팔구][\s-]*){8,}")
+
 EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]{2,}")
 
-KAKAO = re.compile(r"[^.!?]*카톡[^.!?]*[.!?]?")
-CONTACT = re.compile(r"[^.!?]*(문자|연락|공구|디엠|DM)[^.!?]*[.!?]?")
+# 카톡 / 카카오톡 / 까톡 / 카 톡 / 카.카.오.톡
+KAKAO = re.compile(rf"[카까]{_SEP_T}(?:[카까]{_SEP_T}오{_SEP_T})?톡")
+
+# 그 밖의 연락 수단. '연락'·'문의'·'공구' 같은 낱말은 넣지 않는다 —
+# 그 자체로는 연락처가 아니면서 평범한 후기에 자주 나와 오탐만 만든다
+# ex) 오        픈 채     팅 / 오@픈@채@팅 << 사이에 낀 공백·기호는 _SEP 이 흡수한다
+# '오카'(오픈카톡)는 두 글자뿐이라 '오! 카레맛' 을 먹기 쉽다. 뒤에 한글이 붙으면 낱말로 보고 버린다
+CHANNEL = re.compile(
+    rf"오{_SEP_T}픈{_SEP_T}채{_SEP_T}팅|오{_SEP_T}카(?:방|톡)?(?![가-힣])"
+    rf"|디{_SEP_T}엠|(?<![A-Za-z])[Dd][Mm](?![A-Za-z])|텔레그램"
+)
+
+# @dogfood_shop 같은 SNS 아이디
+HANDLE = re.compile(r"@[A-Za-z0-9._]{3,}")
+
+# 주소는 호출자가 도시 목록을 넘겨야만 가려졌다 — 목록에 없는 도시는 그대로 새어나간다.
+# 17개 시도는 바뀌지 않으니 여기 박고, 시군구·읍면동이 '두 단계 이상' 이어질 때만 주소로 본다.
+# 한 단계만 보면 '이동', '사료구' 같은 평범한 말이 걸린다.
+_SIDO = "서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주"
+_GU = r"[가-힣]{1,5}(?:시|군|구)"          # 시작 단위. 동/로 로 시작하면 '이동하면서' 가 걸린다
+_DONG = r"[가-힣]{1,5}(?:동|읍|면|리|로|길)"
+ADDRESS = re.compile(
+    rf"(?:(?:{_SIDO})\s*{_GU}"
+    rf"|{_GU}\s*{_DONG})"
+    rf"(?:\s*(?:{_GU}|{_DONG}))*"          # 시·구·로 가 이어지면 끊지 않고 한 덩어리로 문다
+    r"(?:\s*\d[\d\-]*(?:번지|번길|호|층)?)*"
+)
+
+# 이름도 호출자가 알려줘야 가려졌다. 리뷰에 누구 이름이 나올지 미리 알 수 없으니
+# '호칭·자기소개가 붙은 자리'만 이름으로 본다 — 홍길동님 / 김철수 사장님 / 박승호입니다.
+# 성씨+2글자는 평범한 낱말과 겹쳐서(강아지·장난감·배송비) 뒤에 붙는 말이 없으면 건드리지 않고,
+# 그래도 겹치는 흔한 말은 _NOT_NAME 으로 뺀다.
+# '곽두팔이가' 처럼 조사가 붙은 자리도 본다. '이+조사' 앞의 세 글자로 좁혀야
+# '구름이가'(두 글자 반려동물 이름)까지 지우지 않는다.
+# '라고'('박승호라고 합니다')는 뺐다 — 후기 2000건 중 106건의 '-더라고요' 를 통째로 먹었다.
+# ponytail: 정규식 휴리스틱이라 성씨 없는 이름·외국 이름은 놓친다. 재현율이 필요하면 NER 로 간다
+_SURNAME = "김이박최정강조윤장임한오서신권황안송류전홍고문양손배백허남심노하곽성차주우구원"
+_NOT_NAME = "강아지|고양이|장난감|배송|최고|최상|고객|주인|이모|사장|대표|정말|진짜|우리|오늘"
+NAME = re.compile(
+    rf"(?<![가-힣])(?!(?:{_NOT_NAME}))[{_SURNAME}]"
+    r"(?:[가-힣]{1,2}(?=\s*(?:님|씨(?![가-힣])|사장|대표))"
+    r"|[가-힣]{2}(?=\s*(?:입니다|이에요|예요|드림|올림)"
+    r"|이(?:가|는|를|랑|한테|에게|와|과)))"
+)
+
+# (정규식, 대체어) 쌍을 위에서부터 덮어쓴다. 무엇을 가렸는지가 글에 남아야 읽는 사람이 안다.
+# EMAIL 이 HANDLE 보다 앞이어야 'a@shop.co.kr' 의 '@shop' 이 먼저 잘리지 않고,
+# ADDRESS 가 NAME 보다 앞이어야 '강남구' 같은 지명이 이름으로 먼저 먹히지 않는다
+# 마크에 붙이는 꼬리표. 본문에 누가 '[연락처]' 라고 그냥 써 놔도 마크와 섞이지 않는다
+_MARK_SALT = ""
+CONTACT_MARK = "[연락처" + _MARK_SALT + "]"
+
+REPLACE_EMAIL = "[이메일" + _MARK_SALT + "]"
+REPLACE_PHONE = "[전화번호" + _MARK_SALT + "]"
+REPLACE_HANGUL_PHONE = REPLACE_PHONE
+REPLACE_KAKAO = CONTACT_MARK
+REPLACE_CHANNEL = CONTACT_MARK
+REPLACE_HANDLE = "[아이디" + _MARK_SALT + "]"
+REPLACE_ADDRESS = "[주소" + _MARK_SALT + "]"
+REPLACE_NAME = "[이름" + _MARK_SALT + "]"
+
+_RULES = (
+    (EMAIL, REPLACE_EMAIL),
+    (PHONE, REPLACE_PHONE),
+    (HANGUL_PHONE, REPLACE_HANGUL_PHONE),
+    (KAKAO, REPLACE_KAKAO),
+    (CHANNEL, REPLACE_CHANNEL),
+    (HANDLE, REPLACE_HANDLE),
+    (ADDRESS, REPLACE_ADDRESS),
+    (NAME, REPLACE_NAME),
+)
+
+# 연락 수단은 종류가 달라도 하나로 줄인다. 마크에 든 대괄호는 re.escape 로 죽여야 한다 —
+# 그냥 끼워넣으면 '[이메일]' 이 '이/메/일 중 한 글자' 라는 문자클래스가 되어 엉뚱한 데 걸린다
+_CONTACT_MARKS = (CONTACT_MARK, REPLACE_PHONE, REPLACE_EMAIL, REPLACE_HANDLE)
+_REPEAT_CONTACT = re.compile(
+    r"(?:(?:%s)[\s,·/]*){2,}" % "|".join(map(re.escape, _CONTACT_MARKS))
+)
+# 주소·이름은 연락처가 아니다. 종류가 다른 마크까지 뭉치면 '[주소] [이름]' 이 한 덩어리가 되므로
+# 같은 마크가 잇달아 나올 때만 줄인다 — \1 은 '방금 잡은 그것과 똑같은 것'
+_REPEAT_SAME = re.compile(r"(\[[^\]]+\])(?:[\s,·/]*\1)+")
 
 
-# 도시 목록으로 주소 정규식을 만든다. 목록이 비면 None
-def build_address_pattern(cities):
-    if not cities:
-        return None
-    ordered = sorted(set(cities), key=len, reverse=True)
-    return re.compile(r"(?:%s)(?:\s?[가-힣]+(?:동|구|읍|면|로|길))?" % "|".join(ordered))
+def _tidy(text: str) -> str:
+    """
+    # Summary
+    * 가리고 나면 생기는 연속 공백과 줄줄이 붙은 마크를 하나로 줄인다
+    """
+    text = _REPEAT_CONTACT.sub(CONTACT_MARK + " ", text)
+    text = _REPEAT_SAME.sub(r"\1", text)
+    text = re.sub(r"[^\S\n]{2,}", " ", text).strip()
+    # 꼬리표는 여기서 뗀다. 본문이 흉내 낸 마크와 우리 마크를 가리는 건 처리 중에만 필요하고,
+    # 나가는 글에는 '[연락처q1w2e3r4]' 가 아니라 '[연락처]' 가 보여야 한다
+    return text.replace(_MARK_SALT, "")
 
 
-# 가리고 나면 생기는 연속 공백을 정리한다
-def _tidy(text):
-    return re.sub(r"\s{2,}", " ", text).strip()
-
-
-# 개인정보를 지운다. 되돌릴 수 없으므로 나가는 글에만 쓴다
-def mask(text, *, names=(), address=None):
+def mask(text: str, *, names: tuple[str, ...] = ()) -> str:
+    """
+    # Summary
+    * 개인정보를 지운 문장을 반환. 원문은 건드리지 않는다
+    * 찾은 자리만 종류에 맞는 마크로 바꾸고 나머지 문장은 그대로 둔다
+      ([전화번호]/[이메일]/[연락처]/[아이디]/[주소]/[이름])
+    # params
+    * names: DB 로 이미 아는 이름(글쓴이·판매자)이 있으면 추가로 지운다. 없어도 된다 —
+      본문의 이름은 NAME 정규식이 잡는다. 긴 이름부터 지워야 부분 일치로 잘리지 않는다
+    # ex)
+    * mask("박승호입니다 오 픈 채 팅 주세요 010-1234-1234 충남 아산시 배방읍")
+      -> "[이름]입니다 [연락처] 주세요 [전화번호] [주소]"
+    * names 는 키워드 전용(`*`)이라 위치인자로 넘기면 TypeError 다
+    """
     if not text:
         return text
-    text = KAKAO.sub(" ", text)
-    text = CONTACT.sub(" ", text)
-    text = PHONE.sub("[연락처]", text)
-    text = EMAIL.sub("[메일]", text)
-    if address is not None:
-        text = address.sub("[주소]", text)
+    for pattern, repl in _RULES:
+        text = pattern.sub(repl, text)
     for name in sorted({n for n in names if n}, key=len, reverse=True):
-        if name in text:
-            text = text.replace(name, "[이름]")
+        text = text.replace(name, "[이름]")
     return _tidy(text)
+    
