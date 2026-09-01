@@ -49,11 +49,17 @@ def compare(model_a: str, model_b: str, k: int = 3) -> None:
 
     # 부호검정: 뒤집힘이 6건일 때 6:0 이어야 겨우 p<0.05 다.
     # 6건 미만이면 어떻게 갈리든 우연과 구별할 수 없다.
+    # 뒤집힘이 반반이면 총 건수가 아무리 많아도 우열이 없다. 48건이 24:24 로 갈린 것은
+    # "두 모델이 서로 다른 걸 48번 찾았지만 어느 쪽도 더 낫지 않다"는 뜻이다.
+    # 한쪽 우세가 √flips 보다 작으면 동전 던지기와 구별되지 않는다.
+    margin = abs(len(only_b) - len(only_a))
     if flips < 6:
         print("  -> 뒤집힘이 너무 적다. 우열을 말할 수 없으니 비용 축(차원/속도)에서 고른다.")
+    elif margin <= flips ** 0.5:
+        print(f"  -> {len(only_a)}:{len(only_b)} 로 갈렸다. 동률이니 비용 축에서 고른다.")
     else:
         winner = 'B' if len(only_b) > len(only_a) else 'A'
-        print(f"  -> {winner} 우세 {abs(len(only_b) - len(only_a))}건. 한쪽으로 쏠릴수록 실재하는 차이다.")
+        print(f"  -> {winner} 우세 {margin}건. 한쪽으로 쏠릴수록 실재하는 차이다.")
 
     # recall 경계에 안 걸린 개선/악화까지 본다 - 43위가 39위로 올라온 것도 신호다.
     moved = [(rank_a[pid] or OUT_OF_RANGE) - (rank_b[pid] or OUT_OF_RANGE) for pid in shared]
