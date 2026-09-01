@@ -28,9 +28,13 @@ class RecommendResponse(BaseModel):
     retries: int
     error: str
 
-class SupabaseLoginRequest(BaseModel):
-    access_token: str
-
-class AuthResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
+class ProductCreate(BaseModel):
+    """관리자 화면 상품등록 폼 바디."""
+    product_category_id: int
+    brand: str
+    name: str
+    food_form: str | None = None
+    price_krw: int
+    weight_g: int
+    kcal_per_100g: int | None = None
+    description: str | None = None

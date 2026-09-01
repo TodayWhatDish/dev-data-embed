@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>고객 관리 대시보드</title>
+<style>
+  :root{
+    --bg: #f3f5f1;
+    --panel: #ffffff;
+    --ink: #16211d;
+    --muted: #6e7b74;
+    --line: #e1e5df;
+    --sidebar: #1e3d32;
+    --sidebar-hover: #28513f;
+    --sidebar-active: #2f6f5e;
+    --accent: #2f6f5e;
+    --accent-soft: #e4efe9;
+    --gold: #c98a2c;
+    --gold-soft: #f7ecd8;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+  }
+
+  #loginGate{
+    height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
+  }
+  #loginGate[hidden]{ display:none; }
+  #loginGate input{
+    padding:10px 14px; border:1px solid var(--line); border-radius:8px; font-size:14px; width:240px; outline:none;
+  }
+  #loginGate button{
+    padding:10px 22px; background:var(--accent); color:#fff; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer;
+  }
+
+  .app{
+    display:grid;
+    grid-template-columns: 260px 1fr;
+    grid-template-rows: 68px 1fr;
+    height:100vh;
+  }
+  .app[hidden]{ display:none; }
+  .topbar{
+    grid-column: 1 / 3;
+    display:flex;
+    align-items:center;
+    gap:16px;
+    padding: 0 24px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+  }
+  .search-wrap{
+    position:relative;
+    width: 320px;
+  }
+  .search-wrap input{
+    width:100%;
+    padding: 9px 14px 9px 34px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: var(--bg);
+    font-size: 14px;
+    color: var(--ink);
+    outline:none;
+  }
+  .search-wrap input:focus{
+    border-color: var(--accent);
+    background: var(--panel);
+  }
+  .search-wrap svg{
+    position:absolute;
+    left:11px;
+    top:50%;
+    transform: translateY(-50%);
+    width:14px;
+    height:14px;
+    stroke: var(--muted);
+  }
+  .topbar-title{
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: 0.01em;
+  }
+  .spacer{flex:1;}
+  .whoami{ font-size:13px; color:var(--muted); margin-right:6px; }
+  .logout-link{ font-size:12.5px; color:var(--muted); text-decoration:underline; cursor:pointer; margin-right:16px; background:none; border:none; }
+  .ai-btn{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding: 10px 18px;
+    background: var(--accent);
+    color:#fff;
+    border:none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor:pointer;
+    transition: background .15s ease;
+  }
+  .ai-btn:hover{ background:#265c4e; }
+  .ai-btn:disabled{
+    background: #c7cfc9;
+    cursor:not-allowed;
+  }
+  .ai-btn svg{width:16px;height:16px;}
+
+  .sidebar{
+    background: var(--sidebar);
+    overflow-y:auto;
+    padding: 12px 0;
+  }
+  .sidebar-label{
+    color: #9fb8ac;
+    font-size:12px;
+    padding: 8px 20px 6px;
+  }
+  .customer-item{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding: 11px 20px;
+    cursor:pointer;
+    color:#dfeae4;
+    font-size:14px;
+    border-left: 3px solid transparent;
+    transition: background .12s ease;
+  }
+  .customer-item:hover{ background: var(--sidebar-hover); }
+  .customer-item.active{
+    background: var(--sidebar-active);
+    border-left-color: var(--gold);
+    color:#fff;
+    font-weight:600;
+  }
+  .avatar{
+    width:30px;height:30px;
+    border-radius:50%;
+    background: rgba(255,255,255,0.14);
+    display:flex;align-items:center;justify-content:center;
+    font-size:14px;
+    flex-shrink:0;
+  }
+  .cust-meta{ overflow:hidden; }
+  .cust-name{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cust-sub{ font-size:11.5px; color:#a9c2b7; }
+  .no-result{
+    color:#a9c2b7;
+    padding: 20px;
+    font-size: 13px;
+  }
+
+  .main{
+    overflow-y:auto;
+    padding: 28px 36px 60px;
+  }
+  .empty-state{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    height:100%;
+    color: var(--muted);
+    text-align:center;
+    gap:8px;
+  }
+  .empty-state svg{ width:40px; height:40px; stroke: var(--muted); margin-bottom:6px; }
+
+  .profile-card{
+    background: var(--panel);
+    border:1px solid var(--line);
+    border-radius: 12px;
+    padding: 24px 28px;
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap: 24px;
+    margin-bottom: 24px;
+  }
+  .profile-left{ display:flex; gap:18px; align-items:center; }
+  .avatar-lg{
+    width:56px;height:56px;
+    border-radius:50%;
+    background: var(--accent-soft);
+    color: var(--accent);
+    display:flex;align-items:center;justify-content:center;
+    font-size:22px;
+    font-weight:600;
+    flex-shrink:0;
+  }
+  .profile-name{ font-size:19px; font-weight:700; }
+  .profile-tags{ margin-top:4px; display:flex; gap:6px; flex-wrap:wrap; }
+  .tag{
+    font-size:12px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .tag.gold{ background: var(--gold-soft); color: var(--gold); }
+  .profile-right{
+    display:grid;
+    grid-template-columns: repeat(2, auto);
+    gap: 6px 28px;
+    font-size:13.5px;
+    color: var(--muted);
+    text-align:right;
+  }
+  .profile-right b{ color: var(--ink); font-weight:600; }
+
+  .section-title{
+    font-size:15px;
+    font-weight:700;
+    margin: 4px 0 12px;
+  }
+
+  table.purchases{
+    width:100%;
+    border-collapse: collapse;
+    background: var(--panel);
+    border:1px solid var(--line);
+    border-radius: 12px;
+    overflow:hidden;
+  }
+  table.purchases th{
+    text-align:left;
+    font-size:12.5px;
+    color: var(--muted);
+    font-weight:600;
+    padding: 12px 16px;
+    background: #f8f9f6;
+    border-bottom: 1px solid var(--line);
+  }
+  table.purchases td{
+    padding: 13px 16px;
+    font-size: 13.5px;
+    border-bottom: 1px solid var(--line);
+  }
+  table.purchases tr:last-child td{ border-bottom:none; }
+  .rating{
+    font-size:12px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .rating.none{ background:#f1f2ef; color:var(--muted); }
+
+  .overlay{
+    position:fixed; inset:0;
+    background: rgba(20,26,23,0.35);
+    opacity:0;
+    pointer-events:none;
+    transition: opacity .2s ease;
+    z-index:10;
+  }
+  .overlay.open{ opacity:1; pointer-events:auto; }
+
+  .ai-panel{
+    position:fixed;
+    top:0; right:0;
+    height:100vh;
+    width: 420px;
+    max-width:92vw;
+    background: var(--panel);
+    box-shadow: -8px 0 30px rgba(0,0,0,0.12);
+    transform: translateX(100%);
+    transition: transform .25s ease;
+    z-index: 11;
+    display:flex;
+    flex-direction:column;
+  }
+  .ai-panel.open{ transform: translateX(0); }
+  .ai-panel-header{
+    padding: 22px 24px 16px;
+    border-bottom: 1px solid var(--line);
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+  }
+  .ai-panel-header h2{ font-size:17px; margin:0 0 4px; }
+  .ai-panel-header p{ margin:0; font-size:13px; color:var(--muted); }
+  .close-btn{
+    border:none; background:none; cursor:pointer;
+    color: var(--muted); font-size:20px; line-height:1;
+    padding:4px;
+  }
+  .ai-panel-body{
+    padding: 20px 24px;
+    overflow-y:auto;
+    flex:1;
+  }
+  .ai-block{ margin-bottom: 22px; }
+  .ai-block h3{
+    font-size:13.5px;
+    display:flex; align-items:center; gap:8px;
+    margin: 0 0 10px;
+    color: var(--accent);
+  }
+  .ai-block h3 .dot{
+    width:7px;height:7px;border-radius:50%;
+    background: var(--accent);
+  }
+  .ai-block ul{ margin:0; padding-left:18px; }
+  .ai-block li{ font-size:13.5px; line-height:1.7; margin-bottom:4px; color:var(--ink); }
+  .ai-loading{
+    display:flex; flex-direction:column; gap:10px; align-items:center; justify-content:center;
+    height: 100%;
+    color: var(--muted);
+    font-size:13.5px;
+  }
+  .spinner{
+    width:22px;height:22px;
+    border:2.5px solid var(--accent-soft);
+    border-top-color: var(--accent);
+    border-radius:50%;
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin{ to{ transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<section id="loginGate">
+  <label>관리자 아이디 <input id="adminIdInput" placeholder="예: admin" /></label>
+  <button id="loginBtn">입장</button>
+</section>
+
+<div class="app" id="adminArea" hidden>
+  <div class="topbar">
+    <div class="search-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="searchInput" type="text" placeholder="고객 이름 검색..." oninput="filterCustomers(this.value)">
+    </div>
+    <div class="topbar-title">고객 관리</div>
+    <div class="spacer"></div>
+    <span class="whoami" id="whoami"></span>
+    <button class="logout-link" id="logoutBtn">로그아웃</button>
+    <button class="ai-btn" id="aiBtn" onclick="openAiPanel()" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.6 4.8L18 8l-4.4 1.2L12 14l-1.6-4.8L6 8l4.4-1.2z"/><path d="M19 15l.8 2.4L22 18l-2.2.6L19 21l-.8-2.4L16 18l2.2-.6z"/></svg>
+      AI 분석
+    </button>
+  </div>
+
+  <div class="sidebar">
+    <div class="sidebar-label">고객 목록</div>
+    <div id="customerList"></div>
+  </div>
+
+  <div class="main" id="mainArea">
+    <div class="empty-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <div>왼쪽 목록에서 고객을 선택하면<br>상세정보와 구매 이력이 표시됩니다.</div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" onclick="closeAiPanel()"></div>
+<div class="ai-panel" id="aiPanel">
+  <div class="ai-panel-header">
+    <div>
+      <h2 id="aiPanelName">AI 분석</h2>
+      <p>구매 이력 기반 맞춤 전략 제안</p>
+    </div>
+    <button class="close-btn" onclick="closeAiPanel()">×</button>
+  </div>
+  <div class="ai-panel-body" id="aiPanelBody"></div>
+</div>
+
+<script src="admin.js"></script>
+</body>
+</html>

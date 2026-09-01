@@ -14,13 +14,16 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.app_logger.logger import init_logger
+from app.core.config import ROOT
 
 init_logger()
 app = FastAPI()
 from app.api.routes.recommend import router as recommend_router
-from app.api.routes.auth import router as auth_router
+from app.api.routes.customers import router as customers_router
+from app.api.routes.products import router as products_router
 
 from pipeline.vector_db import connect
 
@@ -35,7 +38,10 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(recommend_router)
-app.include_router(auth_router)
+app.include_router(customers_router)
+app.include_router(products_router)
+
+app.mount("/web", StaticFiles(directory=ROOT / "pipeline" / "web", html=True), name="web")
 
 @app.get("/health")
 def health():

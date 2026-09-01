@@ -1,12 +1,44 @@
 # Last Updated : 2026-09-01
 
-"""user 테이블에 연결되는 곳. 현재는 구글 로그인 조회/갱신/가입만 다룬다."""
+"""user 테이블에 연결되는 곳. 관리자 화면용 고객 조회."""
 
-def find_by_google_uid(sub: str) -> int | None:
-    raise NotImplementedError
+from app.core.db import dicts
 
-def touch_login(user_id: int) -> None:
-    raise NotImplementedError
+def list_users() -> list[dict]:
+    """관리자 화면 왼쪽 목록용. 고객 전체를 이름순으로."""
+    return dicts("""
+        SELECT user_id, name, email, region, created_at
+        FROM user
+        ORDER BY name
+    """)
 
-def create_google_user(sub: str, email: str, name: str) -> int:
-    raise NotImplementedError
+
+def get_user_detail(user_id: int) -> dict | None:
+    """고객 한 명의 프로필 + 반려동물 + 구매이력을 한 번에 묶는다."""
+    rows = dicts("""
+        SELECT user_id, name, email, phone, region, created_at, last_login_at
+        FROM user WHERE user_id = ?
+    """, (user_id,))
+    if not rows:
+        return None
+    user = rows[0]
+
+    user["pets"] = dicts("""
+        SELECT pe.pet_id, pe.name, ac.name_ko AS animal_category, pe.weight_kg, pe.neutered
+        FROM pet AS pe
+        JOIN animal_category AS ac ON ac.animal_category_id = pe.animal_category_id
+        WHERE pe.user_id = ?
+    """, (user_id,))
+
+    user["purchases"] = dicts("""
+        SELECT pu.purchase_id, pu.purchased_at, pu.unit_price_krw, pu.quantity,
+               p.name AS product_name, r.rating
+        FROM purchase AS pu
+        JOIN pet AS pe ON pe.pet_id = pu.pet_id
+        JOIN product AS p ON p.product_id = pu.product_id
+        LEFT JOIN review AS r ON r.purchase_id = pu.purchase_id
+        WHERE pe.user_id = ?
+        ORDER BY pu.purchased_at DESC
+    """, (user_id,))
+
+    return user

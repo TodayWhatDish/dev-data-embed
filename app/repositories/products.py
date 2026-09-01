@@ -1,4 +1,4 @@
-from app.core.db import query, dicts
+from app.core.db import query, dicts, con
 
 
 # def get_product_detail_info():
@@ -32,6 +32,20 @@ def get_ingredients():
 
 def get_products():
     return dicts("SELECT * FROM product WHERE is_active = 1")
+
+
+def create_product(data: dict) -> int:
+    """관리자 화면 상품등록 폼에서 넘어온 값으로 product 한 행을 만든다."""
+    query("""
+        INSERT INTO product (product_category_id, brand, name, food_form,
+                              price_krw, weight_g, kcal_per_100g, description)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        data["product_category_id"], data["brand"], data["name"], data.get("food_form"),
+        data["price_krw"], data["weight_g"], data.get("kcal_per_100g"), data.get("description"),
+    ))
+    con.commit()
+    return query("SELECT last_insert_rowid()")[0][0]
 
 def get_product_animal_category_ids():
     return query("SELECT product_id, animal_category_id FROM product_animal_category")
