@@ -72,6 +72,9 @@ def env(name: str, default: str) -> str:
     value = os.environ.get(name,"").strip()
     return default if value == "" else value
 
+load_env() # CHOI 추가. .env 실제로 읽히게 함
+# .env는 텍스트파일 그안에 설정값을 load_env가 읽어서 환경변수로 등록해주고있음.
+
 USE_API = env("USE_API",0) == "1"
 
 if USE_API:
@@ -89,3 +92,6 @@ GOOGLE_CLIENT_ID = env("GOOGLE_CLIENT_ID", "")
 JWT_SECRET = env("JWT_SECRET", "")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = 60 * 24 * 7  # 7일
+
+SUPABASE_URL = env("SUPABASE_URL", "") # CHOI 추가
+SUPABASE_KEY = env("SUPABASE_KEY", "") # CHOI 추가

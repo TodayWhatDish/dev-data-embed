@@ -33,8 +33,8 @@ class SearchResponse(BaseModel):
     hits: list[SearchHit]
 
 
-class GoogleLoginRequest(BaseModel):
-    id_token: str
+class SupabaseLoginRequest(BaseModel):
+    access_token: str
 
 
 class AuthResponse(BaseModel):

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>로그인 테스트</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <h1>슈퍼베이스 구글 로그인 테스트</h1>
+  <button id="login">구글로 로그인</button>
+  <pre id="result"></pre>
+
+  <script>
+    const supabase = window.supabase.createClient(
+      "https://kimqkyvumetdginrtuql.supabase.co",
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtpbXFreXZ1bWV0ZGdpbnJ0dXFsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyMDM4MDMsImV4cCI6MjEwMzc3OTgwM30.8xLqyqymcNOatR8DGzkofcYucdgFYOon9drDFe-3Viw"
+    );
+
+    document.getElementById("login").onclick = () => {
+      supabase.auth.signInWithOAuth({ provider: "google" });
+      // 성공하면 구글 로그인 창 -> 이 페이지로 리다이렉트됨
+    };
+
+    supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!session) return;
+      const res = await fetch("http://localhost:8000/auth/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ access_token: session.access_token }),
+      });
+      const data = await res.json();
+      document.getElementById("result").textContent = JSON.stringify(data, null, 2);
+    });
+  </script>
+</body>
+</html>
