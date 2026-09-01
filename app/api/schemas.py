@@ -1,51 +1,81 @@
-# Last Updated : 2026-08-30
+# Last Updated : 2026-08-31
 
-"""요청·응답의 모양을 한 곳에 모은다.
+""" API 요청/응답 형태를 정의하는 자리. 라우트 함수는 이 모델로 입출력을 검증한다.
+    들어오는 값들이 각 클래스별 클래스 변수들이 맞는지 봄.
 
-    라우트 함수가 dict 를 그대로 주고받으면 계약이 코드 안에만 남는다. 여기 두면
-    /docs 가 그대로 문서가 되고, 잘못된 요청은 라우트에 닿기 전에 422 로 끊긴다.
+    브라우저(JS) → POST /search 요청 보냄 → FastAPI 서버가 처리 → 
+    SearchResponse 모양으로 응답 만듦 → 그 응답이 다시 브라우저로 돌아감 → 
+    JS가 그거 받아서 화면에 검색결과 뿌림
 """
-from pydantic import BaseModel, Field
 
+from pydantic import BaseModel
 
 class RecommendRequest(BaseModel):
-    """1번 '사용자 요청'의 모양.
-
-    프로필 세 값은 전부 선택이다. retrieve.build_where 가 '값이 들어온 키만'
-    WHERE 에 붙이므로, 빈 값은 조건을 거는 대신 그냥 넓게 검색하는 쪽이 맞다.
-    """
-    question: str = Field(min_length=1, description="사용자 질문")
-    animal_category: str | None = Field(default=None, description="축종 (개/고양이)")
-    size_category: str | None = Field(default=None, description="체구 (초소형~초대형)")
-    allergy: str | None = Field(default=None, description="알레르겐 이름 (예: 닭고기)")
-    top_k: int = Field(default=5, ge=1, le=20, description="검색해올 리뷰 수")
-    n_pick: int = Field(default=3, ge=1, le=10, description="추천할 상품 수")
-
-
-class Evidence(BaseModel):
-    """추천 한 건이 인용한 후기."""
-    id: str
-    rating: int
-    body: str
-
+    """routes/recommend 요청 바디. profile.build_profile()의 raw 인자 + candidates()/recommend()가 쓰는 값."""
+    user_query: str
+    animal_category: str | None = None
+    size_category: str | None = None
+    allergy: str | None = None
+    n_pick: int = 5
 
 class Pick(BaseModel):
-    """LLM 이 고른 상품 한 건. product_id 는 후보에 있던 값임이 검증된 뒤에만 실린다."""
-    product_id: str
-    name: str
-    brand: str
-    price_krw: int | None = None
+    product_id: int
     reason: str
-    evidence: list[Evidence] = []
-
 
 class RecommendResponse(BaseModel):
-    """5번의 결과.
-
-    retries 를 응답에 남긴다. 모델이 형식을 몇 번 만에 맞췄는지가 모델·프롬프트를
-    바꿀 때 비교할 수 있는 유일한 자동 지표다. 로그만 남기면 나중에 못 센다.
-    """
-    answer: str
+    """recommend()의 (picks, retries, last_error) 튜플을 그대로 담는다."""
     picks: list[Pick]
-    retries: int = 0
-    searched: int = Field(default=0, description="검색된 리뷰 수")
+    retries: int
+    error: str
+
+class SupabaseLoginRequest(BaseModel):
+    access_token: str
+
+class AuthResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+# 관리자 로그인
+class AdminLoginRequest(BaseModel):
+    password: str
+
+class ProductCreate(BaseModel):
+    """상품 등록 요청 바디. product 테이블 컬럼 중 서버가 채우는 값(product_id, created_at, updated_at)만 뺐다."""
+    product_category_id: int
+    brand: str
+    name: str
+    food_form: str | None = None
+    price_krw: int
+    weight_g: int
+    kcal_per_100g: int | None = None
+    target_size_min: int = 1
+    target_size_max: int = 5
+    target_age_min_month: int = 0
+    target_age_max_month: int = 1200
+    description: str | None = None
+    ingredients_verified: int = 0
+    is_active: int = 1
+
+class ProductUpdate(BaseModel):
+    """상품 수정 요청 바디. 준 필드만 바꾼다 — 전부 선택값."""
+    product_category_id: int | None = None
+    brand: str | None = None
+    name: str | None = None
+    food_form: str | None = None
+    price_krw: int | None = None
+    weight_g: int | None = None
+    kcal_per_100g: int | None = None
+    target_size_min: int | None = None
+    target_size_max: int | None = None
+    target_age_min_month: int | None = None
+    target_age_max_month: int | None = None
+    description: str | None = None
+    ingredients_verified: int | None = None
+    is_active: int | None = None
+
+class Product(ProductCreate):
+    """상품 조회 응답 바디. product 테이블 컬럼 전부."""
+    product_id: int
+    created_at: str
+    updated_at: str

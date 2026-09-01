@@ -9,14 +9,26 @@
 DB가 두 갈래로 나뉜다: pet_reco.db (실제 데이터가 적재되고 파이프라인이 돌아가는 활성 트랙), user.db (src/make_db/create_db_schema.py가 스키마만 짜둔 설계 단계 — 아직 어떤 데이터도 연결 안 됨). 헷갈리지 않게 이 둘을 구분해서 작업할 것.
 <!-- 이 저장소가 무엇인지 한두 문단. CLAUDE.md의 "What this repo is"와 겹치지 않게, 도구 무관하게 맞는 사실만. -->
 
+## Reference projects
+
+> API·인프라·배선 작업 전에 [`docs/REFERENCES.md`](docs/REFERENCES.md)를 먼저 읽고,
+> 거기 적힌 경로의 파일을 직접 열어서 확인한다. 그 파일에 "베끼면 안 되는 것" 목록도 있다.
+<!-- 목록 본문은 docs/REFERENCES.md 한 곳에만 둔다. 여기 복사하면 반드시 어긋난다. -->
+
 ## Setup / commands
 
-> python pipeline/load_db.py      # data/*.csv -> pet_reco.db 적재
-> python pipeline/check_data.py   # FK/정합성 검사 (에러 없이 조용히 깨질 수 있어서 필수)
-> python pipeline/prepare.py      # 리뷰를 임베딩용 문서로 조립 + 토큰 한도로 자르기 (벡터는 안 만듦)
-> python pipeline/build_index.py  # 잘린 chunk를 문장 임베딩 벡터로 변환, chunk_vectors/review_vectors에 저장
-> python pipeline/query.py        # 프로필+질문 받아 유사 리뷰 찾는 대화형 CLI (검색 로직 자체는 app/features/retrieve.py)
 
+> 전부 **저장소 루트**에서, `-m` 모듈 형태로 실행한다(상대 경로 임포트 때문).
+
+> python -m pipeline.make_data.gen_seed  # data/master + data/review.csv(선택) -> data/seed/*.csv 합성
+> python -m pipeline.load_csv            # data/master + data/seed/*.csv -> pet_reco.db 적재 (FK 위상정렬로 순서 자동 결정)
+> python -m pipeline.chunk               # 리뷰를 임베딩용 문서로 조립 + 토큰 한도로 자르기 -> chunks 테이블
+> python -m pipeline.embed               # chunks -> 문장 임베딩 벡터 -> chunk_vectors 테이블
+> python -m pipeline.prep_rec            # 홀드아웃 지정 + product_vectors/customer_vectors 생성 (평가용)
+> python -m pipeline.eval.eval           # 홀드아웃 리뷰로 recall@1/3/5 측정
+> python -m pipeline.verify              # 데이터 개수·FK, 벡터 차원·모델명, 토큰 초과, recall, 샘플 질의까지 한 번에 점검
+> python -m app.query                    # 프로필+질문 받아 유사 리뷰 찾는 대화형 CLI (검색 로직 자체는 app/features/retrieve.py, pipeline/vector_db.py)
+> uvicorn app.main:app --reload          # FastAPI 서버 기동
 <!-- 빌드·실행·테스트 명령어. CLAUDE.md의 Commands 섹션을 여기로 옮길지 검토. -->
 
 ## Code style
@@ -46,7 +58,12 @@ API, Key 등 민감정보가 포함된 데이터는 .env폴더에서 별도로 �
 
 > data/*.csv → load_db.py → pet_reco.db → check_data.py(검증) → prepare.py(청킹) → build_index.py(임베딩) → chunk_vectors/review_vectors 테이블 → query.py/app/features/retrieve.py(검색). app/core/db.py가 DB 접근을 전부 모아둠 — 다른 파일은 from app.core.db import query, one, dicts로만 접근.
 
+> app 구조
+- api(컨트롤러): HTTP 관련 일만 담당 — 요청 받기, 인증(caller), 쿼터 체크(guard), 404/429 같은 상태 코드 결정. SQL이나 비즈니스 로직은 모른다.
+- features(서비스): 실제 업무 로직 — "고객 목록에 구매 건수를 붙인다", "추천은 몇 개까지 고른다" 같은 규칙. HTTP도 모르고 SQL도 모른다.
+- repositories: DB 접근만 담당 — 실제 SQL 쿼리. 비즈니스 규칙은 모른다.
 
 ## Logging
 
 모든 로그로 사용할 수 있는 데이터들은 logs 폴더에 적재한다.
+> logs/query_log.jsonl
