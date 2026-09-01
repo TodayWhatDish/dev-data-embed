@@ -9,6 +9,11 @@ from langchain_core.prompts import ChatPromptTemplate
 class Pick(BaseModel):
     product_id: int = Field(description="후보 목록에 있는 product_id 중 하나")
     reason: str = Field(description="이 상품을 고른 이유, 한두 문장")
+    # 후기 본문이 아니라 ID 만 받는다. 본문을 받으면 모델이 문장을 다듬어 옮겨 적어
+    # DB 의 후기와 달라지고, 달라진 줄도 모른다. ID 는 후보와 기계적으로 대조된다.
+    evidence: list[str] = Field(
+        default_factory=list,
+        description="이 상품을 고른 근거로 삼은 후기 ID 목록. 후보에 적힌 후기 ID만 쓴다")
 
 class Recommendation(BaseModel):
     picks: list[Pick]
@@ -25,13 +30,15 @@ def build_recommend_prompt(candidate: list[dict[str,Any]], profile: dict[str, An
     """LLM이 후보 중에서만 n_pick개를 고르도록 프롬프트를 조립한다.
     후보 밖 product_id를 지어내지 못하게 후보를 전부 나열해서 넘긴다."""
     lines = [
-        f"-product_id = {c['product_id']} | {c['name']} | {c['price_krw']}원 | 리뷰: {c['review']}"
+        f"-product_id = {c['product_id']} | {c['name']} | {c['price_krw']}원 | "
+        f"후기 {c['review_id']} (별점 {c['rating']}점): {c['review']}"
         for c in candidate
     ]
     return (
         f"사용자 프로필: {profile}\n"
         f"아래 후보 중에서만 정확히 {n_pick}개를 고르고, 각각 고른 이유를 적어라.\n"
-        f"후보 목록에 없는 product_id는 절대 쓰지 마라.\n\n"
+        f"후보 목록에 없는 product_id는 절대 쓰지 마라.\n"
+        f"고른 이유는 후보에 붙은 후기 내용에서만 가져오고, 근거로 삼은 후기 ID를 evidence에 적어라.\n\n"
         + "\n".join(lines)
     )
 

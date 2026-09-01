@@ -1,11 +1,11 @@
-# Last Updated : 2026-08-31
+# Last Updated : 2026-09-01
 
 """ 정형 필터(SQL)가 먼저 거르고 LLM은 그 후보 위에서만 판단"을 실행하는 자리. 
     이게 없으면 LLM에 상품 전체를 넘기게 돼서 토큰 낭비 + 축종/알러지 안 맞는 후보까지 섞여 들어감.
 """
 from typing import Any
 from app.core.config import PASSAGE_PREFIX
-from app.features.retrieve import build_where
+from app.features.retrieve import build_where, fmt_purchase_id
 from app.core.db import query
 from pipeline.vector_db import search,connect
 
@@ -21,14 +21,22 @@ def candidates(profiles: dict[str, Any],user_query: str, limit: int=20) -> list[
 
     result = []
     for purchase_id, score, review in hits:
-        product_id = query(
-            "SELECT product_id FROM purchase WHERE purchase_id = ?", (purchase_id,)
-        )[0][0]
+        # 별점은 후기와 함께 나가야 한다. 근거로 인용된 후기가 몇 점짜리인지 없으면
+        # "별로였다"는 후기도 추천 근거처럼 읽힌다.
+        product_id, rating = query(
+            "SELECT pu.product_id, r.rating FROM purchase AS pu "
+            "JOIN review AS r ON r.purchase_id = pu.purchase_id "
+            "WHERE pu.purchase_id = ?", (purchase_id,)
+        )[0]
         name, brand, price = query(
             "SELECT name, brand, price_krw FROM product WHERE product_id = ?", (product_id,)
         )[0]
         result.append({
             "product_id": product_id,
+            # 모델이 인용할 때 쓸 후기 ID. 사람이 읽는 표기(O00418)로 내보내야
+            # 프롬프트에 적힌 것과 응답에 적힌 것을 눈으로 대조할 수 있다.
+            "review_id": fmt_purchase_id(purchase_id),
+            "rating": rating,
             "name": name,
             "brand":brand,
             "price_krw":price,

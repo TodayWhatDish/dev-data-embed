@@ -1,4 +1,4 @@
-# Last Updated : 2026-08-31
+# Last Updated : 2026-09-01
 
 """ API 요청/응답 형태를 정의하는 자리. 라우트 함수는 이 모델로 입출력을 검증한다.
     들어오는 값들이 각 클래스별 클래스 변수들이 맞는지 봄.
@@ -18,15 +18,31 @@ class RecommendRequest(BaseModel):
     allergy: str | None = None
     n_pick: int = 5
 
+class Evidence(BaseModel):
+    """추천 한 건이 근거로 인용한 후기.
+
+    본문과 별점은 모델이 아니라 서버가 후보에서 되붙인다. 모델에게 옮겨 적게 하면
+    그 과정에서 문장이 바뀌어, 화면에 뜬 후기가 DB 의 후기와 달라진다.
+    """
+    id: str
+    rating: int
+    body: str
+
 class Pick(BaseModel):
+    """LLM 이 고른 상품 한 건. product_id 는 후보에 있던 값임이 검증된 뒤에만 실린다."""
     product_id: int
     reason: str
+    name: str = ""
+    brand: str = ""
+    price_krw: int | None = None
+    evidence: list[Evidence] = []
 
 class RecommendResponse(BaseModel):
-    """recommend()의 (picks, retries, last_error) 튜플을 그대로 담는다."""
+    """recommend()의 (picks, retries, last_error) 튜플에 검색 규모를 덧붙여 담는다."""
     picks: list[Pick]
     retries: int
     error: str
+    searched: int = 0
 
 class SupabaseLoginRequest(BaseModel):
     access_token: str
