@@ -9,11 +9,7 @@
     FAST API 코드자체는 요청에 따른 함수 콜백만 정의할 뿐, 소켓을 열 능력이 없다.
 
 """
-import sqlite3
-from contextlib import asynccontextmanager
-from fastapi import Depends, FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from app.api.routes.admin_auth import router as admin_auth_router
 from app.api.routes.products import router as products_router
@@ -22,17 +18,7 @@ from app.app_logger.logger import init_logger
 init_logger()
 from app.api.routes.recommend import router as recommend_router
 from app.api.routes.auth import router as auth_router
-
-from pipeline.vector_db import connect
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """uvicorn이 요청을 받기 전/후에 앱에게 보내는 ASGI lifespan 이벤트를 처리, yield 앞은 시작 시, 뒤는 종료 시 1회씩 실행"""
-    app.state.con = connect()
-    yield
-    app.state.con.close()
-
+from app.api.lifespan import lifespan
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(recommend_router)
