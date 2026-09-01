@@ -4,6 +4,7 @@
     이게 없으면 LLM에 상품 전체를 넘기게 돼서 토큰 낭비 + 축종/알러지 안 맞는 후보까지 섞여 들어감.
 """
 from typing import Any
+from app.core.config import PASSAGE_PREFIX
 from app.features.retrieve import build_where
 from app.core.db import query
 from pipeline.vector_db import search,connect
@@ -32,7 +33,7 @@ def candidates(profiles: dict[str, Any],user_query: str, limit: int=20) -> list[
             "brand":brand,
             "price_krw":price,
             "score":score,
-            "review": review.removeprefix("passage: "),
+            "review": review.removeprefix(PASSAGE_PREFIX),
         })
     con.close()
     return result
