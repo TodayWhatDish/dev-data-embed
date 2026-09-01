@@ -4,6 +4,7 @@
 
 import sqlite3
 from collections import defaultdict
+import sys
 
 import numpy as np
 import sqlite_vec
@@ -102,10 +103,24 @@ def build_customer_vectors(con: sqlite3.Connection):
 
 
 def main():
+    """홀드아웃 표시와 벡터 빌드 사이에는 chunk.py -> embed.py 가 끼어야 한다.
+
+    mark_holdout 이 색인 대상(INDEX_FILTER 의 is_holdout=0)을 바꾸고,
+    build_customer_vectors 는 그 색인 결과인 chunk_vectors 를 읽기 때문이다.
+    한 번에 돌리면 낡은 벡터로 고객 벡터를 만든다.
+
+        python -m pipeline.prep_rec holdout
+        python -m pipeline.chunk
+        python -m pipeline.embed
+        python -m pipeline.prep_rec vectors
+    """
+    step = sys.argv[1] if len(sys.argv) > 1 else "all"
     con = sqlite3.connect(DB_PATH)
-    mark_holdout(con)
-    build_product_vectors(con)
-    build_customer_vectors(con)  # mark_holdout 다음이어야 함
+    if step in ("holdout", "all"):
+        mark_holdout(con)
+    if step in ("vectors", "all"):
+        build_product_vectors(con)
+        build_customer_vectors(con)
     con.close()
 
 
