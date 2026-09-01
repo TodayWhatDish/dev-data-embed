@@ -34,3 +34,9 @@ class GoogleLoginRequest(BaseModel):
 class AuthResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+# 관리자 로그인
+class AdminLoginRequest(BaseModel):
+    username: str
+    password: str
