@@ -1,5 +1,4 @@
-# Last updated: 2026-08-27
-# LastUpdated : 2026-08-26
+# Last Updated: 2026-09-01
 
 """chunk_vectors를 기반으로 유사리뷰를 찾는 행위를한다. (검색)
    
@@ -55,9 +54,14 @@ def build_where(profile):
     """
     clauses, params = [f"r.rating >= {MIN_RATING}"], []
     for key, clause in FILTERS.items():
-        if profile.get(key):
+        value = profile.get(key)
+        if not value:
+            continue
+        # 알레르기처럼 값이 여러 개면 같은 조건절을 값마다 반복해 AND 로 묶는다.
+        # 하나만 걸면 나머지 알레르겐이 든 상품이 그대로 통과한다.
+        for item in (value if isinstance(value, list) else [value]):
             clauses.append(clause)
-            params.append(profile[key])
+            params.append(item)
 
     return " AND ".join(clauses) or "1=1", tuple(params)
 

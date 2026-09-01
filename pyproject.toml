@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dev-data-embed"
-version = "0.1.0"
+version = "1.1.0"
 dependencies = [
     "fastapi",
     "uvicorn[standard]",
@@ -14,7 +14,11 @@ dependencies = [
     "pyjwt",
     "requests",
     "supabase",
+    "langchain-openai",
+    "langchain-text-splitters",
+    "transformers",
 ]
+
 
 [tool.setuptools.packages.find]
 include = ["app*","pipeline*"]

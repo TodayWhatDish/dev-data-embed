@@ -1,12 +1,7 @@
-# Last Updated : 2026-08-27
+# Last updated: 2026-08-31
 
-""" 정형 필터(SQL)가 먼저 거르고 LLM은 그 후보 위에서만 판단"을 실행하는 자리. 
-    이게 없으면 LLM에 상품 전체를 넘기게 돼서 토큰 낭비 + 축종/알러지 안 맞는 후보까지 섞여 들어감.
+""" 관리자 대시보드에서 상품을 등록/수정/삭제할 자리. (아직 미구현)
+
+    검색/추천 후보를 고르는 로직(candidates())은 features/searching.py로 옮겼다.
+    CRUD와 검색은 서로 다른 이유로 바뀌는 코드라 한 파일에 안 섞는다.
 """
-from typing import Any
-
-def candidates(profiles: dict[str, Any], limit: int=20) -> list[dict[str, Any]]:
-    """프로필에 맞는 상품 후보를 반환한다. (스키마 확정 전까지 pass)"""
-    pass
-
-

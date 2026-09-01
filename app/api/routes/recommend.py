@@ -1,34 +1,24 @@
 # Last Updated : 2026-08-31
 
-"""검색 엔드포인트. app/query.py의 CLI와 같은 흐름(build_profile -> build_where -> search)을
-   HTTP 요청으로 노출한다.
+""" /recommend POST 엔드포인트 하나 — 요청을 받아 
+    profile.build_profile() → searching.candidates() → recommending.recommend() 순서로 엮고 RecommendResponse로 돌려준다.
 """
 
-from fastapi import APIRouter, Request
-
-from app.api.schemas import SearchHit, SearchRequest, SearchResponse
+from fastapi import APIRouter, HTTPException
+from app.api.schemas import RecommendRequest,RecommendResponse
 from app.features.profile import build_profile
-from app.features.retrieve import build_where, fmt_purchase_id
-from pipeline.vector_db import search
+from app.features.searching import candidates
+from app.features.recommending import recommend
 
 router = APIRouter()
 
+@router.post("/recommend", response_model=RecommendResponse)
+def recommend_route(req: RecommendRequest) -> RecommendResponse:
+    """profile 구성 -> 후보 검색 -> LLM 추천 순서로 엮는다."""
+    profile = build_profile(req.model_dump())
+    matches = candidates(profile,req.user_query)
+    if not matches:
+        raise HTTPException(404,"조건에 맞는 후보를 찾지 못했습니다.")
 
-@router.post("/search", response_model=SearchResponse)
-def search_reviews(payload: SearchRequest, request: Request) -> SearchResponse:
-    con = request.app.state.con
-
-    profile = build_profile(payload.model_dump(exclude={"query", "top_k"}))
-    where, params = build_where(profile)
-    hits = search(con, payload.query, where=where, params=params, top_k=payload.top_k)
-
-    return SearchResponse(
-        hits=[
-            SearchHit(
-                purchase_id=fmt_purchase_id(pid),
-                score=round(score, 3),
-                text=doc.removeprefix("passage: "),
-            )
-            for pid, score, doc in hits
-        ]
-    )
+    picks, retries, error = recommend(matches, profile, req.n_pick)
+    return RecommendResponse(picks=picks, retries=retries, error=error)

@@ -16,6 +16,8 @@ MASTER_DIR = DATA_DIR / 'master'
 LOG_PATH = ROOT / 'logs' / 'query_log.jsonl'
 SEED_DIR = DATA_DIR / 'seed'
 
+LOGGER_DIR = ROOT / 'log'
+
 # 다국어 지원 모델(한국어 포함) - 문장을 고정 차원 벡터로 변환
 EMBED_MODEL = 'intfloat/multilingual-e5-small'
 
@@ -43,12 +45,15 @@ INDEX_FILTER = """
     AND TRIM(r.body) <> ''
 """
 
-SIZE_CASE = """
-    CASE pu.size_at_purchase
-        WHEN 1 THEN '초소형' WHEN 2 THEN '소형' WHEN 3 THEN '중형'
-        WHEN 4 THEN '대형' WHEN 5 THEN '초대형'
-    END
-"""
+# 체급 코드(1~5) -> 사람이 쓰는 말. SQL 과 파이썬이 같은 표를 봐야 하므로 여기 하나만 둔다.
+SIZE_LABELS = {1: '초소형', 2: '소형', 3: '중형', 4: '대형', 5: '초대형'}
+
+# 위 표에서 SQL CASE 를 만들어 쓴다 - 표를 두 군데 적으면 반드시 어긋난다.
+SIZE_CASE = "CASE pu.size_at_purchase " + " ".join(
+    f"WHEN {code} THEN '{label}'" for code, label in SIZE_LABELS.items()
+) + " END"
+
+
 if not Path(DB_PATH).exists():
     print(f"알림: DB 가 아직 없다 -> {DB_PATH}")
 
