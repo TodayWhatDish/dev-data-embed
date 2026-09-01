@@ -20,11 +20,13 @@ def _http(exc: products.ProductError) -> HTTPException:
 
 @router.get("", response_model=list[Product])
 def product_list(page: int = 0, size: int = 20):
+    """전체 제품 리스트 출력(page방식)"""
     return products.list_products(page, size)
 
 
 @router.get("/{product_id}", response_model=Product)
 def product_get(product_id: int):
+    """product_id로 제품 정보를 출력, 없으면 에러"""
     try:
         return products.get_product(product_id)
     except products.ProductError as exc:
@@ -33,6 +35,7 @@ def product_get(product_id: int):
 
 @router.post("", response_model=Product, status_code=201)
 def product_create(draft: ProductCreate):
+    """"product_id는 PK로 auto ingrement"""
     return products.create_product(draft.model_dump())
 
 
