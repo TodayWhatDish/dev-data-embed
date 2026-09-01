@@ -1,7 +1,7 @@
 from app.repositories.common import get_col_names, get_allgens, get_animal_categories
 from app.repositories.pet import get_breeds
 from app.repositories.products import get_product_categories, get_feeding_purposes, get_ingredients, get_ingredient_allergen_ids
-from app.domain.product import ProductMgr
+from app.domain.products import ProductMgr
 from app.domain.pet import PetMgr
 from app.domain.common import CommonMgr
 import logging
