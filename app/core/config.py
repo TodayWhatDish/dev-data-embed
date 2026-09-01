@@ -40,7 +40,13 @@ def env(name: str, default: str) -> str:
     value = os.environ.get(name,"").strip()
     return default if value == "" else value
 
-# 모델마다 다른 값을 한 표에 모은다. 접두사를 코드 여러 곳에 적으면 반드시 어긋난다.
+
+# 아래 설정값이 전부 env() 를 거치므로 .env 는 그것들보다 먼저 올라와야 한다.
+# 정의만 해두고 부르지 않으면 .env 전체가 조용히 무시된다 - 값이 안 읽혀도
+# 에러가 안 나고 기본값으로 굴러가기 때문에 알아채기 어렵다.
+
+load_env()
+
 # query_prefix/passage_prefix: e5 계열은 필수, bge 계열은 붙이면 오히려 성능이 떨어진다.
 # 모델을 비교할 때 이 표만 늘리고 코드는 건드리지 않는 것이 목표다.
 EMBED_PROFILES = {
