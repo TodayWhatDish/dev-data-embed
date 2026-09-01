@@ -28,8 +28,8 @@ class RecommendResponse(BaseModel):
     retries: int
     error: str
 
-class GoogleLoginRequest(BaseModel):
-    id_token: str
+class SupabaseLoginRequest(BaseModel):
+    access_token: str
 
 class AuthResponse(BaseModel):
     access_token: str
