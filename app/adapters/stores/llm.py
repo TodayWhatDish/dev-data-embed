@@ -18,3 +18,11 @@ chat = ChatOpenAI(model=LLM_MODEL,
                   api_key=LLM_API_KEY, 
                   temperature=0, 
                   timeout=TIMEOUT)
+
+# 정형 출력(추천)용은 위 chat 그대로 두고, 자유 텍스트 답변용을 하나 더 둔다.
+chat_answer = ChatOpenAI(model=LLM_MODEL,
+                  base_url=LLM_BASE_URL,  # chat과 같은 서버 주소
+                  api_key=LLM_API_KEY,    # chat과 같은 열쇠
+                  temperature=0.3,        # 답변은 표현이 조금 다양해도 되니 0보다 크게
+                  timeout=TIMEOUT,
+                  stream_usage=True)      # 스트리밍 중 토큰 집계

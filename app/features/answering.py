@@ -1,0 +1,19 @@
+# Last updated: 2026-09-01
+
+""" candidates()가 찾아준 후보 리뷰를 근거로, 자유 텍스트 답변을 조각조각 스트리밍하는 자리.
+    구조화 출력(추천)과 달리 여기는 형식 검증이 없다 - 자유 문장이라 검증할 스키마가 없기 때문이다.
+"""
+from typing import Any, Iterator
+
+from langchain_core.output_parsers import StrOutputParser
+
+from app.adapters.stores.llm import chat_answer
+from app.domain.prompting import ANSWER_PROMPT, build_answer_context
+
+ANSWER_CHAIN = ANSWER_PROMPT | chat_answer | StrOutputParser()
+
+
+def stream(user_query: str, candidates: list[dict[str, Any]]) -> Iterator[str]:
+    """후보 리뷰를 '자료'로 묶어 답변 체인에 넘기고, 모델이 흘려보내는 글자 조각을 그대로 다시 흘려보낸다."""
+    context = build_answer_context(candidates)
+    yield from ANSWER_CHAIN.stream({"context": context, "question": user_query})
