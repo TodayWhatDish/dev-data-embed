@@ -1,5 +1,4 @@
-# Last updated: 2026-08-27
-# LastUpdated : 2026-08-26
+# Last Updated: 2026-09-01
 
 """chunk_vectors를 기반으로 유사리뷰를 찾는 행위를한다. (검색)
    

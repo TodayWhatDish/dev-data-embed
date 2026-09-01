@@ -6,15 +6,15 @@
 """
 
 from typing import Any
+from app.domain.common import CommonMgr
 from app.core.db import query, one, dicts
 from app.core.config import SIZE_LABELS
 
 def resolve_allergy(raw_text: str) -> str | None:
     """자유 텍스트 안에 등록된 allergen 이름이 있는지 찾고 없다면 필터를 걸지 않는다. 
     닭고기를 예로 들때 닭,닭 알러지 같은 입력이 전부 걸리지 않아, 알레르기 필터가 조용히 no-op 됐었다."""
-    allergens = query("SELECT name_ko FROM allergen")
     matches = [
-        name for (name,) in allergens 
+        name for name in CommonMgr.get_inst().get_allergen_names()
         if name in raw_text or raw_text in name
     ]
     if not matches:

@@ -13,27 +13,42 @@
             "detail": "data/../*.csv 를 pet_reco.db 로 적재한다.",
             "type": "shell",
             "command": "${command:python.interpreterPath}",
-            "args": ["-m", "pipeline.load_csv"],
+            "args": [
+                "-m",
+                "pipeline.load_csv"
+            ],
             "problemMatcher": [],
-            "presentation": { "clear": true }
+            "presentation": {
+                "clear": true
+            }
         },
         {
             "label": "2. 조각 만들기 (chunk)",
             "detail": "리뷰를 임베딩용 문서로 조립하고 토큰 한도에 맞게 잘라 chunks 에 저장한다. 벡터는 만들지 않아 몇 초면 끝난다.",
             "type": "shell",
             "command": "${command:python.interpreterPath}",
-            "args": ["-m", "pipeline.chunk"],
+            "args": [
+                "-m",
+                "pipeline.chunk"
+            ],
             "problemMatcher": [],
-            "presentation": { "clear": true }
+            "presentation": {
+                "clear": true
+            }
         },
         {
             "label": "3. 색인 생성 (embed)",
             "detail": "chunks 의 조각을 벡터로 변환해 chunk_vectors 에 저장한다. 모델 로딩 포함 20초 남짓 걸린다.",
             "type": "shell",
             "command": "${command:python.interpreterPath}",
-            "args": ["-m", "pipeline.embed"],
+            "args": [
+                "-m",
+                "pipeline.embed"
+            ],
             "problemMatcher": [],
-            "presentation": { "clear": true }
+            "presentation": {
+                "clear": true
+            }
         },
         {
             "label": "전체 재구축 (적재 -> 조각 -> 색인)",
@@ -45,32 +60,87 @@
                 "3. 색인 생성 (embed)"
             ],
             "problemMatcher": [],
-            "group": { "kind": "build", "isDefault": true }
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
         },
         {
             "label": "검색 CLI (query)",
             "detail": "질문을 입력받아 유사 리뷰를 찾는다. 입력을 받아야 하므로 전용 터미널에서 연다.",
             "type": "shell",
             "command": "${command:python.interpreterPath}",
-            "args": ["-m", "app.query"],
+            "args": [
+                "-m",
+                "app.query"
+            ],
             "problemMatcher": [],
-            "presentation": { "panel": "dedicated", "clear": true }
+            "presentation": {
+                "panel": "dedicated",
+                "clear": true
+            }
+        },
+         {
+            "label": "🦙 Ollama 확인",
+            "detail": "로컬 Ollama가 떠 있고 qwen2.5:3b가 있는지 확인한다. 안 뜨면 recommend 요청이 조용히 멈춘다.",
+            "type": "shell",
+            "command": "curl",
+            "args": [
+                "-s",
+                "http://localhost:11434/api/tags"
+            ],
+            "problemMatcher": [],
+            "presentation": {
+                "clear": true
+            }
         },
         {
-            "label": "의존성 설치 (requirements)",
-            "detail": "README.md 설치 섹션의 패키지를 pet-reco 환경에 설치한다. 한 번만 실행하면 됨.",
+            "label": "🔑 서버 실행 (uvicorn)",
+            "detail": "FastAPI 개발 서버를 띄운다. --reload 라 코드 저장 시 자동 재시작.",
             "type": "shell",
             "command": "${command:python.interpreterPath}",
             "args": [
-                "-m", "pip", "install",
-                "langchain-text-splitters==1.1.2", "transformers==5.14.1",
-                "langchain-huggingface==1.2.2", "langchain-openai==1.4.3",
-                "fastapi==0.141.1", "uvicorn==0.52.0",
-                "ragas==0.4.3", "langgraph==1.2.11",
-                "sqlite-vec",
+                "-m",
+                "uvicorn",
+                "app.main:app",
+                "--reload"
             ],
             "problemMatcher": [],
-            "presentation": { "clear": true }
+            "presentation": {
+                "panel": "dedicated",
+                "clear": true
+            }
+        },
+        {
+            "label": "📩 recommend 테스트",
+            "detail": "서버 실행 태스크를 먼저 띄운 상태에서 /recommend 를 한 번 찔러본다.",
+            "type": "shell",
+            "command": "${command:python.interpreterPath}",
+            "args": [
+                "-m",
+                "app.smoke_recommend"
+            ],
+            "problemMatcher": [],
+            "presentation": {
+                "clear": true
+            }
+        },
+        {
+            "label": "의존성 설치 (requirements)",
+            "detail": "pyproject.toml의 dependencies를 그대로 설치한다. 한 번만 실행하면 됨.",
+            "type": "shell",
+            "command": "${command:python.interpreterPath}",
+            "args": [
+                "-m",
+                "pip",
+                "install",
+                "-e",
+                "."
+            ],
+            "problemMatcher": [],
+            "presentation": {
+                "clear": true
+            }
         }
     ]
 }
