@@ -2,15 +2,216 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>관리자 로그인</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>관리자 로그인 · 우리 뭐먹냥</title>
+  <style>
+    /* 색·간격은 전부 여기 변수로 모아둔다 — 톤을 바꿀 땐 이 블록만 건드리면 된다. */
+    :root {
+      --cream:      #fdf6ef;
+      --cream-deep: #f7e8d8;
+      --card:       #ffffff;
+      --ink:        #3d3229;
+      --ink-soft:   #7c6a59;
+      --muted:      #a89785;
+      --line:       #f0e3d5;
+      --brand:      #ff8a4c;
+      --brand-deep: #f26d2c;
+      --brand-tint: #fff1e6;
+      --danger:     #d9484d;
+      --danger-bg:  #fdeceb;
+      --radius:     20px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      font-family: "Pretendard", -apple-system, BlinkMacSystemFont, "Segoe UI",
+                   "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+      color: var(--ink);
+      background: var(--cream);
+      /* 옅은 얼룩 두 개로 배경에 깊이를 준다. */
+      background-image:
+        radial-gradient(circle at 12% 18%, var(--cream-deep) 0%, transparent 42%),
+        radial-gradient(circle at 88% 84%, var(--brand-tint) 0%, transparent 45%);
+    }
+
+    .card {
+      width: 100%;
+      max-width: 400px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 40px 36px 32px;
+      box-shadow: 0 18px 40px -20px rgba(93, 64, 38, .28);
+    }
+
+    /* --- 헤더 --- */
+    .logo {
+      width: 66px;
+      height: 66px;
+      margin: 0 auto 20px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--brand-tint);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 21px;
+      font-weight: 700;
+      text-align: center;
+      letter-spacing: -.02em;
+    }
+    .subtitle {
+      margin: 8px 0 30px;
+      font-size: 13px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    /* --- 폼 --- */
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink-soft);
+    }
+
+    input[type="password"] {
+      width: 100%;
+      padding: 13px 16px;
+      font: inherit;
+      font-size: 15px;
+      color: var(--ink);
+      background: var(--cream);
+      border: 1.5px solid var(--line);
+      border-radius: 12px;
+      outline: none;
+      transition: border-color .15s, box-shadow .15s, background .15s;
+    }
+    input[type="password"]::placeholder { color: var(--muted); }
+    input[type="password"]:focus {
+      background: var(--card);
+      border-color: var(--brand);
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 16%, transparent);
+    }
+
+    button {
+      width: 100%;
+      margin-top: 18px;
+      padding: 14px;
+      font: inherit;
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+      background: var(--brand);
+      border: 0;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background .15s, transform .06s;
+    }
+    button:hover  { background: var(--brand-deep); }
+    button:active { transform: translateY(1px); }
+    button:focus-visible {
+      outline: 3px solid color-mix(in srgb, var(--brand) 40%, transparent);
+      outline-offset: 2px;
+    }
+
+    /* --- 에러 --- */
+    /* app.js가 textContent를 비워두는 동안은 자리를 차지하지 않게 접는다. */
+    #error {
+      margin: 16px 0 0;
+      padding: 11px 14px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--danger);
+      background: var(--danger-bg);
+      border-radius: 10px;
+    }
+    #error:empty { display: none; }
+
+    .footnote {
+      margin: 26px 0 0;
+      font-size: 12px;
+      text-align: center;
+      color: var(--muted);
+    }
+  </style>
 </head>
 <body>
-  <h1>관리자 로그인</h1>
-  <form id="login-form">
-    <input id="password" type="password" placeholder="비밀번호" required />
-    <button type="submit">로그인</button>
-  </form>
-  <p id="error" style="color:red;"></p>
+  <main class="card">
+    <div class="logo" aria-hidden="true">
+      <!-- 웰시코기 얼굴(정면, 입 벌리고 웃는 모습).
+           귀는 stroke 로 둥글리지 않고 곡선 path 로 직접 그린다 - 삼각형에 굵은
+           stroke-linejoin 을 걸면 밑동 두 귀퉁이까지 같이 뭉개져서 사각형처럼 보인다.
+           끝만 둥글고(Q) 옆선은 완만하게(C), 밑동은 얼굴 뒤로 숨겼다.
+           흰 부분(이마 줄·주둥이)은 전부 주황 실루엣 안쪽에 들어가도록 잡았다 -
+           배경(--brand-tint)이 거의 흰색이라 삐져나가면 그대로 사라진다. -->
+      <svg width="44" height="44" viewBox="0 0 32 32">
+        <!-- 귀: 밑동 넓고 끝이 둥근 세모, 바깥으로 살짝 기울임 -->
+        <g fill="var(--brand)">
+          <path d="M 6.8 16 C 6.4 11 6.6 6.5 7.2 3.6 Q 8.5 0.8 10 3.4 C 11 6 12.3 9 13.4 12 Z" />
+          <path d="M 25.2 16 C 25.6 11 25.4 6.5 24.8 3.6 Q 23.5 0.8 22 3.4 C 21 6 19.7 9 18.6 12 Z" />
+        </g>
+        <g fill="#ffd8bb">
+          <path d="M 8.8 14 C 8.7 10.5 8.8 7.8 9.1 6 Q 9.7 4.5 10.3 6.3 C 10.9 8.3 11.6 10.3 12.1 11.8 Z" />
+          <path d="M 23.2 14 C 23.3 10.5 23.2 7.8 22.9 6 Q 22.3 4.5 21.7 6.3 C 21.1 8.3 20.4 10.3 19.9 11.8 Z" />
+        </g>
+
+        <!-- 얼굴 (귀 밑동을 덮는다) -->
+        <ellipse cx="16" cy="20" rx="10.26" ry="9.8" fill="var(--brand)" />
+
+        <!-- 흰 무늬: 이마 줄이 아래로 넓어지며 주둥이와 하나로 이어진다 -->
+        <g fill="#fffaf5">
+          <path d="M 15.2 11.56 L 16.8 11.56 L 18.96 20.68 L 13.04 20.68 Z"
+                stroke="#fffaf5" stroke-width="1.6" stroke-linejoin="round" />
+          <ellipse cx="16" cy="23.42" rx="7.75" ry="5.59" />
+        </g>
+
+        <!-- 눈 -->
+        <g fill="#332b25">
+          <ellipse cx="10.3" cy="16.81" rx="1.94" ry="2.05" />
+          <ellipse cx="21.7" cy="16.81" rx="1.94" ry="2.05" />
+        </g>
+        <g fill="#fffaf5">
+          <circle cx="9.73" cy="16.12" r="0.63" />
+          <circle cx="21.13" cy="16.12" r="0.63" />
+        </g>
+
+        <!-- 코: 아래로 뾰족한 둥근 삼각형 -->
+        <path d="M 16 24.1 L 13.26 20.68 L 18.74 20.68 Z"
+              fill="#332b25" stroke="#332b25" stroke-width="2.62" stroke-linejoin="round" />
+
+        <!-- 벌린 입 + 혀 -->
+        <path d="M 10.98 25.93 Q 16 24.56 21.02 25.93 Q 20.1 29.23 16 29.23 Q 11.9 29.23 10.98 25.93 Z"
+              fill="#332b25" />
+        <path d="M 13.26 27.41 Q 16 26.84 18.74 27.41 Q 18.28 28.89 16 28.89 Q 13.72 28.89 13.26 27.41 Z"
+              fill="#f98ba0" />
+      </svg>
+    </div>
+
+    <h1>관리자 로그인</h1>
+    <p class="subtitle">우리 뭐먹냥 · 운영 콘솔</p>
+
+    <form id="login-form">
+      <label for="password">비밀번호</label>
+      <input id="password" type="password" placeholder="관리자 비밀번호를 입력하세요"
+             autocomplete="current-password" autofocus required />
+      <button type="submit">로그인</button>
+    </form>
+
+    <p id="error"></p>
+
+    <p class="footnote">허가된 관리자만 접근할 수 있습니다.</p>
+  </main>
 
   <script src="app.js"></script>
 </body>
