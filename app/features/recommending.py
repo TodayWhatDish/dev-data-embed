@@ -16,7 +16,13 @@ def recommend(candidates: list[dict[str,Any]], profile: dict[str,Any], n_pick: i
 
     last_error = ""
     for attempt in range(MAX_RETRIES + 1):
-        result: Recommendation = structured_chat.invoke(prompt)
+        try:
+            result: Recommendation = structured_chat.invoke(prompt)
+        except Exception as exc:
+            # 채우기: last_error에 str(exc) 담고, 이번 attempt는 결과가 없으니
+            # 아래 검증 코드로 안 내려가고 바로 다음 attempt로 넘어가야 함 (continue)
+            ...
+
         # 후보 밖 product_id가 섞였는지, 개수가 n_pick과 맞는지 검증한다.
         bad_ids = [p.product_id for p in result.picks if p.product_id not in valid_ids]
         if not bad_ids and len(result.picks) == n_pick:
