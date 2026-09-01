@@ -1,7 +1,14 @@
+import logging
+
+from app.app_logger.logger import init_logger
 from app.domain.masking import mask
 
 
+logger = logging.getLogger()
+
+
 if __name__ == '__main__':
+    init_logger('test_masking')
     # 카톡 표기 변형 - 자간 띄우기까지 잡되, 문장은 남는다
     for text in ['카톡 주세요', '카카오톡 아이디 알려드림', '까톡ㄱㄱ', '카 톡 으로', '카 카 오 톡 주소']:
         assert mask(text).startswith('[연락처]'), (text, mask(text))
@@ -60,7 +67,7 @@ if __name__ == '__main__':
                  '배송비 무료라 좋아요', '주인님 소리에 반응해요',
                  '처음엔 먹다가 금방 남기더라고요']:  # 후기 2000건 중 106건이 이 '-더라고요' 였다
         mask_text = mask(text)
-        print(text + ' : ' + mask_text)
+        logger.info(text + ' : ' + mask_text)
         assert mask_text == text, (text, mask_text)
 
     # DB 로 이미 아는 이름은 인자로 더 지운다. 긴 것부터 지워야 짧은 이름이 먼저 먹지 않는다
@@ -117,12 +124,12 @@ if __name__ == '__main__':
     a7 = mask(t7)
     assert mask(t7) == a7, mask(t7)
 
-    print(t1 + '\n' + a1 + '\n')
-    print(t2 + '\n' + a2 + '\n')
-    print(t3 + '\n' + a3 + '\n')
-    print(t4 + '\n' + a4 + '\n')
-    print(t5 + '\n' + a5 + '\n')
-    print(t6 + '\n' + a6 + '\n')
+    logger.info(t1 + '\n' + a1 + '\n')
+    logger.info(t2 + '\n' + a2 + '\n')
+    logger.info(t3 + '\n' + a3 + '\n')
+    logger.info(t4 + '\n' + a4 + '\n')
+    logger.info(t5 + '\n' + a5 + '\n')
+    logger.info(t6 + '\n' + a6 + '\n')
 
     assert mask('') == '' and mask(None) is None
 
@@ -136,7 +143,7 @@ if __name__ == '__main__':
     #     eaten = []
     #     for b in bodies:
     #         mask_text = mask(b)
-    #         print(b + " : " + mask_text)
+    #         logger.info(b + " : " + mask_text)
             
     # 규칙별로 무엇이 걸렸는지 눈으로 본다. 정규식만 봐서는 어디까지 무는지 감이 안 온다
     from app.domain.masking import _RULES
@@ -144,7 +151,7 @@ if __name__ == '__main__':
              'a@shop.co.kr 부산 연제구 고분로 144')
     for _pat, _repl in _RULES:
         for _hit in _pat.findall(_demo):
-            print(f'  {_repl:8} <- {_hit!r}')
-    print(' ', mask(_demo))
+            logger.info(f'  {_repl:8} <- {_hit!r}')
+    logger.info(' ' + mask(_demo))
 
-    print('masking self-check OK')
+    logger.info('masking self-check OK')
