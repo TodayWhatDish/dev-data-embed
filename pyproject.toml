@@ -16,6 +16,9 @@ dependencies = [
     "langchain-openai",
     "langchain-text-splitters",
     "transformers",
+    "google-auth",
+    "pyjwt",
+    "requests",
 ]
 
 
