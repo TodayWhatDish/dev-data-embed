@@ -44,3 +44,6 @@ def get_product_ingredient_ids():
 
 def get_product_nutritions():
     return dicts("SELECT * FROM product_nutrition")
+
+def get_ingredient_allergen_ids():
+    return query("SELECT ingredient_id, allergen_id FROM ingredient_allergen")
