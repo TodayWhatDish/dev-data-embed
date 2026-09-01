@@ -105,6 +105,27 @@ SIZE_CASE = "CASE pu.size_at_purchase " + " ".join(
 if not Path(DB_PATH).exists():
     print(f"알림: DB 가 아직 없다 -> {DB_PATH}")
 
+
+# .env 를 환경변수로 올린다.
+def load_env(path=ROOT / ".env"):
+    """.env를 환경변수로 올린다."""
+    if not Path(path).exists():
+        return
+    for line in Path(path).read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k,v = line.split("=", 1)
+        k = k.strip()
+        v = v.strip().strip('"').strip("'")
+        os.environ.setdefault(k,v)
+
+def env(name: str, default: str) -> str:
+    """환경변수를 읽되, 빈 문자열은 기본값으로 친다."""
+    value = os.environ.get(name,"").strip()
+    return default if value == "" else value
+
+load_env()
 USE_API = env("USE_API",0) == "1"
 
 if USE_API:
@@ -122,3 +143,7 @@ GOOGLE_CLIENT_ID = env("GOOGLE_CLIENT_ID", "")
 JWT_SECRET = env("JWT_SECRET", "")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = 60 * 24 * 7  # 7일
+ADMIN_PASSWORD = env("ADMIN_PASSWORD", "")
+
+SUPABASE_URL = env("SUPABASE_URL", "") # CHOI 추가
+SUPABASE_KEY = env("SUPABASE_KEY", "") # CHOI 추가

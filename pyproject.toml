@@ -13,6 +13,7 @@ dependencies = [
     "google-auth",
     "pyjwt",
     "requests",
+    "supabase",
     "langchain-openai",
     "langchain-text-splitters",
     "transformers",

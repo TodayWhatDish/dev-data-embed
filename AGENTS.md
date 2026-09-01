@@ -58,6 +58,10 @@ API, Key 등 민감정보가 포함된 데이터는 .env폴더에서 별도로 �
 
 > data/*.csv → load_db.py → pet_reco.db → check_data.py(검증) → prepare.py(청킹) → build_index.py(임베딩) → chunk_vectors/review_vectors 테이블 → query.py/app/features/retrieve.py(검색). app/core/db.py가 DB 접근을 전부 모아둠 — 다른 파일은 from app.core.db import query, one, dicts로만 접근.
 
+> app 구조
+- api(컨트롤러): HTTP 관련 일만 담당 — 요청 받기, 인증(caller), 쿼터 체크(guard), 404/429 같은 상태 코드 결정. SQL이나 비즈니스 로직은 모른다.
+- features(서비스): 실제 업무 로직 — "고객 목록에 구매 건수를 붙인다", "추천은 몇 개까지 고른다" 같은 규칙. HTTP도 모르고 SQL도 모른다.
+- repositories: DB 접근만 담당 — 실제 SQL 쿼리. 비즈니스 규칙은 모른다.
 
 ## Logging
 
