@@ -18,9 +18,8 @@ from fastapi.responses import StreamingResponse
 from app.app_logger.logger import init_logger
 
 init_logger()
-app = FastAPI()
-from app.api.routes.recommend import router as recommend_router
-from app.api.routes.auth import router as auth_router
+from app.api.routers.recommend import router as recommend_router
+from app.api.routers.auth import router as auth_router
 
 from pipeline.vector_db import connect
 
