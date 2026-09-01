@@ -1,4 +1,4 @@
-# Last Updated : 2026-08-27
+# Last Updated : 2026-09-01
 
 """API 서버의 진입점. uvicorn이 이 파일의 'app' 객체를 찾아 실행한다.
 
@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from app.api.routes.admin_auth import router as admin_auth_router
-
+from app.api.routes.products import router as products_router
 from app.app_logger.logger import init_logger
 
 init_logger()
@@ -38,6 +38,7 @@ app = FastAPI(lifespan=lifespan)
 app.include_router(recommend_router)
 app.include_router(auth_router)
 app.include_router(admin_auth_router)
+app.include_router(products_router)
 app.mount("/static/admin",StaticFiles(directory="web/admin"), name="admin_static")
 
 @app.get("/health")
