@@ -1,7 +1,7 @@
 import logging
 
 from app.app_logger.logger import init_logger
-from app.domain.product import ProductMgr
+from app.domain.products import ProductMgr
 from app.repositories.products import get_product_categories, get_feeding_purposes, get_ingredients
 
 

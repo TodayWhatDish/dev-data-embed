@@ -2,7 +2,7 @@ import logging
 
 from app.app_logger.logger import init_logger
 from app.domain.common import CommonMgr
-from app.domain.product import ProductMgr
+from app.domain.products import ProductMgr
 from app.domain.safty import judge, WARN, UNKNOWN, SAFE
 from app.domain.domain_init import init_from_db
 from app.core.db import query, dicts
