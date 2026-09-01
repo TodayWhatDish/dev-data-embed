@@ -1,6 +1,6 @@
 from app.repositories.common import get_col_names, get_allgens, get_animal_categories
 from app.repositories.pet import get_breeds
-from app.repositories.products import get_product_categories, get_feeding_purposes, get_ingredients
+from app.repositories.products import get_product_categories, get_feeding_purposes, get_ingredients, get_ingredient_allergen_ids
 from app.domain.product import ProductMgr
 from app.domain.pet import PetMgr
 from app.domain.common import CommonMgr
@@ -35,10 +35,12 @@ def init_from_db():
     product_mgr.set_product_category(get_product_categories())
     product_mgr.set_feeding_purpose(get_feeding_purposes())
     product_mgr.set_ingredient(get_ingredients())
+    product_mgr.set_ingredient_allergen(get_ingredient_allergen_ids())
 
     logger.info(f'Cached master: allergen={len(common_mgr.get_all_allergen_hierarchy())}, '
                 f'animal_category={len(common_mgr.get_animal_category())}, '
                 f'breed={sum(len(b) for b in pet_mgr.get_all_breeds().values())}, '
                 f'product_category={len(product_mgr.get_all_product_category_hierarchy())}, '
                 f'feeding_purpose={len(product_mgr.get_feeding_purpose())}, '
-                f'ingredient={len(product_mgr.get_ingredient())}')
+                f'ingredient={len(product_mgr.get_ingredient())}, '
+                f'ingredient_allergen={len(product_mgr.get_ingredient_allergen())}')

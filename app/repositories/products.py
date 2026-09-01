@@ -75,3 +75,6 @@ def delete(product_id: int) -> None:
     """상품 한 건을 삭제한다."""
     con.execute("DELETE FROM product WHERE product_id = ?", (product_id,))
     con.commit()
+    
+def get_ingredient_allergen_ids():
+    return query("SELECT ingredient_id, allergen_id FROM ingredient_allergen")

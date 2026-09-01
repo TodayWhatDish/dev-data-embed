@@ -101,6 +101,34 @@ class ProductMgr:
 
         return self._ingredient.get(ingredient_id)
 
+    def set_ingredient_allergen(self, pairs: list[tuple]):
+        """
+        # Summary
+        * ingredient_allergen 테이블을 SELECT한 결과를 메모리에 저장
+        * 원료 하나가 알러지원 여러 개를 가리키므로 원료 id 로 묶는다
+        * 알러지 판정(safty.judge)이 원료마다 이 조회를 해서, 조인 대신 캐시로 들고 있는다
+        # info
+        * k: ingredient_id
+        * v: [allergen_id, ...]
+        """
+        mapping = {}
+        for ingredient_id, allergen_id in pairs:
+            mapping.setdefault(ingredient_id, []).append(allergen_id)
+
+        self._ingredient_allergen = mapping
+
+    def get_ingredient_allergen(self, ingredient_id: int | None = None):
+        """
+        # Summary
+        * ingredient_id = id -> 그 원료가 가진 알러지원 id 목록 (알러지원이 없으면 빈 목록)
+        * ingredient_id = None -> {원료 id: [알러지원 id]} 전체
+        """
+
+        if not ingredient_id:
+            return self._ingredient_allergen
+
+        return self._ingredient_allergen.get(ingredient_id, [])
+
     @classmethod
     def get_inst(cls): #싱글턴 패턴을 위한
         if cls._instance == None:
