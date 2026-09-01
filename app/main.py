@@ -20,8 +20,8 @@ from app.api.routes.admin_auth import router as admin_auth_router
 from app.app_logger.logger import init_logger
 
 init_logger()
-from app.api.routers.recommend import router as recommend_router
-from app.api.routers.auth import router as auth_router
+from app.api.routes.recommend import router as recommend_router
+from app.api.routes.auth import router as auth_router
 
 from pipeline.vector_db import connect
 
