@@ -42,8 +42,9 @@ def compare(model_a: str, model_b: str, k: int = 3) -> None:
     only_b = [pid for pid in shared if hit(rank_b[pid]) and not hit(rank_a[pid])]
     flips = len(only_a) + len(only_b)
 
-    print(f"A = {model_a} ({a['dim']}차원) mrr {a['metrics']['mrr']:.3f}")
-    print(f"B = {model_b} ({b['dim']}차원) mrr {b['metrics']['mrr']:.3f}")
+    print(f"A = {model_a} ({a['dim']}차원, 질의 {a['metrics'].get('query_ms', 0):.1f}ms) mrr {a['metrics']['mrr']:.3f}")
+    print(f"B = {model_b} ({b['dim']}차원, 질의 {b['metrics'].get('query_ms', 0):.1f}ms) mrr {b['metrics']['mrr']:.3f}")
+
     print(f"\n@{k} 뒤집힘: A만 맞춘 것 {len(only_a)}건 / B만 맞춘 것 {len(only_b)}건 (총 {flips}건)")
 
     # 부호검정: 뒤집힘이 6건일 때 6:0 이어야 겨우 p<0.05 다.

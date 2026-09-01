@@ -102,7 +102,7 @@ if not Path(DB_PATH).exists():
 USE_API = env("USE_API",0) == "1"
 
 if USE_API:
-    LLM_BASE_URL = "https://api.openai.com/v1"
+    LLM_BASE_URL = "https://api.openai.com/v1" # 엔트로피 모델과 비교 필요
     LLM_API_KEY = env("OPENAI_API_KEY", "")
     LLM_MODEL = env("API_MODEL", "gpt-4o-mini")
 else:

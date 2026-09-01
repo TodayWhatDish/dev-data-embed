@@ -5,7 +5,8 @@ core/에 두는 이유: features/ 순환 import 방지, 앱 배포 시 pipeline 
 """
 
 from sentence_transformers import SentenceTransformer
-from app.core.config import EMBED_MODEL, EMBED_DEVICE, EMBED_BATCH_SIZE, EMBED_NORMALIZE
+from app.core.config import EMBED_MODEL, EMBED_DEVICE, EMBED_BATCH_SIZE, EMBED_NORMALIZE, QUERY_PREFIX
+
 
 _embeddings = None
 
@@ -40,5 +41,11 @@ def embed_documents(texts:list[str]) -> list[list[float]]:
 
 
 def embed_query(text: str) -> list[float]:
-    """단일 쿼리를 벡터로 변환."""
-    return embed_documents([text])[0]
+    """단일 쿼리를 벡터로 변환. 모델이 요구하는 질의 접두사를 붙인다.
+
+    e5 계열은 'query: ' 가 없으면 문서 벡터와 다른 자리에 찍혀 유사도가 무너진다.
+    지금은 vector_db.search() 가 직접 붙여 쓰고 있어 호출되는 데가 없지만,
+    접두사 없이 부르면 '조용히' 틀린 벡터를 돌려주는 함수를 남겨두지 않는다.
+    """
+    return embed_documents([QUERY_PREFIX + text])[0]
+
