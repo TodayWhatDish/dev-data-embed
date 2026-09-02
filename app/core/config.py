@@ -1,4 +1,4 @@
-# Last updated: 2026-08-27
+# Last updated: 2026-09-02
 # Last Updated : 2026-08-23
 
 """ 모든 스크립트가 공유하는 설정값과 상수를 모아둔다
@@ -130,3 +130,9 @@ else:
     LLM_BASE_URL = "http://localhost:11434/v1"
     LLM_API_KEY = "ollama"
     LLM_MODEL = "qwen2.5:3b"
+
+# # 관리자 로그인 / 서버 세션 토큰 만드는 데 필요한 설정값.
+# JWT_SECRET = env("JWT_SECRET", "")
+# JWT_ALGORITHM = "HS256"
+# JWT_EXPIRE_MINUTES = 60 * 24 * 7  # 7일
+ADMIN_PASSWORD = env("ADMIN_PASSWORD", "")
