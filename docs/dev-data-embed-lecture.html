@@ -1,0 +1,1704 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>오늘 뭐먹냥 · dev-data-embed 코드 리딩</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" rel="stylesheet">
+<style>
+:root{
+  --paper:#edf0ea; --card:#f7f9f4; --ink:#19211d; --muted:#5c6862; --rule:#ccd5c8;
+  --db:#9c5f27;      /* 스키마 · SQL */
+  --vec:#2e6f63;     /* 청킹 · 임베딩 · 벡터 */
+  --app:#3a4e8c;     /* API · 앱 계층 */
+  --warn:#a63a2f;    /* 함정 · 미완성 */
+  --mono:"JetBrains Mono","D2Coding",ui-monospace,SFMono-Regular,Consolas,monospace;
+  --sans:Pretendard,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:var(--paper); color:var(--ink); font-family:var(--sans);
+  -webkit-font-smoothing:antialiased; overflow:hidden;
+}
+/* ---------- 슬라이드 무대 ---------- */
+.deck{height:100vh;height:100dvh;position:relative}
+.slide{
+  position:absolute; inset:0; display:none;
+  padding:clamp(20px,3.4vw,52px) clamp(20px,4vw,72px) 76px clamp(38px,5.2vw,96px);
+  overflow-y:auto; overscroll-behavior:contain;
+}
+.slide.on{display:block}
+/* 왼쪽 챕터 스파인 */
+.slide::before{
+  content:attr(data-part); position:fixed; left:0; top:0; bottom:0; width:clamp(22px,3vw,40px);
+  background:var(--spine,var(--rule)); color:#fff; font-size:11px; letter-spacing:.14em;
+  writing-mode:vertical-rl; display:flex; align-items:center; justify-content:center; gap:8px;
+}
+.slide[data-c="db"]{--spine:var(--db)} .slide[data-c="vec"]{--spine:var(--vec)}
+.slide[data-c="app"]{--spine:var(--app)} .slide[data-c="ck"]{--spine:#4a5a52}
+.kicker{font-size:13px;color:var(--muted);margin:0 0 6px}
+h2{font-size:clamp(21px,2.5vw,33px);line-height:1.25;margin:0 0 4px;letter-spacing:-.02em}
+h2 .file{font-family:var(--mono);font-size:.72em;color:var(--spine,var(--muted))}
+.sub{color:var(--muted);font-size:clamp(13px,1.35vw,16px);margin:6px 0 18px;max-width:78ch;line-height:1.6}
+.slide h3{font-size:15px;margin:0 0 8px;letter-spacing:-.01em}
+p,li{font-size:clamp(13px,1.28vw,15.5px);line-height:1.72}
+ul{padding-left:18px;margin:6px 0}
+li{margin:3px 0}
+b{font-weight:700}
+em{font-style:normal;background:linear-gradient(transparent 58%,color-mix(in srgb,var(--spine,#888) 26%,transparent) 58%);padding:0 1px}
+code{font-family:var(--mono);font-size:.88em;background:#e3e8de;border-radius:3px;padding:1px 5px}
+/* ---------- 조각들 ---------- */
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:1fr 1fr}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g21{grid-template-columns:1.35fr 1fr}
+.card{background:var(--card);border:1px solid var(--rule);border-radius:10px;padding:14px 16px}
+.card.hi{border-color:var(--spine);border-left-width:4px}
+.card.warn{border-color:var(--warn);border-left:4px solid var(--warn);background:#fbf1ef}
+.tag{display:inline-block;font-size:11px;font-family:var(--mono);padding:2px 7px;border-radius:99px;
+  border:1px solid currentColor;margin:0 4px 4px 0}
+.t-db{color:var(--db)} .t-vec{color:var(--vec)} .t-app{color:var(--app)} .t-warn{color:var(--warn)}
+pre{margin:0;overflow-x:auto}
+.code{font-family:var(--mono);font-size:clamp(11px,1.08vw,13px);line-height:1.62;
+  background:#1d2622;color:#dbe5de;border-radius:9px;padding:12px 14px;white-space:pre}
+.code .k{color:#8fd0be} .code .s{color:#e0b782} .code .c{color:#8a9a92;font-style:italic}
+.code .n{color:#ffd27f;font-weight:700} .code .h{background:#2f3f39;display:inline-block;width:100%}
+.anno{list-style:none;padding:0;margin:0;counter-reset:a}
+.anno li{display:flex;gap:9px;margin:0 0 7px;font-size:clamp(12px,1.2vw,14.5px);line-height:1.6}
+.anno .m{flex:0 0 auto;font-family:var(--mono);font-weight:700;color:var(--spine)}
+/* 흐름도 */
+.flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:7px;margin:10px 0}
+.step{background:var(--card);border:1px solid var(--rule);border-radius:8px;padding:8px 11px;font-size:12.5px;min-width:0}
+.step b{display:block;font-family:var(--mono);font-size:11.5px;color:var(--spine)}
+.step small{color:var(--muted);font-size:11px}
+.arw{align-self:center;color:var(--muted);font-size:14px}
+/* 표 */
+table{border-collapse:collapse;width:100%;font-size:clamp(11.5px,1.15vw,14px)}
+th,td{border-bottom:1px solid var(--rule);padding:6px 8px;text-align:left;vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:12px}
+td.m,th.m{font-family:var(--mono);font-size:.94em}
+/* 하단 바 */
+.bar{position:fixed;left:0;right:0;bottom:0;height:56px;display:flex;align-items:center;gap:10px;
+  padding:0 16px 0 clamp(30px,3.6vw,52px);background:color-mix(in srgb,var(--paper) 88%,#fff);
+  border-top:1px solid var(--rule);backdrop-filter:blur(6px)}
+.bar button{font-family:inherit;font-size:13px;border:1px solid var(--rule);background:var(--card);
+  color:var(--ink);border-radius:7px;padding:7px 12px;cursor:pointer}
+.bar button:hover{border-color:var(--ink)}
+.bar .ttl{font-size:12.5px;color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.count{font-family:var(--mono);font-size:12.5px;color:var(--muted)}
+#track{position:fixed;left:0;bottom:56px;height:3px;background:var(--spine,#888);width:0;transition:width .18s}
+/* 목차 */
+#toc{position:fixed;inset:0;background:color-mix(in srgb,var(--paper) 96%,#000);z-index:20;display:none;
+  overflow-y:auto;padding:28px clamp(20px,4vw,60px) 80px}
+#toc.on{display:block}
+#toc h3{font-size:20px;margin:0 0 14px}
+.tocgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px}
+.tocgrid a{display:flex;gap:9px;text-decoration:none;color:var(--ink);font-size:13px;padding:6px 9px;border-radius:6px;border:1px solid transparent}
+.tocgrid a:hover{background:var(--card);border-color:var(--rule)}
+.tocgrid a i{font-family:var(--mono);font-style:normal;color:var(--muted);flex:0 0 22px}
+.tocgrid a[data-c="db"] i{color:var(--db)} .tocgrid a[data-c="vec"] i{color:var(--vec)}
+.tocgrid a[data-c="app"] i{color:var(--app)}
+/* 표지 */
+.cover{display:flex;flex-direction:column;justify-content:center;height:100%;max-width:min(90ch,100%)}
+.cover h1{font-size:clamp(30px,5.4vw,64px);line-height:1.08;margin:0 0 12px;letter-spacing:-.035em}
+.cover .repo{font-family:var(--mono);font-size:clamp(12px,1.4vw,16px);color:var(--vec)}
+.legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.legend span{font-size:12px;padding:4px 10px;border-radius:99px;border:1px solid currentColor}
+@media (max-width:820px){
+  .g2,.g3,.g21{grid-template-columns:1fr}
+  .slide{padding:18px 16px 74px 40px}
+  body{overflow:auto}
+}
+@media print{
+  body,html{overflow:visible;height:auto}
+  .slide{display:block;position:static;page-break-after:always;height:auto;min-height:0;border-bottom:1px solid #ccc}
+  .bar,#track,#toc,.slide::before{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+
+<!-- 1 ------------------------------------------------------------------>
+<section class="slide on" data-c="vec" data-part="오늘 뭐먹냥" data-title="표지">
+  <div class="cover">
+    <p class="repo">github.com/TodayWhatDish/dev-data-embed · main</p>
+    <h1>리뷰 한 줄이<br>추천이 되기까지</h1>
+    <p class="sub" style="max-width:60ch">개·고양이 사료 추천 서비스 <b>오늘 뭐먹냥</b>의 데이터 계층 코드 리딩.
+      CSV가 어떻게 벡터가 되고, 벡터가 어떻게 LLM 추천이 되는지 파일 단위로 따라갑니다.</p>
+    <div class="legend">
+      <span style="color:var(--db)">스키마 · SQL</span>
+      <span style="color:var(--vec)">청킹 · 임베딩</span>
+      <span style="color:var(--app)">API · 앱 계층</span>
+      <span style="color:#4a5a52">검증 · 평가</span>
+    </div>
+    <p style="margin-top:26px;font-size:13px;color:var(--muted)">
+      ← → 또는 화면 좌우 클릭으로 이동 · <code>M</code> 목차 · <code>P</code> 인쇄
+    </p>
+  </div>
+</section>
+
+<!-- 2 ------------------------------------------------------------------>
+<section class="slide" data-c="vec" data-part="큰 그림" data-title="이 저장소가 하는 일">
+  <p class="kicker">큰 그림</p>
+  <h2>더미 CSV 한 뭉치를 “근거 있는 추천”으로 바꾸는 파이프라인</h2>
+  <p class="sub">추천의 근거는 상상이 아니라 <b>실제 후기</b>다. 그래서 후기를 검색 가능한 형태(벡터)로 만들어 두고,
+    질문이 들어오면 SQL이 먼저 후보를 좁힌 뒤 벡터가 순위를 매기고, 마지막에 LLM이 그 후보 안에서만 고른다.</p>
+
+  <div class="flow">
+    <div class="step"><b>data/*.csv</b>더미 데이터<small>master + seed</small></div><span class="arw">▸</span>
+    <div class="step"><b>load_csv.py</b>16테이블 적재<small>FK 위상정렬</small></div><span class="arw">▸</span>
+    <div class="step"><b>chunk.py</b>문서 조립·자르기<small>chunks</small></div><span class="arw">▸</span>
+    <div class="step"><b>embed.py</b>벡터화<small>chunk_vectors</small></div><span class="arw">▸</span>
+    <div class="step"><b>vector_db.search</b>선필터+유사도<small>후보 20건</small></div><span class="arw">▸</span>
+    <div class="step"><b>recommending</b>LLM 선택<small>picks</small></div>
+  </div>
+
+  <div class="grid g3" style="margin-top:16px">
+    <div class="card hi"><h3>왜 SQL이 먼저인가</h3>
+      <p style="margin:0">알러지·축종·체급은 <b>타협 불가 조건</b>이다. 유사도로 감점할 값이 아니라 후보에서 아예 빼야 한다.
+        벡터에 맡기면 “비슷하니까” 위험한 상품이 올라온다.</p></div>
+    <div class="card hi"><h3>왜 벡터가 필요한가</h3>
+      <p style="margin:0">“소형견 다이어트 사료” 같은 말은 컬럼으로 못 거른다. 후기 문장의 <b>의미</b>를 비교해야 한다.</p></div>
+    <div class="card hi"><h3>왜 LLM이 마지막인가</h3>
+      <p style="margin:0">후보 20건까지 좁혀 놓고 이유를 붙이는 일만 시킨다. 전체 상품을 넘기면 토큰도 낭비고 없는 상품을 지어낸다.</p></div>
+  </div>
+</section>
+
+<!-- 3 ------------------------------------------------------------------>
+<section class="slide" data-c="vec" data-part="큰 그림" data-title="실행 순서 = 파이프라인 순서">
+  <p class="kicker">큰 그림</p>
+  <h2>명령어 순서가 곧 데이터의 이동 순서다</h2>
+  <p class="sub">전부 저장소 루트에서 <code>-m</code> 모듈 형태로 실행한다. 상대 경로 임포트 때문이고,
+    앞 단계가 만든 테이블이 없으면 다음 단계는 <code>SystemExit</code>로 스스로 멈춘다.</p>
+  <table>
+    <tr><th class="m">명령</th><th>하는 일</th><th>결과물</th><th>없으면</th></tr>
+    <tr><td class="m">pipeline.make_data.gen_seed</td><td>시드 고정 더미 합성</td><td class="m">data/seed/*.csv</td><td>적재할 게 없다</td></tr>
+    <tr><td class="m">pipeline.load_csv</td><td>CSV → 16테이블 + FK 검사</td><td class="m">pet_reco.db</td><td>리뷰가 없다</td></tr>
+    <tr><td class="m">pipeline.chunk</td><td>리뷰 → 문서 조립 → 토큰 단위 자르기</td><td class="m">chunks</td><td>“자를 리뷰가 없습니다”</td></tr>
+    <tr><td class="m">pipeline.embed</td><td>조각 → 벡터</td><td class="m">chunk_vectors, embedding_meta</td><td>“색인할 리뷰가 없습니다”</td></tr>
+    <tr><td class="m">pipeline.prep_rec</td><td>홀드아웃 지정 + 상품/고객 벡터</td><td class="m">product_vectors 외</td><td>평가 5단계 불가</td></tr>
+    <tr><td class="m">pipeline.eval.eval</td><td>recall@k · MRR 측정</td><td class="m">data/eval/*.json</td><td>모델 비교 불가</td></tr>
+    <tr><td class="m">pipeline.verify</td><td>개수·차원·토큰·샘플 질의 점검</td><td>리포트</td><td>깨진 채로 배포</td></tr>
+    <tr><td class="m">app.query</td><td>대화형 검색 CLI</td><td class="m">logs/query_log.jsonl</td><td>—</td></tr>
+    <tr><td class="m">uvicorn app.main:app</td><td>API 서버</td><td>/recommend</td><td>—</td></tr>
+  </table>
+  <div class="card warn" style="margin-top:14px">
+    <b>문서와 코드가 어긋난 곳</b> — README는 <code>pipeline.load_db</code>와 <code>src/</code>를 안내하지만 실제 경로는
+    <code>pipeline.load_csv</code>와 <code>pipeline/create_schema/</code>다. 처음 클론한 사람이 가장 먼저 막히는 지점.
+  </div>
+</section>
+
+<!-- 4 ------------------------------------------------------------------>
+<section class="slide" data-c="vec" data-part="큰 그림" data-title="폴더 지도">
+  <p class="kicker">큰 그림</p>
+  <h2>폴더 하나가 곧 책임 하나</h2>
+  <div class="grid g2">
+    <div>
+      <pre class="code">app/                <span class="c"># 서비스가 도는 쪽</span>
+├ main.py           <span class="c"># FastAPI 조립</span>
+├ query.py          <span class="c"># 검색 확인용 CLI</span>
+├ api/              <span class="c"># HTTP 경계 (routes·schemas·errors)</span>
+├ features/         <span class="c"># 유스케이스 (순서를 엮는 곳)</span>
+├ repositories/     <span class="c"># 테이블 한 개당 한 파일</span>
+├ domain/           <span class="c"># DB를 모르는 순수 규칙</span>
+├ core/             <span class="c"># config · db · embedder · auth</span>
+└ adapters/stores/  <span class="c"># LLM · Supabase · sqlite</span>
+
+pipeline/           <span class="c"># 데이터를 만드는 쪽 (배치)</span>
+├ create_schema/    <span class="c"># DDL 단일 원천</span>
+├ make_data/        <span class="c"># 더미 합성</span>
+├ prep/             <span class="c"># 자르기·저장·검사 부품</span>
+├ eval/             <span class="c"># 품질 측정</span>
+└ load_csv · chunk · embed · vector_db · verify</pre>
+    </div>
+    <div class="grid" style="align-content:start">
+      <div class="card hi"><h3>app 과 pipeline 을 나눈 이유</h3>
+        <p style="margin:0">pipeline은 <b>몇 분에 한 번</b> 도는 배치, app은 <b>요청마다</b> 도는 서버다.
+          수명이 다르므로 배포 단위도 다르다. 그래서 둘이 공유하는 것(<code>config</code>·<code>embedder</code>)은
+          <code>app/core/</code>에 두고 pipeline이 그걸 가져다 쓴다 — 앱은 pipeline 없이도 떠야 하기 때문.</p></div>
+      <div class="card"><h3>테스트·문서</h3>
+        <p style="margin:0"><code>tests/domain_and_repo/</code>는 도메인 캐시와 레포지토리를 직접 찍어보는 스크래치,
+          <code>docs/schema/</code>는 테이블별 컬럼 레퍼런스, <code>AGENTS.md</code>는 도구 무관 작업 규칙이다.</p></div>
+      <div class="card warn"><h3>DB가 두 갈래</h3>
+        <p style="margin:0"><code>pet_reco.db</code>는 실제로 데이터가 들어가는 활성 트랙,
+          <code>user.db</code>는 스키마만 만들어 둔 설계 트랙. 섞으면 “테이블은 있는데 데이터가 없다”가 된다.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 5 ------------------------------------------------------------------>
+<section class="slide" data-c="app" data-part="큰 그림" data-title="계층 의존 규칙">
+  <p class="kicker">큰 그림</p>
+  <h2>화살표는 한 방향으로만 흐른다</h2>
+  <p class="sub">이 저장소에서 “이 코드를 어디에 둘까”는 취향 문제가 아니라 <b>무엇을 알아도 되는가</b>의 문제다.</p>
+  <div class="grid g21">
+    <div>
+      <pre class="code">routes/       HTTP만 안다  (상태코드·검증)
+   ↓
+features/     순서를 안다  (무엇을 먼저 부를지)
+   ↓
+repositories/ 테이블을 안다 (SQL 한 줄)
+   ↓
+core/db.py    커넥션을 안다 (query · one · dicts)
+
+domain/       <span class="n">아무것도 모른다</span> (계산·판정만)
+adapters/     바깥 세계를 안다 (LLM · Supabase)</pre>
+      <div class="card warn" style="margin-top:12px">
+        <b>거꾸로 가면 생기는 일</b> — <code>features/auth.py</code>는 지금
+        <code>app.core.db</code>를 직접 불러 <code>INSERT</code>까지 한다.
+        <code>repositories/users.py</code>는 같은 일을 하려고 만들어 두고 전부 <code>NotImplementedError</code>다.
+        두 자리 중 하나만 남겨야 나중에 “유저 저장 로직이 어디 있지”를 찾지 않는다.
+      </div>
+    </div>
+    <div class="grid" style="align-content:start">
+      <div class="card hi"><h3>domain이 DB를 모른다는 뜻</h3>
+        <p style="margin:0"><code>safty.judge()</code>는 알러지 판정을 하지만 쿼리를 하지 않는다.
+          원료 id 목록과 알러지 id 목록을 <b>인자로 받아</b> 판정과 근거 문장만 돌려준다.
+          그래서 DB 없이도 테스트가 되고, 파이프라인과 서버 양쪽에서 같은 규칙이 돈다.</p></div>
+      <div class="card hi"><h3>core/db.py 하나로 모으는 이유</h3>
+        <p style="margin:0">커넥션이 여러 곳에 흩어지면 “어디서 커밋했지”를 못 찾는다.
+          다른 파일은 <code>from app.core.db import query, one, dicts</code>로만 접근한다.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 6 ------------------------------------------------------------------>
+<section class="slide" data-c="db" data-part="1부 · 스키마" data-title="스키마 파일 구성과 진입점">
+  <p class="kicker">1부 · 스키마와 SQL</p>
+  <h2>DDL의 단일 원천 <span class="file">pipeline/create_schema/</span></h2>
+  <p class="sub">테이블 정의가 여러 곳에 흩어지면 반드시 어긋난다. 그래서 <b>DDL은 여기에만</b> 있고,
+    <code>load_csv.py</code>는 값만 넣는다. 문서 <code>docs/schema/</code>와 파일 구성이 1:1이다.</p>
+  <div class="grid g21">
+    <div>
+      <pre class="code"><span class="c"># execute_schema.py — 진입점</span>
+MODULES = (common_schema, user_schema, pet_schema,
+           product_schema, purchase_schema)   <span class="c"># ← 이 순서가 생성 순서</span>
+
+DDL_KINDS = ('TABLES','INDEXES','UNIQUE_INDEXES','VIEWS')
+
+def create_schema(db_path, verbose=True):
+    con.execute('PRAGMA foreign_keys = OFF')   <span class="n">①</span>
+    drop_all(con)                              <span class="n">②</span>
+    for kind in DDL_KINDS:
+        for ddl in collect(kind): con.execute(ddl)
+    con.commit()
+    con.execute('PRAGMA foreign_keys = ON')    <span class="n">③</span>
+    for sql, rows in collect('SEEDS'):
+        con.executemany(sql, rows)
+    check_fk_targets(con)                      <span class="n">④</span></pre>
+      <ul class="anno" style="margin-top:12px">
+        <li><span class="m">①</span><span>DROP 중에는 FK를 끈다. 부모를 먼저 지워도 걸리지 않게.</span></li>
+        <li><span class="m">②</span><span>모듈별 DROP 목록을 두지 않고 <code>sqlite_master</code>에 <b>지금 실제로 있는 것</b>을 지운다. 목록과 실제가 어긋나 옛 테이블이 유령으로 남았던 사고 이후의 선택.</span></li>
+        <li><span class="m">③</span><span><code>PRAGMA foreign_keys</code>는 트랜잭션 안에서 무시된다. commit 뒤에 켜야 시드의 자기참조 FK가 실제로 검사된다.</span></li>
+        <li><span class="m">④</span><span>SQLite는 <b>없는 테이블을 가리키는 FK로도 CREATE를 통과</b>시킨다. 오타·순서 실수를 여기서 잡지 않으면 INSERT 때 터진다.</span></li>
+      </ul>
+    </div>
+    <div class="grid" style="align-content:start">
+      <div class="card hi"><h3>모듈 계약</h3>
+        <p style="margin:0">각 <code>*_schema.py</code>는 <code>TABLES / INDEXES / UNIQUE_INDEXES / VIEWS / SEEDS</code> 중
+          <b>있는 것만</b> 모듈 수준 리스트로 노출한다. 없으면 빈 리스트로 친다.</p></div>
+      <div class="card"><h3>순서가 정해진 이유</h3>
+        <p style="margin:0">common(의존 없음) → user → pet → product → purchase.<br>
+          테이블의 FK는 대상이 없어도 CREATE되지만 <b>뷰는 안 된다</b>. 그래서 pet·product를 함께 읽는
+          <code>v_product_safety</code>가 있는 product_schema가 뒤쪽이다.</p></div>
+      <div class="card"><h3>SEEDS는 스키마의 일부</h3>
+        <p style="margin:0">축종(개·고양이), 상품 대분류, 급여목적은 코드로 넣는다.
+          CSV로도 빼면 같은 값이 두 군데 앉는다 — 그래서 <code>load_csv.SOURCES</code>에 이 테이블들이 없다.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 7 ------------------------------------------------------------------>
+<section class="slide" data-c="db" data-part="1부 · 스키마" data-title="설계 규칙 7가지">
+  <p class="kicker">1부 · 스키마와 SQL</p>
+  <h2>DDL을 읽기 전에 알아야 할 규칙 7가지</h2>
+  <p class="sub">전부 <code>execute_schema.py</code> 상단 docstring에 근거가 적혀 있다. 규칙을 알면 테이블 16개가 한 패턴으로 보인다.</p>
+  <div class="grid g2">
+    <div class="grid" style="align-content:start">
+      <div class="card"><h3>1 · PK는 전부 INTEGER PRIMARY KEY</h3>
+        <p style="margin:0">SQLite rowid 별칭이라 별도 인덱스가 안 생기고, 조인이 문자열 비교가 아니라 64비트 정수 비교가 된다.
+          <code>uint32</code> 같은 폭 지정은 STRICT에서 에러다.</p></div>
+      <div class="card"><h3>2 · 다대다는 두 FK를 묶어 PK</h3>
+        <p style="margin:0"><code>pet_breed_id</code> 같은 번호를 붙이지 않는다. 조합 자체가 행을 가리키고,
+          중복 등록도 그냥 막힌다. 끝에 <code>WITHOUT ROWID</code>.</p></div>
+      <div class="card"><h3>3 · 상태 대신 사실만 저장</h3>
+        <p style="margin:0">탈퇴 플래그가 아니라 <code>withdrawn_at</code>, 비활성이 아니라 <code>inactive_at</code>.
+          상태는 계산해서 얻는다.</p></div>
+      <div class="card"><h3>4 · 날짜는 TEXT ISO-8601</h3>
+        <p style="margin:0">사전순 = 시간순이라 문자열 비교만으로 범위·정렬이 성립한다.
+          날짜 단독 인덱스는 안 만들고 <code>(pet_id, purchased_at)</code> 복합으로 만든다.</p></div>
+    </div>
+    <div class="grid" style="align-content:start">
+      <div class="card"><h3>5 · 금액은 INTEGER(원)</h3>
+        <p style="margin:0">REAL은 반올림 오차가 생긴다.</p></div>
+      <div class="card"><h3>6 · 불리언은 INTEGER + CHECK IN (0,1)</h3>
+        <p style="margin:0">SQLite에 BOOL이 없다. <code>neutered</code>, <code>ingredients_verified</code>,
+          <code>is_active</code>, <code>is_holdout</code>이 대상.</p></div>
+      <div class="card hi"><h3>7 · STRICT 테이블 — 끄지 않는다</h3>
+        <pre class="code" style="margin-top:8px">'30000'   → 통과 (INTEGER 30000으로 저장)
+'30000.0' → 통과
+3.0       → 통과
+'삼만원'   → <span class="n">거부</span>  cannot store TEXT
+3.5       → <span class="n">거부</span>  cannot store REAL</pre>
+        <p style="margin:8px 0 0">그래서 CSV 로더가 <code>int()</code>로 미리 캐스팅할 필요가 없다.
+          STRICT가 없으면 <code>'삼만원'</code>이 INTEGER 컬럼에 조용히 앉아 있다가 정렬에서 틀린 답을 낸다.
+          단, <b>SQLite 3.37+</b>가 필요해 구버전 파이썬으로 실행하면 <code>malformed database schema</code>로 죽는다.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 8 ------------------------------------------------------------------>
+<section class="slide" data-c="db" data-part="1부 · 스키마" data-title="테이블 관계도">
+  <p class="kicker">1부 · 스키마와 SQL</p>
+  <h2>16개 테이블 · 2개 뷰의 관계</h2>
+  <div class="grid g21">
+    <div>
+      <pre class="code">          <span class="k">[공유 코드표]</span>
+ animal_category        allergen ──┐(자기참조 parent_id)
+   │        │              │       │
+   │        │              │   ingredient_allergen ── ingredient
+   │        │              │                              │
+ breed      │          pet_allergy                 product_ingredient
+   │        │              │                              │
+ pet_breed ─┴─ <span class="k">pet</span> ───────┘                        <span class="k">product</span>
+                │  │                                 │  │  │
+        user ───┘  │                product_animal_category │
+                   │                product_feeding_purpose │
+                   │                product_nutrition ──────┘
+                   │                product_category (자기참조)
+                   └──────── <span class="k">purchase</span> ─────────────┘
+                                   │
+                                 <span class="k">review</span>  (purchase_id = PK이자 FK)
+                                   │
+                          <span class="n">chunks → chunk_vectors</span>  (파이프라인이 만든다)</pre>
+    </div>
+    <div class="grid" style="align-content:start">
+      <div class="card hi"><h3>후기는 구매에 매달린다</h3>
+        <p style="margin:0"><code>review.purchase_id</code>가 PK이자 FK다. 구매 없이 쓴 후기는 DB가 받지 않는다 —
+          “실제 후기에서만 근거를 찾는다”는 서비스 전제를 <b>스키마가 강제</b>한다. 구매 1건당 후기 최대 1건.</p></div>
+      <div class="card hi"><h3>계정 삭제는 RESTRICT</h3>
+        <p style="margin:0"><code>pet.user_id</code>가 CASCADE였다면 계정 삭제 한 줄이
+          pet → purchase → review를 타고 후기까지 지운다. 탈퇴는 <code>withdrawn_at</code>,
+          파기는 익명화 UPDATE. 행을 지우는 경로 자체를 DB가 막는다.</p></div>
+      <div class="card"><h3>연결 테이블만 CASCADE</h3>
+        <p style="margin:0"><code>pet_breed</code>·<code>pet_allergy</code>·<code>product_ingredient</code>처럼
+          <b>부모 없이는 의미가 없는 행</b>만 CASCADE, 마스터를 가리키는 쪽은 RESTRICT다.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 9 ------------------------------------------------------------------>
+<section class="slide" data-c="db" data-part="1부 · SQL 해석" data-title="SQL① 복합 PK · WITHOUT ROWID">
+  <p class="kicker">SQL 해석 ①</p>
+  <h2>다대다 테이블: 번호를 붙이지 않는다</h2>
+  <div class="grid g21">
+    <div>
+      <pre class="code"><span class="k">CREATE TABLE</span> pet_breed (
+    pet_id   <span class="k">INTEGER NOT NULL</span>
+        <span class="k">REFERENCES</span> pet(pet_id)     <span class="k">ON DELETE CASCADE</span>,   <span class="n">①</span>
+    breed_id <span class="k">INTEGER NOT NULL</span>
+        <span class="k">REFERENCES</span> breed(breed_id) <span class="k">ON DELETE RESTRICT</span>,  <span class="n">②</span>
+    <span class="k">PRIMARY KEY</span> (pet_id, breed_id)                       <span class="n">③</span>
+) <span class="k">STRICT</span>, <span class="k">WITHOUT ROWID</span>                                <span class="n">④</span>
+
+<span class="c">-- 역방향 조회를 위한 인덱스</span>
+<span class="k">CREATE INDEX</span> idx_pet_breed_breed <span class="k">ON</span> pet_breed(breed_id);   <span class="n">⑤</span></pre>
+      <div class="card" style="margin-top:12px">
+        <pre style="font-family:var(--mono);font-size:12px;margin:0;line-height:1.7">pet_id │ breed_id
+─────────────────
+   3   │    1      초코 — 포메라니안  ┐ 믹스라 2행
+   3   │    7      초코 — 치와와      ┘
+   5   │    1      보리 — 포메라니안</pre>
+      </div>
+    </div>
+    <ul class="anno">
+      <li><span class="m">①</span><span>펫이 지워지면 이 연결도 의미가 없다 → <b>CASCADE</b>.</span></li>
+      <li><span class="m">②</span><span>품종 마스터는 다른 펫도 쓴다 → <b>RESTRICT</b>. 참조 중인 마스터 행 삭제를 막는다.</span></li>
+      <li><span class="m">③</span><span>두 컬럼 조합이 이미 행 하나를 정확히 가리킨다. 별도 번호를 붙이면 “초코에게 포메라니안 두 번 등록”을 막는 UNIQUE 인덱스를 <b>따로 챙겨야</b> 하고, 빠뜨리면 중복이 조용히 들어간다.</span></li>
+      <li><span class="m">④</span><span>PK가 곧 저장 순서가 되어 인덱스라는 별도 구조가 아예 생기지 않는다. 연결 테이블처럼 <b>PK 말고 컬럼이 없는</b> 표에 가장 잘 맞는다.</span></li>
+      <li><span class="m">⑤</span><span>복합 PK는 <b>앞 컬럼 기준</b>으로만 정렬돼 있다.<br>
+        <code>WHERE pet_id = 3</code> → PK를 그대로 탄다.<br>
+        <code>WHERE breed_id = 1</code> → 못 탄다. “이 품종을 가진 펫 전부”를 쓸 거면 이 인덱스가 필요하다.</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- 10 ----------------------------------------------------------------->
+<section class="slide" data-c="db" data-part="1부 · SQL 해석" data-title="SQL② v_product_safety 뷰">
+  <p class="kicker">SQL 해석 ②</p>
+  <h2>알러지 판정 뷰 <span class="file">v_product_safety</span></h2>
+  <p class="sub">펫 × 상품 전량에 대해 <b>안전 / 판정불가 / 위험</b> 세 값 중 하나를 매긴다. 추천 파이프라인의 첫 관문.</p>
+  <div class="grid g21">
+    <div>
+      <pre class="code"><span class="k">CREATE VIEW</span> v_product_safety <span class="k">AS</span>
+<span class="k">SELECT</span> pt.pet_id, pr.product_id,
+  <span class="k">CASE</span>
+    <span class="k">WHEN EXISTS</span> (                          <span class="n">①</span>
+        <span class="k">SELECT</span> 1
+          <span class="k">FROM</span> product_ingredient pi          <span class="c">-- 상품의 원료</span>
+          <span class="k">JOIN</span> ingredient_allergen ia
+            <span class="k">ON</span> ia.ingredient_id = pi.ingredient_id
+          <span class="k">JOIN</span> pet_allergy pa                 <span class="c">-- 그 펫의 알러지</span>
+            <span class="k">ON</span> pa.allergen_id = ia.allergen_id
+         <span class="k">WHERE</span> pi.product_id = pr.product_id
+           <span class="k">AND</span> pa.pet_id    = pt.pet_id      <span class="n">②</span>
+    ) <span class="k">THEN</span> <span class="s">'WARN'</span>
+    <span class="k">WHEN</span> pr.ingredients_verified = 0
+         <span class="k">THEN</span> <span class="s">'None'</span>                        <span class="n">③</span>
+    <span class="k">ELSE</span> <span class="s">'Safe'</span>
+  <span class="k">END</span> <span class="k">AS</span> verdict
+<span class="k">FROM</span> pet <span class="k">AS</span> pt
+<span class="k">JOIN</span> product_animal_category <span class="k">AS</span> pac
+  <span class="k">ON</span> pac.animal_category_id = pt.animal_category_id  <span class="n">④</span>
+<span class="k">JOIN</span> product <span class="k">AS</span> pr <span class="k">ON</span> pr.product_id = pac.product_id
+<span class="k">WHERE</span> pr.is_active = 1 <span class="k">AND</span> pt.inactive_at <span class="k">IS NULL</span>   <span class="n">⑤</span></pre>
+    </div>
+    <ul class="anno">
+      <li><span class="m">①</span><span><code>EXISTS</code>는 “한 건이라도 있나”만 본다. 몇 개인지 세지 않으므로 첫 일치에서 멈춘다 — 존재 확인에 <code>COUNT(*) &gt; 0</code>을 쓰지 않는 이유.</span></li>
+      <li><span class="m">②</span><span>서브쿼리 안에서 바깥의 <code>pr</code>·<code>pt</code>를 참조하는 <b>상관 서브쿼리</b>. 그래서 판정이 “이 펫과 이 상품” 쌍마다 계산된다. 원료→알러지원→펫 알러지 세 단계를 이어 붙여 교집합이 있으면 위험.</span></li>
+      <li><span class="m">③</span><span><b>모르는 것을 안전으로 처리하지 않는다.</b> 원료표를 사람이 확인한 적이 없으면 안전이 아니라 판정불가다. 이 한 줄이 도메인 규칙 그 자체.</span></li>
+      <li><span class="m">④</span><span>고양이에게 강아지 사료가 뜨지 않도록 축종부터 조인으로 좁힌다. 상품에 축종이 하나도 안 달려 있으면 그 상품은 <b>아무에게도 안 뜬다</b>(fail-closed) — 등록 UI가 필수값으로 받아야 하는 이유.</span></li>
+      <li><span class="m">⑤</span><span>판매 중지 상품과 비활성 펫을 제외. 여기서도 상태 컬럼이 아니라 시각(<code>inactive_at</code>)으로 판단한다.</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- 11 ----------------------------------------------------------------->
+<section class="slide" data-c="db" data-part="1부 · SQL 해석" data-title="SQL③ 후보군 뷰와 성능">
+  <p class="kicker">SQL 해석 ③</p>
+  <h2>정책을 한 줄로 바꿀 수 있게 뷰를 둘로 나눈다</h2>
+  <div class="grid g2">
+    <div>
+      <pre class="code"><span class="k">CREATE VIEW</span> v_safe_products <span class="k">AS</span>
+<span class="k">SELECT</span> pet_id, product_id
+<span class="k">FROM</span> v_product_safety
+<span class="k">WHERE</span> verdict = <span class="s">'Safe'</span>;</pre>
+      <div class="card hi" style="margin-top:12px"><h3>왜 굳이 한 겹 더</h3>
+        <p style="margin:0">“판정불가도 후보에 넣자”로 정책이 바뀌면 <b>이 뷰 한 줄만</b> 고친다
+          (<code>IN ('Safe','None')</code>). 판정 로직이 있는 <code>v_product_safety</code>는 안 건드린다.
+          판정과 정책을 한 뷰에 섞으면 정책을 바꿀 때마다 판정 SQL을 다시 검증해야 한다.</p></div>
+    </div>
+    <div>
+      <div class="card warn"><h3>필터 없이 부르면 56초, pet_id를 걸면 6ms</h3>
+        <p style="margin:0">상관 서브쿼리라 후보 상품마다 알러지 조인을 다시 돈다.
+          <b>펫 하나를 걸고 쓰는 것</b>이 이 뷰의 정상 사용법이다.</p>
+        <pre class="code" style="margin-top:10px"><span class="c">-- load_csv.verify() 의 실제 사용</span>
+<span class="k">SELECT</span> count(*) <span class="k">FROM</span> pet pt
+ <span class="k">WHERE</span> pt.inactive_at <span class="k">IS NULL</span>
+   <span class="k">AND NOT EXISTS</span> (
+       <span class="k">SELECT</span> 1 <span class="k">FROM</span> v_safe_products v
+        <span class="k">WHERE</span> v.pet_id = pt.pet_id)</pre>
+        <p style="margin:8px 0 0">“Safe 후보가 0개인 펫”을 센다. 이 수가 전체의 10%를 넘으면
+          더미 데이터가 알러지를 상위 노드로 너무 자주 골랐다는 뜻이라 경고를 찍는다.</p>
+      </div>
+      <div class="card" style="margin-top:12px"><h3>코드 주석이 남긴 고민</h3>
+        <p style="margin:0"><code>product_schema.py</code> 맨 아래에는 “뷰를 두지 않는다(2026-08-25)”는 상반된 메모가 남아 있다.
+          실제 검색 경로는 뷰 대신 <code>retrieve.FILTERS</code>의 <code>NOT EXISTS</code>를 쓴다 —
+          <b>같은 규칙이 세 군데(뷰 · 선필터 · domain/safty.py)에 있다는 것</b>을 잊으면 안 된다.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 12 ----------------------------------------------------------------->
+<section class="slide" data-c="db" data-part="1부 · SQL 해석" data-title="SQL④ 인덱스 설계">
+  <p class="kicker">SQL 해석 ④</p>
+  <h2>인덱스는 “어느 방향으로 조회하는가”의 기록</h2>
+  <div class="grid g2">
+    <div>
+      <pre class="code"><span class="k">CREATE INDEX</span> idx_product_filter
+    <span class="k">ON</span> product(product_category_id, is_active);   <span class="n">①</span>
+
+<span class="k">CREATE INDEX</span> idx_prod_ac_category
+    <span class="k">ON</span> product_animal_category(animal_category_id); <span class="n">②</span>
+
+<span class="k">CREATE INDEX</span> idx_purchase_pet
+    <span class="k">ON</span> purchase(pet_id, purchased_at);          <span class="n">③</span>
+
+<span class="k">CREATE UNIQUE INDEX</span> uq_user_auth
+    <span class="k">ON</span> user(auth_provider, auth_uid);           <span class="n">④</span>
+
+<span class="k">CREATE UNIQUE INDEX</span> uq_breed_name_ko
+    <span class="k">ON</span> breed(animal_category_id, name_ko);      <span class="n">⑤</span></pre>
+    </div>
+    <ul class="anno">
+      <li><span class="m">①</span><span>선두 컬럼이 <code>product_category_id</code>인 게 핵심. “간식만 보여줘”가 그대로 인덱스를 탄다.
+        <code>is_active</code>를 앞에 두면 값이 0/1뿐이라 이 조회가 풀스캔이 된다. 두 컬럼 모두 등호로 오는 조회는 순서와 무관하게 같다.</span></li>
+      <li><span class="m">②</span><span><b>역방향</b> 조회용. “이 축종에게 줄 수 있는 상품 전부”는 복합 PK의 뒤 컬럼이라 PK를 못 탄다.
+        정방향(“이 상품의 축종들”)은 PK 선두 컬럼이 처리한다.</span></li>
+      <li><span class="m">③</span><span>날짜를 <b>뒤에 붙여</b> 정렬까지 인덱스가 처리한다. “이 아이의 최근 구매”가 이 형태다.
+        규칙 4대로 <code>purchased_at</code> 단독 인덱스는 만들지 않는다.</span></li>
+      <li><span class="m">④</span><span>같은 외부 계정이 두 유저에 붙는 것을 DB 레벨에서 차단. 로그인 처리는 이 인덱스를 그대로 타는 조회 한 방으로 끝난다.</span></li>
+      <li><span class="m">⑤</span><span>한글명에만 UNIQUE를 걸면 ‘코커스패니얼’과 ‘코카스파니엘’이 서로 다른 문자열이라 그대로 통과한다.
+        그래서 영문명에도 같이 건다 — <b>표기 흔들림은 제약으로 막는다.</b></span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- 13 ----------------------------------------------------------------->
+<section class="slide" data-c="db" data-part="1부 · 적재" data-title="load_csv — 순서를 DB에게 묻는다">
+  <p class="kicker">1부 · 적재</p>
+  <h2>적재 순서를 손으로 적지 않는다 <span class="file">pipeline/load_csv.py</span></h2>
+  <p class="sub">부모가 없는 테이블에 INSERT하면 FK 검증에 걸려 멈춘다. 그런데 그 정답은 <b>이미 DDL 안에 있다</b>.</p>
+  <div class="grid g21">
+    <div>
+      <pre class="code"><span class="k">def</span> parent_tables(con, table):
+    <span class="k">return</span> {row[2] <span class="k">for</span> row <span class="k">in</span>
+            con.execute(f<span class="s">'PRAGMA foreign_key_list("{table}")'</span>)
+            <span class="k">if</span> row[2] != table}            <span class="n">①</span> <span class="c"># 자기참조 제외</span>
+
+<span class="k">def</span> resolve_order(con, sources):
+    names = set(sources)
+    <span class="k">return</span> topo_sort(sorted(names), <span class="k">lambda</span> t: t,
+        <span class="k">lambda</span> t: parent_tables(con, t) & names,  <span class="n">②</span>
+        <span class="s">'테이블 적재 순서'</span>)
+
+<span class="k">def</span> topo_sort(items, key_of, deps_of, what):
+    <span class="k">while</span> pending:
+        ready = [i <span class="k">for</span> i <span class="k">in</span> pending
+                 <span class="k">if</span> deps_of(items[i]) &lt;= done]   <span class="n">③</span>
+        <span class="k">if not</span> ready:
+            <span class="k">raise</span> RuntimeError(...)               <span class="n">④</span></pre>
+      <div class="card hi" style="margin-top:12px"><h3>순서는 두 층이다 — 같은 함수를 두 번 쓴다</h3>
+        <p style="margin:0">테이블 사이: <code>user</code>가 <code>pet</code>보다 먼저 → <code>resolve_order()</code><br>
+          한 테이블 안: <code>allergen</code>의 부모 행이 먼저 → <code>order_rows_parents_first()</code><br>
+          자기참조(<code>allergen.parent_id → allergen</code>)는 테이블 레벨에 두면 자기 자신을 기다려 멈추므로
+          그래프에서 빼고 <b>행 레벨</b>에서 푼다.</p></div>
+    </div>
+    <ul class="anno">
+      <li><span class="m">①</span><span><code>PRAGMA foreign_key_list</code>가 “이 테이블이 무엇을 참조하는가”를 알려준다. 사람이 옮겨 적으면 스키마와 어긋나고, 어긋난 채로 운 좋게 돌다가 테이블이 하나 늘어난 날 터진다.</span></li>
+      <li><span class="m">②</span><span>적재 대상이 아닌 부모(코드 SEEDS로 이미 채운 <code>animal_category</code> 등)는 교집합으로 뺀다. 이미 있는 것을 기다릴 이유가 없다.</span></li>
+      <li><span class="m">③</span><span>“지금 넣을 수 있는 것”만 골라 넣기를 반복하는 위상 정렬. 인덱스로 다루는 이유는 dict 행끼리 <code>==</code> 비교를 피하기 위해서다.</span></li>
+      <li><span class="m">④</span><span>아무것도 못 고르면 순환이거나 없는 대상을 가리키는 것 — 조용히 넘기면 나중에 <code>IntegrityError</code>로 터지고 그때는 원인이 안 보인다.</span></li>
+    </ul>
+  </div>
+  <div class="card" style="margin-top:12px"><h3>INSERT 문도 코드에 안 적는다</h3>
+    <p style="margin:0">컬럼 목록은 <b>CSV 헤더</b>에서 만든다. 코드에 또 적으면 스키마가 바뀔 때 DDL·CSV·로더 세 군데를 맞춰야 한다.
+      값 캐스팅도 하지 않는다 — STRICT가 이미 같은 검사를 한다. 빈 칸 → NULL 변환만.
+      헤더 검증(모르는 컬럼 / NOT NULL 누락)은 남겨 둔다: 예전에 CSV가 10 → 17컬럼으로 늘었을 때 로더가 <b>에러 없이 조용히</b> 깨진 적이 있다.</p></div>
+</section>
+
+<!-- 14 ----------------------------------------------------------------->
+<section class="slide" data-c="db" data-part="1부 · 적재" data-title="적재 후 검사">
+  <p class="kicker">1부 · 적재</p>
+  <h2>“들어갔다”가 아니라 “쓸 수 있다”를 확인한다 <span class="file">verify()</span></h2>
+  <div class="grid g2">
+    <div>
+      <pre class="code"><span class="k">def</span> verify(con):
+    broken = con.execute(<span class="s">'PRAGMA foreign_key_check'</span>).fetchall() <span class="n">①</span>
+    <span class="k">if</span> broken: <span class="k">raise</span> RuntimeError(...)
+
+    verdicts = dict(con.execute(
+      <span class="s">'SELECT verdict, count(*) FROM v_product_safety'</span>
+      <span class="s">' GROUP BY verdict'</span>).fetchall())                    <span class="n">②</span>
+    <span class="k">if</span> len(verdicts) &lt; 3:
+        print(<span class="s">'[경고] verdict 가 N종류뿐이다'</span>)              <span class="n">③</span></pre>
+      <div class="card" style="margin-top:12px"><h3>트랜잭션 하나로 묶는다</h3>
+        <pre class="code" style="margin-top:8px"><span class="k">with</span> con:
+    <span class="k">for</span> table <span class="k">in</span> order:
+        total += load_table(con, table, SOURCES[table])</pre>
+        <p style="margin:8px 0 0">중간에 터지면 <b>아무것도 안 들어간 상태</b>로 남는다. 반쯤 들어간 DB가 가장 고치기 어렵다.</p></div>
+    </div>
+    <ul class="anno">
+      <li><span class="m">①</span><span>적재 중 FK 검증을 켜 뒀어도 마지막에 한 번 더 전수 검사한다. 위반이 있으면 그 데이터는 못 쓴다.</span></li>
+      <li><span class="m">②</span><span>스키마가 멀쩡해도 <b>데이터가 검증을 못 하게</b> 생겼을 수 있다. Safe/None/WARN 세 값이 다 나오는지 센다.</span></li>
+      <li><span class="m">③</span><span>한 종류로 쏠려 있으면 알러지 배제 로직을 시험할 수 없다 — 통과했는데 아무것도 확인 못 한 상태.
+        <b>더미 데이터의 품질을 코드가 검사한다</b>는 점이 이 프로젝트의 특징이다.</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- 15 ----------------------------------------------------------------->
+<section class="slide" data-c="vec" data-part="2부 · 임베딩" data-title="파이프라인을 왜 쪼갰나">
+  <p class="kicker">2부 · 청킹과 임베딩</p>
+  <h2>한 파일로 두면 자른 결과만 보고 싶을 때도 임베딩을 다시 만든다</h2>
+  <p class="sub">자르는 데 몇 초, 임베딩은 모델 로딩 포함 수십 초. <b>값이 다른 작업이라 파일을 나눴다.</b>
+    그리고 각 파일이 아는 것을 최소로 유지한다.</p>
+  <div class="flow">
+    <div class="step"><b>chunk.py</b>지휘<small>어떤 리뷰를 자를지</small></div><span class="arw">▸</span>
+    <div class="step"><b>prep/chunking.py</b>자르는 법<small>DB를 모른다</small></div><span class="arw">▸</span>
+    <div class="step"><b>prep/storage.py</b>넣는 법<small>만드는 법을 모른다</small></div><span class="arw">▸</span>
+    <div class="step"><b>embed.py</b>지휘<small>둘을 순서대로</small></div><span class="arw">▸</span>
+    <div class="step"><b>core/embedder.py</b>모델 싱글톤<small>app과 공유</small></div><span class="arw">▸</span>
+    <div class="step"><b>vector_db.py</b>벡터 저장·검색<small>sqlite-vec</small></div>
+  </div>
+  <div class="grid g3" style="margin-top:16px">
+    <div class="card hi"><h3>chunking.py가 아는 것</h3>
+      <p style="margin:0">토큰 한도, 문장·구두점 경계.<br>
+        <b>모르는 것:</b> 이 문서가 어디서 왔고 어디에 저장되는지. <code>(purchase_id, doc)</code> 목록만 받아 조각 목록을 돌려준다.</p></div>
+    <div class="card hi"><h3>storage.py가 아는 것</h3>
+      <p style="margin:0">어디에 어떤 모양으로 넣는지.<br>
+        <b>모르는 것:</b> 그게 어떻게 만들어졌는지. 그래서 조각 지문(<code>source</code>)은 부르는 쪽이 계산해 넘긴다.</p></div>
+    <div class="card hi"><h3>embedder.py가 싱글톤인 이유</h3>
+      <p style="margin:0">색인(pipeline)과 검색(app)이 <b>같은 인스턴스</b>를 써야 벡터 공간이 일치한다.
+        <code>app/core/</code>에 둔 건 순환 import를 피하고, 앱이 pipeline 없이도 뜨게 하려는 것.</p></div>
+  </div>
+</section>
+
+<!-- 16 ----------------------------------------------------------------->
+<section class="slide" data-c="vec" data-part="2부 · 임베딩" data-title="모델 프로파일과 접두어">
+  <p class="kicker">2부 · 청킹과 임베딩</p>
+  <h2>모델마다 다른 값은 표 하나에 모은다 <span class="file">core/config.py</span></h2>
+  <div class="grid g21">
+    <div>
+      <pre class="code">EMBED_PROFILES = {
+  <span class="s">'intfloat/multilingual-e5-small'</span>: {
+      <span class="s">'dim'</span>: 384, <span class="s">'max_tokens'</span>: 512, <span class="s">'batch_size'</span>: 32,
+      <span class="s">'query_prefix'</span>: <span class="s">'query: '</span>,                      <span class="n">①</span>
+      <span class="s">'passage_prefix'</span>: <span class="s">'passage: '</span>},
+  <span class="s">'intfloat/multilingual-e5-base'</span>: { <span class="s">'dim'</span>: 768, ... },
+  <span class="s">'BAAI/bge-m3'</span>: {
+      <span class="s">'dim'</span>: 1024, <span class="s">'max_tokens'</span>: 8192, <span class="s">'batch_size'</span>: 8,
+      <span class="s">'query_prefix'</span>: <span class="s">''</span>, <span class="s">'passage_prefix'</span>: <span class="s">''</span>},   <span class="n">②</span>
+}
+
+EMBED_MODEL     = env(<span class="s">'EMBED_MODEL'</span>, <span class="s">'...e5-small'</span>)   <span class="n">③</span>
+EMBED_TOKENIZER = EMBED_MODEL                          <span class="n">④</span>
+EMBED_NORMALIZE = <span class="k">True</span>                               <span class="n">⑤</span>
+EMBED_DEVICE    = <span class="s">"cpu"</span></pre>
+    </div>
+    <ul class="anno">
+      <li><span class="m">①</span><span>e5 계열은 질의에 <code>query: </code>, 문서에 <code>passage: </code>를 <b>반드시</b> 붙여야 한다. 학습 때 그렇게 배웠기 때문. 안 붙이면 같은 모델인데 점수가 무너진다.</span></li>
+      <li><span class="m">②</span><span>bge 계열은 반대로 붙이면 성능이 떨어진다. 접두어를 코드 여러 곳에 적으면 <b>반드시 어긋난다</b> — 그래서 표에서만 읽는다.</span></li>
+      <li><span class="m">③</span><span>모델 교체는 환경변수 하나. 목표는 “표만 늘리고 코드는 안 건드린다”. 표에 없는 모델을 넣으면 즉시 <code>SystemExit</code>.</span></li>
+      <li><span class="m">④</span><span>토크나이저는 임베딩과 <b>같은 모델</b>이어야 한다. 따로 적을 이유가 없어 파생값으로 둔다 — 다르면 “512토큰 안”이라고 세어 놓고 실제로는 잘린다.</span></li>
+      <li><span class="m">⑤</span><span>정규화(L2)를 켜면 코사인 유사도 계산이 내적과 같아진다. 색인과 검색 중 <b>한쪽만</b> 켜면 거리 값이 의미를 잃는다.</span></li>
+    </ul>
+  </div>
+  <div class="card warn" style="margin-top:12px">
+    <b>읽을 때 걸리는 부분</b> — <code>config.py</code>에 <code>load_env()</code>와 <code>env()</code>가 두 번 정의돼 있다(뒤쪽 정의가 이긴다).
+    또 <code>USE_API = env("USE_API", 0) == "1"</code>은 기본값이 문자열이 아니라 정수 <code>0</code>이라 타입이 어긋난다.
+  </div>
+</section>
+
+<!-- 17 ----------------------------------------------------------------->
+<section class="slide" data-c="vec" data-part="2부 · SQL 해석" data-title="SQL⑤ 자를 리뷰 모으기">
+  <p class="kicker">SQL 해석 ⑤</p>
+  <h2>정규화된 16테이블을 리뷰 한 줄로 되접는다 <span class="file">chunk.fetch_rows()</span></h2>
+  <div class="grid g21">
+    <div>
+      <pre class="code"><span class="k">SELECT</span> r.purchase_id, r.rating, r.body <span class="k">AS</span> review,
+    pu.age_month_at_purchase,
+    {SIZE_CASE} <span class="k">AS</span> size_category,                    <span class="n">①</span>
+    <span class="k">GROUP_CONCAT</span>(<span class="k">DISTINCT</span> br.name_ko) <span class="k">AS</span> breed,      <span class="n">②</span>
+    <span class="k">GROUP_CONCAT</span>(<span class="k">DISTINCT</span> al.name_ko) <span class="k">AS</span> allergy,
+    pc_parent.name_ko <span class="k">AS</span> category,
+    pc.name_ko        <span class="k">AS</span> sub_category,                <span class="n">③</span>
+    p.name <span class="k">AS</span> product_name, p.food_form,
+    <span class="k">GROUP_CONCAT</span>(<span class="k">DISTINCT</span> fp.name_ko) <span class="k">AS</span> target_feeding_purpose,
+    <span class="k">GROUP_CONCAT</span>(<span class="k">DISTINCT</span> ing.name_ko) <span class="k">AS</span> ingredients
+<span class="k">FROM</span> review r
+<span class="k">JOIN</span> purchase pu <span class="k">ON</span> pu.purchase_id = r.purchase_id
+<span class="k">JOIN</span> pet pe      <span class="k">ON</span> pe.pet_id = pu.pet_id
+<span class="k">JOIN</span> product p   <span class="k">ON</span> p.product_id = pu.product_id
+<span class="k">LEFT JOIN</span> pet_breed pb  ...   <span class="c">-- 다대다</span>       <span class="n">④</span>
+<span class="k">LEFT JOIN</span> pet_allergy pa ...
+<span class="k">LEFT JOIN</span> product_ingredient pi ...
+<span class="k">WHERE</span> {INDEX_FILTER}                                 <span class="n">⑤</span>
+<span class="k">GROUP BY</span> r.purchase_id
+<span class="k">ORDER BY</span> r.purchase_id</pre>
+    </div>
+    <ul class="anno">
+      <li><span class="m">①</span><span><code>SIZE_CASE</code>는 config의 <code>SIZE_LABELS</code>에서 <b>파이썬이 만들어 넣는 CASE 문</b>이다.
+        <code>1→'초소형' … 5→'초대형'</code> 표를 SQL과 파이썬이 따로 적으면 반드시 어긋나므로 한 곳에서 생성한다.</span></li>
+      <li><span class="m">②</span><span>다대다를 LEFT JOIN하면 한 리뷰가 <b>여러 행으로 불어난다</b>(품종 2 × 알러지 3 = 6행).
+        <code>GROUP BY</code>로 한 줄로 접고 <code>GROUP_CONCAT(DISTINCT …)</code>로 이름을 콤마로 합친다. DISTINCT가 없으면 “치킨,치킨,치킨”이 된다.</span></li>
+      <li><span class="m">③</span><span><code>product_category</code>를 <b>자기 자신과 두 번 조인</b>해 대분류/소분류를 동시에 얻는다(<code>pc</code>, <code>pc_parent</code>).</span></li>
+      <li><span class="m">④</span><span>LEFT여야 하는 이유: 알러지가 없는 펫, 원료가 안 등록된 상품의 리뷰까지 <b>남겨야</b> 한다. INNER면 그 리뷰들이 색인에서 통째로 사라진다.</span></li>
+      <li><span class="m">⑤</span><span><code>INDEX_FILTER</code> = <code>is_holdout = 0 AND body IS NOT NULL AND TRIM(body) &lt;&gt; ''</code>.
+        평가용으로 남겨 둔 리뷰를 색인에 넣으면 <b>정답을 외운 채로 시험을 보게 된다.</b></span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- 18 ----------------------------------------------------------------->
+<section class="slide" data-c="vec" data-part="2부 · 임베딩" data-title="임베딩 문장 조립 — 무엇을 빼는가">
+  <p class="kicker">2부 · 청킹과 임베딩 · 핵심</p>
+  <h2>임베딩 품질은 “무엇을 넣을까”보다 <em>무엇을 뺄까</em>로 갈린다</h2>
+  <div class="grid g21">
+    <div>
+      <pre class="code"><span class="k">def</span> build_review_doc(row) -> str:
+    <span class="k">return</span> (
+      PASSAGE_PREFIX                       <span class="c"># 'passage: '</span>
+      f<span class="s">"{category} {row['product_name']} "</span>
+      f<span class="s">"({purpose}, {row['target_food_form']}) "</span>
+      f<span class="s">"{ingredients} "</span>                     <span class="n">넣는다</span>
+      f<span class="s">"별점 {row['rating']}점 후기: {row['review']}"</span>)
+
+<span class="c"># size_category / breed / allergy 는 넣지 않는다</span></pre>
+      <div class="card hi" style="margin-top:12px">
+        <h3>만들어지는 문장</h3>
+        <p style="margin:0;font-family:var(--mono);font-size:12px;line-height:1.7">
+          passage: 사료/건식사료 하울팜 연어 그레인프리 (다이어트 목적, 건식) 주원료: 연어, 고구마, 완두 별점 5점 후기: 소형견인데 살이 잘 빠졌어요 …</p>
+      </div>
+    </div>
+    <div class="grid" style="align-content:start">
+      <div class="card warn"><h3>왜 체급·품종·알러지를 뺐나</h3>
+        <p style="margin:0">그 값들은 <b>이미 SQL WHERE가 걸러 준다</b>(<code>retrieve.FILTERS</code>).
+          문서에 또 넣으면 모든 문서가 “소형 / 포메라니안 / 닭 알러지 …” 같은 거의 같은 보일러플레이트를 갖게 되고,
+          코사인 유사도가 <b>내용과 무관하게 뭉친다</b>. 검색은 되는데 순위가 안 갈리는 상태가 된다.</p></div>
+      <div class="card hi"><h3>왜 원료는 넣나</h3>
+        <p style="margin:0">필터가 안 걸러 주는 값이면서, 같은 카테고리·같은 급여목적 안에서 상품을 <b>실제로 가르는</b>
+          유일한 객관적 신호이기 때문이다. 넣고 빼는 기준이 “정보량”이 아니라 <b>“필터가 이미 하고 있는가”</b>라는 점이 핵심.</p></div>
+      <div class="card"><h3>수치는 임베딩에 넣지 않는다</h3>
+        <p style="margin:0">가격·중량·영양 수치는 <code>domain/embedding_text.py</code>에서도 제외한다.
+          임베딩은 숫자로 의미를 만들지 못하고, 그 조건은 선필터가 정확히 거른다.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 19 ----------------------------------------------------------------->
+<section class="slide" data-c="vec" data-part="2부 · 임베딩" data-title="자르기 옵션">
+  <p class="kicker">2부 · 청킹과 임베딩</p>
+  <h2>한국어 후기를 어디서 자를 것인가 <span class="file">prep/options.py</span></h2>
+  <div class="grid g21">
+    <div>
+      <pre class="code">CHUNK_SIZE    = 480          <span class="n">①</span>
+CHUNK_OVERLAP = 48           <span class="n">②</span>
+PREFIX_BUDGET = 32           <span class="n">③</span>
+RESPLIT_OVER  = EMBED_MAX_TOKENS - PREFIX_BUDGET
+SEPARATORS = [<span class="s">"\n\n"</span>,<span class="s">"\n"</span>,<span class="s">"다"</span>,<span class="s">"요"</span>,<span class="s">"."</span>,<span class="s">","</span>,<span class="s">""</span>]   <span class="n">④</span>
+
+<span class="c"># chunking.get_splitter()</span>
+RecursiveCharacterTextSplitter.from_huggingface_tokenizer(
+    get_tokenizer(), chunk_size=CHUNK_SIZE,
+    chunk_overlap=CHUNK_OVERLAP,
+    separators=SEPARATORS, keep_separator=<span class="s">"end"</span>)   <span class="n">⑤</span></pre>
+      <div class="card" style="margin-top:12px"><h3>왜 Markdown 분할기를 안 쓰나</h3>
+        <p style="margin:0">리뷰는 헤더 같은 <b>사람이 만든 절 경계가 없는</b> 자연어다.
+          그래서 문장·구두점 경계를 재귀적으로 찾는 <code>RecursiveCharacterTextSplitter</code>만 쓴다.</p></div>
+    </div>
+    <ul class="anno">
+      <li><span class="m">①</span><span>모델 한도 512보다 작게 잡는다. 조각마다 상품명 접두어를 <b>다시 붙일 자리</b>를 남겨야 하기 때문(③).</span></li>
+      <li><span class="m">②</span><span>겹침 48토큰. 문장이 경계에서 잘렸을 때 앞 조각의 꼬리를 뒤 조각이 물고 있어 맥락이 끊기지 않는다.</span></li>
+      <li><span class="m">③</span><span>접두어 예산. <code>[제품명] 본문</code>이 붙어도 한도를 안 넘게 미리 빼 둔 몫.</span></li>
+      <li><span class="m">④</span><span><b>한국어에 맞춘 분리자.</b> 마침표를 안 쓰는 후기가 많아 종결어미 “다”·“요”를 구두점처럼 취급한다.
+        앞에서부터 시도해 안 되면 다음 것으로 내려가고, 마지막 <code>""</code>는 글자 단위로 쪼개는 최후 수단이다.
+        분리자를 늘릴수록 유지보수 부담은 커지고 효과 체감은 작다 — 트레이드오프.</span></li>
+      <li><span class="m">⑤</span><span><code>keep_separator="end"</code>라서 “…했어요”가 “…했” + “요”로 갈라지지 않는다.
+        토크나이저를 <b>분할기에 그대로 물려</b> 글자 수가 아니라 실제 토큰 수로 센다.</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- 20 ----------------------------------------------------------------->
+<section class="slide" data-c="vec" data-part="2부 · 임베딩" data-title="조각에 상품명을 다시 붙이는 이유">
+  <p class="kicker">2부 · 청킹과 임베딩</p>
+  <h2>뒤쪽 조각은 “어느 상품 얘기인지” 알려주는 토큰이 하나도 없다</h2>
+  <div class="grid g2">
+    <div>
+      <pre class="code"><span class="k">def</span> split_review(purchase_id, doc, product_name):
+    n_tokens = count_tokens(doc)
+    <span class="k">if</span> n_tokens &lt;= CHUNK_SIZE:                       <span class="n">①</span>
+        <span class="k">return</span> [{<span class="s">'purchase_id'</span>: purchase_id,
+                 <span class="s">'chunk_index'</span>: 0, <span class="s">'body'</span>: doc,
+                 <span class="s">'n_tokens'</span>: n_tokens}]
+
+    parts  = get_splitter().split_text(doc)
+    tagged = [f<span class="s">"[{product_name}] {body}"</span> <span class="k">for</span> body <span class="k">in</span> parts]  <span class="n">②</span>
+    <span class="k">return</span> [{<span class="s">'purchase_id'</span>: purchase_id, <span class="s">'chunk_index'</span>: i,
+             <span class="s">'body'</span>: body, <span class="s">'n_tokens'</span>: count_tokens(body)}
+            <span class="k">for</span> i, body <span class="k">in</span> enumerate(tagged)]          <span class="n">③</span></pre>
+    </div>
+    <ul class="anno">
+      <li><span class="m">①</span><span>한도 안이면 <b>자르지 않는다.</b> 대부분의 후기는 여기서 끝나고, 조각 1개 = 리뷰 1개가 된다.</span></li>
+      <li><span class="m">②</span><span>긴 리뷰만 쪼개고, 조각마다 상품명을 접두어로 다시 붙인다. 안 붙이면 2번째 조각은
+        “…그리고 배변 상태도 좋아졌어요”처럼 <b>상품을 특정할 단서가 사라진</b> 채로 벡터가 된다.</span></li>
+      <li><span class="m">③</span><span><code>chunk_index</code>로 순서를 남긴다. <code>(purchase_id, chunk_index)</code> 한 쌍이 조각의 식별자이고,
+        벡터도 이 쌍으로 붙는다 — 조각이 늘어나도 “원래 어느 리뷰였는지”를 잃지 않는다.</span></li>
+    </ul>
+  </div>
+  <div class="card hi" style="margin-top:14px"><h3>자른 뒤 눈으로 확인하는 지표 — <code>chunk.py</code> main</h3>
+    <p style="margin:0">리뷰 N건 → 조각 M개(늘어난 수), 토큰 <b>평균 / 중앙값 / 최대</b>를 찍는다.
+      그리고 한도를 넘는 조각이 남아 있으면 경고한다 — 자르기가 제 몫을 못 한 것이고,
+      그대로 두면 임베딩 때 <b>뒤가 조용히 잘려 나간다.</b> 에러가 아니라 침묵으로 손실되는 종류의 사고라 여기서 잡는다.</p></div>
+</section>
+
+<!-- 21 ----------------------------------------------------------------->
+<section class="slide" data-c="vec" data-part="2부 · 임베딩" data-title="chunks 테이블">
+  <p class="kicker">2부 · 청킹과 임베딩</p>
+  <h2>조각 저장 <span class="file">prep/storage.save_chunks()</span></h2>
+  <div class="grid g21">
+    <div>
+      <pre class="code">cur.execute(<span class="s">"DROP TABLE IF EXISTS chunks"</span>)          <span class="n">①</span>
+cur.execute(<span class="s">"""</span>
+<span class="k">CREATE TABLE</span> chunks (
+    purchase_id <span class="k">INTEGER NOT NULL</span>,
+    chunk_index <span class="k">INTEGER NOT NULL</span>,
+    body        <span class="k">TEXT</span>,                                <span class="n">②</span>
+    n_tokens    <span class="k">INTEGER</span>,                             <span class="n">③</span>
+    <span class="k">PRIMARY KEY</span> (purchase_id, chunk_index)            <span class="n">④</span>
+)<span class="s">"""</span>)
+cur.executemany(<span class="s">"INSERT INTO chunks VALUES (?, ?, ?, ?)"</span>, ...)
+con.commit()</pre>
+    </div>
+    <ul class="anno">
+      <li><span class="m">①</span><span>매번 통째로 다시 만든다. 이 파이프라인은 <b>증분이 아니라 배치 재구축</b>이다 —
+        CSV가 바뀌면 조각도 벡터도 전부 다시 만드는 편이 정합성 관리가 단순하다.</span></li>
+      <li><span class="m">②</span><span>자른 <b>본문을 그대로</b> 들고 있는다. 검색 결과로 사람이 읽을 문장이 여기서 나온다. 벡터만 있으면 사람이 확인할 수 없다.</span></li>
+      <li><span class="m">③</span><span>토큰 수를 저장해 두면 검증 단계에서 다시 토크나이저를 돌리지 않아도 한도 초과를 셀 수 있다. 조각 지문 계산에도 쓰인다.</span></li>
+      <li><span class="m">④</span><span>복합 PK. 다음 단계의 <code>chunk_vectors</code>가 이 두 컬럼을 <b>복합 FK</b>로 그대로 참조한다.</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- 22 ----------------------------------------------------------------->
+<section class="slide" data-c="vec" data-part="2부 · 임베딩" data-title="embed.py — 지휘만 한다">
+  <p class="kicker">2부 · 청킹과 임베딩</p>
+  <h2>임베딩 본체는 세 줄이다 <span class="file">pipeline/embed.py</span></h2>
+  <div class="grid g21">
+    <div>
+      <pre class="code">chunks = fetch_chunks(con.cursor())                     <span class="n">①</span>
+<span class="k">if not</span> chunks:
+    <span class="k">raise</span> SystemExit(<span class="s">"색인할 리뷰가 없습니다. chunk.py 를 먼저"</span>)
+
+docs = [chunk[<span class="s">'body'</span>] <span class="k">for</span> chunk <span class="k">in</span> chunks]              <span class="n">②</span>
+
+model = get_embeddings()
+vectors = model.encode(
+    docs,
+    batch_size=EMBED_BATCH_SIZE,                        <span class="n">③</span>
+    normalize_embeddings=EMBED_NORMALIZE,               <span class="n">④</span>
+    show_progress_bar=<span class="k">True</span>)
+
+source = f<span class="s">"{len(chunks)}:{sum(c['purchase_id'] for c in chunks)}"</span> \
+         f<span class="s">":{sum(c['n_tokens'] for c in chunks)}"</span>              <span class="n">⑤</span>
+
+vector_db.save_vectors(con, chunks, vectors,
+                       vectors.shape[1], source)        <span class="n">⑥</span></pre>
+    </div>
+    <ul class="anno">
+      <li><span class="m">①</span><span><code>ORDER BY purchase_id, chunk_index</code>로 읽는다. 순서가 곧 <code>vectors</code> 배열의 순서라
+        나중에 <code>zip</code>으로 짝지을 수 있다 — <b>정렬이 계약</b>이다.</span></li>
+      <li><span class="m">②</span><span>여기서 문장을 다시 조립하지 않는다. <code>body</code>는 접두어까지 붙어 이미 완성된 텍스트다.
+        <b>같은 문자열을 색인하고 같은 문자열을 보여준다.</b></span></li>
+      <li><span class="m">③</span><span>배치 크기는 모델 프로파일에서 온다(e5-small 32, bge-m3 8). 큰 모델일수록 메모리 때문에 작게.</span></li>
+      <li><span class="m">④</span><span>여기서 정규화를 켜므로 검색 쪽도 반드시 켜야 한다. 짝이 맞아야 코사인 거리가 뜻을 갖는다.</span></li>
+      <li><span class="m">⑤</span><span><b>조각 지문</b> — 개수 : purchase_id 합 : 토큰 합. 데이터가 조금이라도 바뀌면 값이 달라진다.
+        해시가 아니라 합계인 건 SQL로도 똑같이 계산할 수 있어서다(다음 장).</span></li>
+      <li><span class="m">⑥</span><span>차원은 <code>vectors.shape[1]</code>에서 <b>실측</b>해 넘긴다. config의 <code>EMBED_DIM</code>을 믿고 적으면 모델을 바꿨을 때 거짓말이 기록된다.</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- 23 ----------------------------------------------------------------->
+<section class="slide" data-c="vec" data-part="2부 · 임베딩" data-title="벡터 저장 형식 — BLOB vs JSON">
+  <p class="kicker">2부 · 청킹과 임베딩 · 함정</p>
+  <h2>같은 이름의 함수가 두 개, 저장 형식이 서로 다르다</h2>
+  <p class="sub">지금 <code>embed.py</code>가 쓰는 것은 <code>pipeline/vector_db.py</code> 쪽이다(<code>prep.storage</code> import는 주석 처리돼 있다).</p>
+  <div class="grid g2">
+    <div class="card hi"><h3>vector_db.save_vectors — 실제 사용 중</h3>
+      <pre class="code" style="margin-top:8px">vector <span class="k">BLOB</span>
+
+sqlite_vec.serialize_float32(vec)</pre>
+      <ul style="margin:10px 0 0">
+        <li>float32 × 384 = <b>1,536 바이트</b>의 raw bytes</li>
+        <li>SQL에서 <code>vec_distance_cosine()</code>으로 <b>DB가 직접</b> 거리 계산</li>
+        <li>선필터 WHERE와 유사도 정렬을 한 쿼리로 처리 가능</li>
+      </ul>
+    </div>
+    <div class="card"><h3>prep/storage.save_vectors — 남아 있는 옛 구현</h3>
+      <pre class="code" style="margin-top:8px">vector <span class="k">TEXT</span>
+
+json.dumps(vec.tolist())</pre>
+      <ul style="margin:10px 0 0">
+        <li>사람이 읽을 수는 있지만 <b>수십 배 크다</b></li>
+        <li>SQL이 거리를 못 구한다 → 전부 읽어 파이썬(numpy)에서 계산</li>
+        <li><code>core/db.load_vectors()</code>가 <code>json.loads</code>를 하는 이유가 이것 — <b>BLOB에는 못 쓴다</b></li>
+      </ul>
+    </div>
+  </div>
+  <div class="card warn" style="margin-top:14px"><h3>왜 이게 중요한가</h3>
+    <p style="margin:0">저장 형식은 <b>검색 방식을 결정한다.</b> BLOB + sqlite-vec을 고른 순간
+      “SQL로 선필터 걸고 그 안에서 거리 정렬”이라는 이 프로젝트의 검색 구조가 가능해졌다.
+      JSON이었다면 필터링과 랭킹을 파이썬에서 따로 해야 한다. 다만 지금은 두 구현이 공존해서
+      <code>load_vectors()</code>를 <code>chunk_vectors</code>에 쓰면 <code>json.loads</code>에서 깨진다 — <b>정리 대상.</b></p></div>
+</section>
+
+<!-- 24 ----------------------------------------------------------------->
+<section class="slide" data-c="vec" data-part="2부 · 임베딩" data-title="chunk_vectors와 embedding_meta">
+  <p class="kicker">2부 · 청킹과 임베딩</p>
+  <h2>벡터 표와 “이 벡터가 언제·무엇으로 만들어졌는지” <span class="file">vector_db.save_vectors()</span></h2>
+  <div class="grid g21">
+    <div>
+      <pre class="code"><span class="k">if not</span> cur.execute(<span class="s">"SELECT name FROM sqlite_master "</span>
+     <span class="s">"WHERE type='table' AND name='chunks'"</span>).fetchone():
+    <span class="k">raise</span> ValueError(<span class="s">"chunks 테이블이 없습니다"</span>)          <span class="n">①</span>
+<span class="k">if</span> len(chunks) != len(vectors):
+    <span class="k">raise</span> ValueError(<span class="s">"조각과 벡터의 수가 다릅니다"</span>)        <span class="n">②</span>
+
+cur.execute(<span class="s">"DROP TABLE IF EXISTS chunk_vectors"</span>)      <span class="n">③</span>
+cur.execute(<span class="s">"""</span>
+<span class="k">CREATE TABLE</span> chunk_vectors (
+    purchase_id <span class="k">INTEGER NOT NULL</span>,
+    chunk_index <span class="k">INTEGER NOT NULL</span>,
+    vector      <span class="k">BLOB</span>,
+    <span class="k">PRIMARY KEY</span> (purchase_id, chunk_index),
+    <span class="k">FOREIGN KEY</span> (purchase_id, chunk_index)
+        <span class="k">REFERENCES</span> chunks (purchase_id, chunk_index)   <span class="n">④</span>
+)<span class="s">"""</span>)
+
+cur.execute(<span class="s">"""</span><span class="k">CREATE TABLE IF NOT EXISTS</span> embedding_meta (
+    key <span class="k">TEXT PRIMARY KEY</span>, value <span class="k">TEXT</span>)<span class="s">"""</span>)
+cur.executemany(<span class="s">"INSERT OR REPLACE INTO embedding_meta VALUES (?,?)"</span>,
+  [(<span class="s">"model"</span>, EMBED_MODEL), (<span class="s">"dim"</span>, dim),
+   (<span class="s">"count"</span>, len(chunks)), (<span class="s">"source"</span>, source)])       <span class="n">⑤</span>
+con.commit()                                             <span class="n">⑥</span></pre>
+    </div>
+    <ul class="anno">
+      <li><span class="m">①</span><span>선행 단계 확인. 없는 조각을 가리키는 벡터를 만들지 않는다.</span></li>
+      <li><span class="m">②</span><span>바로 아래 <code>zip</code>은 개수가 안 맞으면 <b>조용히 잘라 버린다.</b> 그래서 먼저 세운다 — 침묵하는 손실을 에러로 바꾸는 방어.</span></li>
+      <li><span class="m">③</span><span>옛 벡터를 남겨 두면 새 텍스트와 안 맞는 벡터가 섞여 <b>검색이 오염</b>된다. 조각을 다시 만들었으면 벡터도 전부 다시.</span></li>
+      <li><span class="m">④</span><span>복합 PK를 그대로 복합 FK로 받는다. 조각 하나 = 벡터 하나가 DB 레벨에서 보장된다.</span></li>
+      <li><span class="m">⑤</span><span><code>INSERT OR REPLACE</code>라 누적되지 않는다. <b>지금 색인의 상태</b>만 남는 메모장이다.</span></li>
+      <li><span class="m">⑥</span><span>커밋을 해야 확정된다 — 배치 스크립트에서 가장 자주 빠뜨리는 한 줄.</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- 25 ----------------------------------------------------------------->
+<section class="slide" data-c="vec" data-part="2부 · SQL 해석" data-title="SQL⑥ 벡터 검색">
+  <p class="kicker">SQL 해석 ⑥</p>
+  <h2>선필터와 유사도 정렬을 한 쿼리로 <span class="file">vector_db.search()</span></h2>
+  <div class="grid g21">
+    <div>
+      <pre class="code">q_vec = sqlite_vec.serialize_float32(
+    model.encode([f<span class="s">"{QUERY_PREFIX}{query}"</span>],            <span class="n">①</span>
+                 normalize_embeddings=EMBED_NORMALIZE)[0])
+
+rows = con.execute(f<span class="s">"""</span>
+    <span class="k">SELECT</span> v.purchase_id, pu.product_id, c.body,
+           <span class="k">vec_distance_cosine</span>(v.vector, ?) <span class="k">AS</span> distance  <span class="n">②</span>
+    <span class="k">FROM</span> chunk_vectors <span class="k">AS</span> v
+    <span class="k">JOIN</span> chunks   <span class="k">AS</span> c  <span class="k">ON</span> c.purchase_id = v.purchase_id
+                        <span class="k">AND</span> c.chunk_index = v.chunk_index  <span class="n">③</span>
+    <span class="k">JOIN</span> purchase <span class="k">AS</span> pu <span class="k">ON</span> pu.purchase_id = v.purchase_id
+    <span class="k">JOIN</span> review   <span class="k">AS</span> r  <span class="k">ON</span> r.purchase_id = pu.purchase_id  <span class="n">④</span>
+    <span class="k">WHERE</span> {where}                                       <span class="n">⑤</span>
+    <span class="k">ORDER BY</span> distance
+<span class="s">"""</span>, (q_vec, *params)).fetchall()                       <span class="n">⑥</span></pre>
+    </div>
+    <ul class="anno">
+      <li><span class="m">①</span><span>질의에는 <code>QUERY_PREFIX</code>(<code>query: </code>), 문서에는 <code>PASSAGE_PREFIX</code>.
+        <b>한쪽만 붙이면 점수가 무너진다.</b> 정규화 설정도 색인 때와 같은 값을 쓴다.</span></li>
+      <li><span class="m">②</span><span>sqlite-vec이 추가한 함수. 코사인 <b>거리</b>라 <b>작을수록 가깝다</b>. 정규화된 벡터에서 <code>유사도 = 1 − 거리</code>.</span></li>
+      <li><span class="m">③</span><span>두 컬럼 모두로 조인해야 조각이 정확히 매칭된다. <code>purchase_id</code>만 걸면 긴 리뷰의 조각들이 서로 섞인다.</span></li>
+      <li><span class="m">④</span><span><code>review</code>를 조인하는 이유는 <code>where</code> 안에 <code>r.rating &gt;= 3</code>이 들어오기 때문이다.
+        조건이 쓰는 별칭(<code>r</code>, <code>pu</code>)과 여기 별칭이 <b>암묵적으로 계약</b>돼 있다.</span></li>
+      <li><span class="m">⑤</span><span><code>where</code>는 <code>build_where()</code>가 만든 문자열. 값은 <b>절대 문자열에 잇지 않고</b> <code>params</code>로 바인딩한다.</span></li>
+      <li><span class="m">⑥</span><span>첫 <code>?</code>가 질의 벡터, 나머지가 필터 값이라 <b>순서가 중요</b>하다. 전체를 정렬해 가져온 뒤 파이썬에서 추린다 — 데이터 규모가 작아 가능한 선택.</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- 26 ----------------------------------------------------------------->
+<section class="slide" data-c="vec" data-part="2부 · 임베딩" data-title="검색 후처리 — 2단 중복 제거">
+  <p class="kicker">2부 · 청킹과 임베딩</p>
+  <h2>후보 3개가 같은 상품 리뷰로 채워지지 않게</h2>
+  <div class="grid g21">
+    <div>
+      <pre class="code"><span class="c"># 1) 리뷰(구매) 안에서: 여러 조각 중 가장 가까운 하나만</span>
+best = {}
+<span class="k">for</span> purchase_id, product_id, body, distance <span class="k">in</span> rows:
+    <span class="k">if</span> purchase_id <span class="k">not in</span> best <span class="k">or</span> distance &lt; best[purchase_id][2]:
+        best[purchase_id] = (product_id, body, distance)     <span class="n">①</span>
+
+<span class="c"># 2) 상품 안에서: 여러 리뷰 중 가장 가까운 하나만</span>
+best_per_product = {}
+<span class="k">for</span> purchase_id, (product_id, body, distance) <span class="k">in</span> best.items():
+    <span class="k">if</span> product_id <span class="k">not in</span> best_per_product <span class="k">or</span> \
+       distance &lt; best_per_product[product_id][-1]:
+        best_per_product[product_id] = (purchase_id, body, distance) <span class="n">②</span>
+
+ranked = sorted(best_per_product.values(),
+                key=<span class="k">lambda</span> item: item[-1])[:top_k]           <span class="n">③</span>
+<span class="k">return</span> [(purchase_id, <span class="n">1 - distance</span>, body) <span class="k">for</span> ... ]        <span class="n">④</span></pre>
+    </div>
+    <ul class="anno">
+      <li><span class="m">①</span><span>긴 리뷰는 조각이 여럿이라 상위권을 <b>한 리뷰가 독점</b>할 수 있다. 리뷰의 대표 점수를 <b>max 유사도</b>(= min 거리)로 정한다.</span></li>
+      <li><span class="m">②</span><span>인기 상품은 후기가 많아 같은 상품이 top-k를 다 차지한다. 추천 후보로는 쓸모가 없으므로 상품당 최고 리뷰 하나만 남긴다.
+        <b>“상품을 추천한다”는 목적이 자료구조에 그대로 드러난 부분.</b></span></li>
+      <li><span class="m">③</span><span>거리 오름차순 정렬 후 <code>top_k</code>만. 검색 CLI는 3, 추천 API는 20을 넘긴다.</span></li>
+      <li><span class="m">④</span><span>마지막에 <code>1 − distance</code>로 뒤집어 <b>클수록 비슷한</b> 점수로 돌려준다. 화면과 로그에 찍히는 “유사도 0.842”가 이 값이다.</span></li>
+    </ul>
+  </div>
+  <div class="card" style="margin-top:12px"><h3>합치기 방식은 아직 검증 대상</h3>
+    <p style="margin:0">한 상품의 조각 점수를 <b>max로 합칠까 mean으로 합칠까</b>는 <code>verify.py</code> 5단계가 비교하도록 남겨 뒀다.
+      max는 “결정적인 한 문장”에 강하고, mean은 “전반적으로 관련 있는 리뷰”에 강하다.</p></div>
+</section>
+
+<!-- 27 ----------------------------------------------------------------->
+<section class="slide" data-c="vec" data-part="2부 · 임베딩" data-title="재색인 감지 — check_freshness">
+  <p class="kicker">2부 · 청킹과 임베딩</p>
+  <h2>가장 흔한 사고: 데이터를 바꾸고 재색인을 잊는다</h2>
+  <p class="sub">조인은 <code>purchase_id</code>로 <b>조용히 성립</b>한다. 에러 없이 엉뚱한 리뷰가 나오는 것이 이 사고의 무서운 점이다.</p>
+  <div class="grid g21">
+    <div>
+      <pre class="code"><span class="c"># app/features/retrieve.py</span>
+<span class="k">def</span> chunk_fingerprint(con) -> str:
+    n, id_sum, token_sum = con.execute(
+        <span class="s">"SELECT COUNT(*), COALESCE(SUM(purchase_id),0),"</span>
+        <span class="s">" COALESCE(SUM(n_tokens),0) FROM chunks"</span>).fetchone()
+    <span class="k">return</span> f<span class="s">"{n}:{id_sum}:{token_sum}"</span>              <span class="n">①</span>
+
+<span class="k">def</span> check_freshness(con):
+    meta = dict(con.execute(<span class="s">"SELECT key, value FROM embedding_meta"</span>))
+    <span class="k">if</span> meta.get(<span class="s">"model"</span>) != EMBED_MODEL: problems.append(...)  <span class="n">②</span>
+    <span class="k">if</span> meta.get(<span class="s">"dim"</span>)   != str(EMBED_DIM): problems.append(...) <span class="n">③</span>
+    <span class="k">if</span> meta.get(<span class="s">"source"</span>) != chunk_fingerprint(con): ...      <span class="n">④</span>
+    <span class="k">return</span> problems     <span class="c"># 알리기만 하고 막지는 않는다</span>      <span class="n">⑤</span></pre>
+    </div>
+    <ul class="anno">
+      <li><span class="m">①</span><span><code>embed.py</code>가 색인 때 계산한 것과 <b>정확히 같은 식</b>. 파이썬 합계와 SQL 합계가 같아야 성립하므로 해시가 아니라 합계를 골랐다.</span></li>
+      <li><span class="m">②</span><span>모델이 다르면 <b>벡터 공간 자체가 다르다.</b> 숫자는 나오지만 유사도가 아무 의미가 없다 — 가장 조용하고 치명적인 불일치.</span></li>
+      <li><span class="m">③</span><span>차원이 다르면 거리 계산 자체가 성립하지 않는다.</span></li>
+      <li><span class="m">④</span><span><code>chunk.py</code>만 돌리고 <code>embed.py</code>를 잊는 것이 재색인 사이클에서 <b>가장 흔한 실수</b>다.</span></li>
+      <li><span class="m">⑤</span><span>검색을 막지 않고 <code>[경고]</code>만 찍는다. 개발 중에 검색이 아예 안 되는 것보다, 틀릴 수 있다고 알려 주는 편이 낫다는 판단.</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- 28 ----------------------------------------------------------------->
+<section class="slide" data-c="vec" data-part="2부 · 임베딩" data-title="임베딩 함정 체크리스트">
+  <p class="kicker">2부 · 정리</p>
+  <h2>임베딩 작업에서 조용히 틀리는 것들</h2>
+  <p class="sub">전부 <b>에러 없이</b> 지나가고 품질만 떨어뜨린다. 이 프로젝트 코드는 각 항목에 대응하는 방어를 하나씩 갖고 있다.</p>
+  <table>
+    <tr><th>조용한 사고</th><th>증상</th><th>이 저장소의 방어</th></tr>
+    <tr><td>문서/질의 접두어 불일치</td><td>점수만 나빠짐</td><td class="m">EMBED_PROFILES 표 한 곳</td></tr>
+    <tr><td>정규화를 한쪽만 켬</td><td>거리 값이 무의미</td><td class="m">EMBED_NORMALIZE 공유</td></tr>
+    <tr><td>토크나이저 ≠ 임베딩 모델</td><td>한도 계산이 틀려 뒤가 잘림</td><td class="m">EMBED_TOKENIZER = EMBED_MODEL</td></tr>
+    <tr><td>한도 초과 조각</td><td>뒷부분이 통째로 누락</td><td class="m">chunk.py 초과 개수 경고</td></tr>
+    <tr><td>필터가 이미 거르는 값을 문서에 중복</td><td>문서가 서로 비슷해져 순위가 안 갈림</td><td class="m">build_review_doc 주석</td></tr>
+    <tr><td>조각 접두어 누락</td><td>뒤 조각이 어느 상품인지 모름</td><td class="m">split_review 재부착</td></tr>
+    <tr><td>모델 교체 후 재색인 누락</td><td>공간이 달라 유사도 붕괴</td><td class="m">check_freshness</td></tr>
+    <tr><td>데이터 갱신 후 재색인 누락</td><td>엉뚱한 리뷰가 조인됨</td><td class="m">조각 지문 source</td></tr>
+    <tr><td>평가용 리뷰를 색인에 포함</td><td>점수가 과대평가됨</td><td class="m">INDEX_FILTER is_holdout = 0</td></tr>
+    <tr><td>조각 수 ≠ 벡터 수</td><td>zip이 조용히 잘라냄</td><td class="m">save_vectors 길이 검사</td></tr>
+  </table>
+</section>
+
+<!-- 29 ----------------------------------------------------------------->
+<section class="slide" data-c="app" data-part="3부 · 앱" data-title="app 계층 지도">
+  <p class="kicker">3부 · API · features · repositories</p>
+  <h2>서버는 조립만 한다 <span class="file">app/main.py</span></h2>
+  <div class="grid g21">
+    <div>
+      <pre class="code">init_logger()
+app = FastAPI(lifespan=lifespan)                <span class="n">①</span>
+app.include_router(recommend_router)            <span class="n">②</span>
+app.include_router(auth_router)
+app.include_router(admin_auth_router)
+app.include_router(products_router)
+app.mount(<span class="s">"/static/admin"</span>,
+          StaticFiles(directory=<span class="s">"web/admin"</span>))     <span class="n">③</span>
+
+<span class="k">@app</span>.get(<span class="s">"/health"</span>)
+<span class="k">def</span> health(): <span class="k">return</span> {<span class="s">"status"</span>: <span class="s">"ok"</span>}          <span class="n">④</span>
+
+<span class="c"># app/api/lifespan.py</span>
+<span class="k">@asynccontextmanager</span>
+<span class="k">async def</span> lifespan(app):
+    app.state.con = connect()                   <span class="n">⑤</span>
+    <span class="k">yield</span>
+    app.state.con.close()</pre>
+    </div>
+    <ul class="anno">
+      <li><span class="m">①</span><span>uvicorn이 <b>실제로 포트를 여는</b> ASGI 서버이고, FastAPI는 요청에 따른 콜백만 정의한다. 그 경계를 헷갈리면 배포에서 막힌다.</span></li>
+      <li><span class="m">②</span><span>엔드포인트 함수는 <code>routes/</code>로 나눈다. main은 <b>조립과 등록</b>만 — 라우트가 늘어도 이 파일은 안 커진다.</span></li>
+      <li><span class="m">③</span><span>관리자 화면(<code>web/admin</code>)을 정적 파일로 붙인다. 별도 프론트 서버 없이 대시보드를 띄우기 위한 선택.</span></li>
+      <li><span class="m">④</span><span>로드밸런서가 주기적으로 부르는 생존 확인. <code>routes/health.py</code>는 비어 있고 실제로는 여기 있다 — <b>정리 대상.</b></span></li>
+      <li><span class="m">⑤</span><span>서버가 뜰 때 sqlite-vec을 로드한 커넥션을 <b>한 번만</b> 만들어 재사용한다. 요청마다 확장을 로드하면 느리다.
+        <code>check_same_thread=False</code>가 필요한 이유는 sync 엔드포인트가 요청마다 다른 스레드에서 돌기 때문(읽기 전용이라 안전).</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- 30 ----------------------------------------------------------------->
+<section class="slide" data-c="app" data-part="3부 · 앱" data-title="/recommend 요청의 여정">
+  <p class="kicker">3부 · API · features · repositories</p>
+  <h2>요청 한 건이 지나가는 자리들</h2>
+  <pre class="code">POST /recommend  {"user_query": "소형견 다이어트 사료", "allergy": "닭", "n_pick": 5}
+  │
+  ├ <span class="k">api/schemas.py</span>        RecommendRequest 로 <span class="n">형식 검증</span>  ← 여기서 걸리면 422
+  ├ <span class="k">api/routes/recommend.py</span>  순서만 엮는다 (로직 없음)
+  │     │
+  │     ├ <span class="k">features/profile.py</span>   build_profile(raw)      자유 입력 → 공통 dict
+  │     │      └ resolve_allergy()  등록된 allergen 이름과 대조         <span class="n">①</span>
+  │     │
+  │     ├ <span class="k">features/searching.py</span> candidates(profile, q)  후보 20건
+  │     │      ├ features/retrieve.build_where()   프로필 → WHERE + params
+  │     │      ├ pipeline/vector_db.search()       선필터 + 코사인 랭킹
+  │     │      └ core/db.query()                   상품명·브랜드·가격 붙이기
+  │     │
+  │     └ <span class="k">features/recommending.py</span> recommend(후보, profile, 5)
+  │            ├ domain/prompting.build_recommend_prompt()
+  │            ├ adapters/stores/llm.chat.with_structured_output()
+  │            └ 후보 밖 product_id 검증 → 실패 시 재시도                <span class="n">②</span>
+  │
+  └ RecommendResponse {picks, retries, error}     후보 0건이면 <span class="n">404</span>      <span class="n">③</span></pre>
+  <div class="grid g3" style="margin-top:14px">
+    <div class="card hi"><h3>① 알러지 이름 대조</h3>
+      <p style="margin:0">“닭”, “닭 알러지” 같은 입력이 <code>name_ko</code>와 정확히 안 맞아 필터가 <b>조용히 no-op</b> 되던 문제를
+        부분 일치 대조로 고쳤다. 못 찾으면 경고를 찍고 필터를 걸지 않는다.</p></div>
+    <div class="card hi"><h3>② 후보 밖 id 차단</h3>
+      <p style="margin:0">LLM이 없는 상품을 지어내도 그대로 나가지 않게 <b>id 집합으로 검증</b>한다.</p></div>
+    <div class="card hi"><h3>③ 0건은 성공이 아니다</h3>
+      <p style="margin:0">조건에 맞는 후보가 없으면 빈 배열이 아니라 404. 사용자가 “왜 비었지”를 알 수 있어야 한다.</p></div>
+  </div>
+</section>
+
+<!-- 31 ----------------------------------------------------------------->
+<section class="slide" data-c="app" data-part="3부 · SQL 해석" data-title="SQL⑦ 선필터 FILTERS">
+  <p class="kicker">SQL 해석 ⑦</p>
+  <h2>타협 불가 조건은 SQL이 먼저 잘라 낸다 <span class="file">features/retrieve.py</span></h2>
+  <div class="grid g21">
+    <div>
+      <pre class="code">FILTERS = {
+ <span class="s">"size_category"</span>: f<span class="s">"{SIZE_CASE} = ?"</span>,                    <span class="n">①</span>
+
+ <span class="s">"allergy"</span>: <span class="s">"""</span>
+   <span class="k">NOT EXISTS</span> (                                        <span class="n">②</span>
+     <span class="k">SELECT</span> 1 <span class="k">FROM</span> product_ingredient <span class="k">AS</span> pi
+     <span class="k">JOIN</span> ingredient_allergen <span class="k">AS</span> ia <span class="k">ON</span> ia.ingredient_id = pi.ingredient_id
+     <span class="k">JOIN</span> allergen <span class="k">AS</span> al <span class="k">ON</span> al.allergen_id = ia.allergen_id
+     <span class="k">WHERE</span> pi.product_id = pu.product_id <span class="k">AND</span> al.name_ko = ?)<span class="s">"""</span>,
+
+ <span class="s">"animal_category"</span>: <span class="s">"""</span>
+   <span class="k">EXISTS</span> (                                            <span class="n">③</span>
+     <span class="k">SELECT</span> 1 <span class="k">FROM</span> pet <span class="k">AS</span> pe
+     <span class="k">JOIN</span> animal_category <span class="k">AS</span> ac <span class="k">ON</span> ac.animal_category_id = pe.animal_category_id
+     <span class="k">WHERE</span> pe.pet_id = pu.pet_id <span class="k">AND</span> ac.name_ko = ?)<span class="s">"""</span>,
+}
+MIN_RATING = 3     <span class="c"># 항상 붙는 기본 조건</span>            <span class="n">④</span></pre>
+    </div>
+    <ul class="anno">
+      <li><span class="m">①</span><span>체급은 <code>1~5</code> 코드로 저장돼 있으므로 <code>SIZE_CASE</code>로 라벨로 바꿔 비교한다.
+        그래서 <code>pet_profile()</code>도 정수 2가 아니라 <b>'소형'</b>을 넘긴다 — 정수를 넘기면 아무것도 안 걸린다.</span></li>
+      <li><span class="m">②</span><span><b>기준이 한 번 바뀐 자리.</b> 예전에는 <code>pet_allergy</code>(리뷰어의 알러지)를 봤는데,
+        그건 “닭 알러지 있는 개가 쓴 리뷰를 빼자”일 뿐 <b>상품에 닭이 들었는지는 전혀 안 보는</b> 조건이었다.
+        지금은 상품 원료 → 알러지원으로 판정한다. <code>NOT EXISTS</code>라 <b>배제</b> 필터.</span></li>
+      <li><span class="m">③</span><span>축종은 반대로 <code>EXISTS</code> — 그 축종의 펫이 쓴 리뷰만 남긴다.</span></li>
+      <li><span class="m">④</span><span>별점 3 미만 리뷰는 추천 근거로 쓰지 않는다. 조건이 하나도 없어도 이건 항상 붙는다.</span></li>
+    </ul>
+  </div>
+  <div class="card warn" style="margin-top:12px"><b>같은 규칙이 세 곳에 있다</b> —
+    ① DB 뷰 <code>v_product_safety</code> ② 여기 <code>FILTERS['allergy']</code> ③ <code>domain/safty.judge()</code>.
+    하나를 고치면 셋 다 고쳐야 한다. 뷰는 전량 후보를 만들고, 필터는 검색을 좁히고, judge는 <b>왜 걸렸는지 근거</b>를 붙인다.
+  </div>
+</section>
+
+<!-- 32 ----------------------------------------------------------------->
+<section class="slide" data-c="app" data-part="3부 · 앱" data-title="build_where — 조건 조립">
+  <p class="kicker">3부 · API · features · repositories</p>
+  <h2>값이 있는 키만 조건이 된다</h2>
+  <div class="grid g21">
+    <div>
+      <pre class="code"><span class="k">def</span> build_where(profile):
+    clauses, params = [f<span class="s">"r.rating &gt;= {MIN_RATING}"</span>], []
+    <span class="k">for</span> key, clause <span class="k">in</span> FILTERS.items():
+        value = profile.get(key)
+        <span class="k">if not</span> value: <span class="k">continue</span>                       <span class="n">①</span>
+        <span class="k">for</span> item <span class="k">in</span> (value <span class="k">if</span> isinstance(value, list) <span class="k">else</span> [value]):
+            clauses.append(clause)                    <span class="n">②</span>
+            params.append(item)
+    <span class="k">return</span> <span class="s">" AND "</span>.join(clauses) <span class="k">or</span> <span class="s">"1=1"</span>, tuple(params)  <span class="n">③</span>
+
+<span class="c"># 결과 예시</span>
+where  = <span class="s">"r.rating &gt;= 3 AND {SIZE_CASE} = ? AND NOT EXISTS(...) AND NOT EXISTS(...)"</span>
+params = (<span class="s">'소형'</span>, <span class="s">'닭'</span>, <span class="s">'소고기'</span>)</pre>
+    </div>
+    <ul class="anno">
+      <li><span class="m">①</span><span>프로필에 없는 값은 조건을 만들지 않는다. 모르는 값에 <code>NULL</code> 비교를 걸면 <b>전부 탈락</b>한다.</span></li>
+      <li><span class="m">②</span><span>알러지처럼 값이 여러 개면 <b>같은 절을 값마다 반복</b>해 AND로 묶는다.
+        하나만 걸면 나머지 알러지원이 든 상품이 그대로 통과한다.</span></li>
+      <li><span class="m">③</span><span>조건이 하나도 없으면 <code>1=1</code>. 문자열 조립이지만 <b>사용자 값은 절대 이어 붙이지 않고</b>
+        전부 <code>?</code> 바인딩이다 — SQL 인젝션이 들어올 자리가 없다.</span></li>
+    </ul>
+  </div>
+  <div class="card" style="margin-top:12px"><h3>DB를 단일 출처로 삼는다 — <code>pet_profile()</code></h3>
+    <p style="margin:0">사람이 종·체급·알러지를 다시 타이핑하면 이미 DB에 있는 값을 틀리게 적을 수 있다.
+      체급 한 칸만 잘못 골라도 <b>정답이 후보에서 통째로 빠진다.</b> 그래서 <code>pet_id</code> 하나만 받아 나머지는 DB에서 확정한다.</p></div>
+</section>
+
+<!-- 33 ----------------------------------------------------------------->
+<section class="slide" data-c="app" data-part="3부 · 앱" data-title="candidates — 선필터와 벡터를 잇는다">
+  <p class="kicker">3부 · API · features · repositories</p>
+  <h2>리뷰 검색 결과를 “상품 후보”로 번역한다 <span class="file">features/searching.py</span></h2>
+  <div class="grid g21">
+    <div>
+      <pre class="code"><span class="k">def</span> candidates(profiles, user_query, limit=20):
+    con = connect()                                    <span class="n">①</span>
+    where, params = build_where(profiles)
+    hits = search(con, user_query, where=where,
+                  params=params, top_k=limit)
+
+    result = []
+    <span class="k">for</span> purchase_id, score, review <span class="k">in</span> hits:
+        product_id = query(<span class="s">"SELECT product_id FROM purchase"</span>
+                           <span class="s">" WHERE purchase_id = ?"</span>, ...)     <span class="n">②</span>
+        name, brand, price = query(<span class="s">"SELECT name, brand, price_krw"</span>
+                           <span class="s">" FROM product WHERE product_id = ?"</span>, ...)
+        result.append({<span class="s">"product_id"</span>:…, <span class="s">"name"</span>:…, <span class="s">"brand"</span>:…,
+                       <span class="s">"price_krw"</span>:…, <span class="s">"score"</span>: score,
+                       <span class="s">"review"</span>: review.removeprefix(PASSAGE_PREFIX)}) <span class="n">③</span>
+    con.close()
+    <span class="k">return</span> result</pre>
+    </div>
+    <ul class="anno">
+      <li><span class="m">①</span><span>여기서 커넥션을 <b>새로 연다.</b> <code>lifespan</code>이 만든 <code>app.state.con</code>이 있는데도 쓰지 않고,
+        아래 <code>query()</code>는 또 <code>core/db.py</code>의 모듈 커넥션을 쓴다 — 한 요청에 커넥션이 <b>세 개</b>다. 정리하면 좋을 지점.</span></li>
+      <li><span class="m">②</span><span>후보 20건이면 <b>쿼리 40번</b>이 나간다(전형적인 N+1). 한 번의 <code>IN (…)</code> 조인으로 합칠 수 있다.
+        지금 규모에서 안 아프지만 구조로는 남겨 둘 자리.</span></li>
+      <li><span class="m">③</span><span>화면·프롬프트에 나갈 때는 <code>passage: </code> 접두어를 뗀다. 색인에는 필요하지만 <b>사람이 볼 문장에는 노이즈</b>다.</span></li>
+    </ul>
+  </div>
+  <div class="card hi" style="margin-top:12px"><h3>이 파일이 존재하는 이유</h3>
+    <p style="margin:0">“정형 필터가 먼저 거르고 LLM은 그 후보 위에서만 판단한다”를 <b>실행하는 자리</b>다.
+      이게 없으면 LLM에 상품 전체를 넘기게 되고, 토큰 낭비에 축종·알러지가 안 맞는 후보까지 섞여 들어간다.</p></div>
+</section>
+
+<!-- 34 ----------------------------------------------------------------->
+<section class="slide" data-c="app" data-part="3부 · 앱" data-title="LLM 호출 — 구조화 출력과 검증">
+  <p class="kicker">3부 · API · features · repositories</p>
+  <h2>모델의 답을 형식으로 강제하고, 깨지면 다시 시킨다</h2>
+  <div class="grid g2">
+    <div>
+      <pre class="code"><span class="c"># domain/prompting.py — 형식과 프롬프트는 한 쌍</span>
+<span class="k">class</span> Pick(BaseModel):
+    product_id: int = Field(description=<span class="s">"후보 목록에 있는 id"</span>)
+    reason: str     = Field(description=<span class="s">"고른 이유, 한두 문장"</span>)
+<span class="k">class</span> Recommendation(BaseModel):
+    picks: list[Pick]
+
+<span class="c"># features/recommending.py</span>
+valid_ids = {c[<span class="s">"product_id"</span>] <span class="k">for</span> c <span class="k">in</span> candidates}     <span class="n">①</span>
+structured_chat = chat.with_structured_output(Recommendation)
+
+<span class="k">for</span> attempt <span class="k">in</span> range(MAX_RETRIES + 1):                <span class="n">②</span>
+    result = structured_chat.invoke(prompt)
+    bad_ids = [p.product_id <span class="k">for</span> p <span class="k">in</span> result.picks
+               <span class="k">if</span> p.product_id <span class="k">not in</span> valid_ids]         <span class="n">③</span>
+    <span class="k">if not</span> bad_ids <span class="k">and</span> len(result.picks) == n_pick:
+        <span class="k">return</span> [...], attempt, <span class="s">""</span>
+    last_error = ...                                    <span class="n">④</span></pre>
+    </div>
+    <div class="grid" style="align-content:start">
+      <ul class="anno">
+        <li><span class="m">①</span><span>후보 id 집합을 미리 만든다. <b>검증 없는 생성 결과는 그대로 내보내지 않는다</b>는 원칙.</span></li>
+        <li><span class="m">②</span><span>온도 0으로 고정해도 형식은 가끔 깨진다. 최대 2회 재시도하고, 시도 횟수를 응답에 담아 <b>얼마나 불안정한지 관측</b>한다.</span></li>
+        <li><span class="m">③</span><span>후보 밖 id + 개수 불일치 두 가지를 본다. 프롬프트에도 “후보에 없는 id는 절대 쓰지 마라”를 명시하지만, <b>지시는 보장이 아니다.</b></span></li>
+        <li><span class="m">④</span><span>끝내 실패하면 빈 목록 + 마지막 오류를 돌려준다. 라우트는 이걸 그대로 응답에 담는다 — 실패를 숨기지 않는다.</span></li>
+      </ul>
+      <div class="card warn"><h3>미완성 코드 (2026-09-02 커밋 시점)</h3>
+        <pre class="code" style="margin-top:8px"><span class="k">except</span> Exception <span class="k">as</span> exc:
+    <span class="c"># 채우기: last_error에 str(exc) 담고 continue</span>
+    ...</pre>
+        <p style="margin:8px 0 0">예외를 잡고 <code>...</code>로 흘려보내므로 <b><code>result</code>가 미정의</b>인 채 아래로 내려가
+          <code>NameError</code>가 난다. <code>last_error = str(exc)</code> + <code>continue</code>를 채워야 재시도가 실제로 동작한다.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 35 ----------------------------------------------------------------->
+<section class="slide" data-c="app" data-part="3부 · 앱" data-title="CRUD와 예외 매핑">
+  <p class="kicker">3부 · API · features · repositories</p>
+  <h2>같은 실패를 계층마다 다른 말로 옮긴다</h2>
+  <div class="grid g21">
+    <div>
+      <pre class="code"><span class="c"># repositories/products.py — SQL만</span>
+<span class="k">def</span> find_by_id(product_id): dicts(<span class="s">"SELECT * FROM product WHERE …"</span>)
+<span class="k">def</span> insert(values):
+    cols = <span class="s">", "</span>.join(values.keys())                        <span class="n">①</span>
+    placeholders = <span class="s">", "</span>.join(<span class="s">"?"</span> <span class="k">for</span> _ <span class="k">in</span> values)
+    cur = con.execute(f<span class="s">"INSERT INTO product ({cols}) VALUES ({placeholders})"</span>,
+                      tuple(values.values()))
+    <span class="k">return</span> cur.lastrowid
+
+<span class="c"># features/products.py — 규칙</span>
+<span class="k">def</span> delete_product(product_id):
+    <span class="k">if</span> product_repo.find_by_id(product_id) <span class="k">is None</span>:
+        <span class="k">raise</span> ProductError(<span class="s">"not_found"</span>, …)                  <span class="n">②</span>
+    used = purchase_repo.count_for_product(product_id)
+    <span class="k">if</span> used:
+        <span class="k">raise</span> ProductError(<span class="s">"conflict"</span>, f<span class="s">"구매 이력 {used}건"</span>)   <span class="n">③</span>
+    product_repo.delete(product_id)
+
+<span class="c"># api/errors.py — HTTP 로 번역</span>
+STATUS = {<span class="s">"not_found"</span>: 404, <span class="s">"conflict"</span>: 409}                <span class="n">④</span></pre>
+    </div>
+    <ul class="anno">
+      <li><span class="m">①</span><span>컬럼 목록을 <b>넘어온 dict에서</b> 만든다. <code>ProductUpdate</code>가 <code>exclude_unset=True</code>로 준 필드만 담기므로
+        “준 필드만 수정”이 자연스럽게 성립한다. 다만 컬럼명이 SQL 문자열에 들어가므로 <b>스키마 밖 키가 들어오지 않게</b> Pydantic이 앞에서 막아 줘야 한다.</span></li>
+      <li><span class="m">②</span><span>features는 <b>HTTP를 모른다.</b> 404 대신 <code>ProductError("not_found")</code>라는 도메인 언어로 던진다.</span></li>
+      <li><span class="m">③</span><span>구매 이력이 있으면 삭제 대신 409. FK가 RESTRICT라 DB도 막지만, <b>사람이 읽을 이유</b>는 앱이 붙인다.</span></li>
+      <li><span class="m">④</span><span>번역표는 한 곳. 지금은 <code>routes/products.py</code> 안에도 같은 <code>_http()</code>가 중복돼 있다 — <b>errors.py로 합칠 자리.</b></span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- 36 ----------------------------------------------------------------->
+<section class="slide" data-c="app" data-part="3부 · 앱" data-title="domain — 마스터 캐시와 판정">
+  <p class="kicker">3부 · domain</p>
+  <h2>기동 시 한 번 읽어 메모리에 세워 두는 것들</h2>
+  <div class="grid g2">
+    <div>
+      <pre class="code"><span class="c"># domain_init.init_from_db() — 최초 1회</span>
+CommonMgr : allergen(트리) · animal_category
+PetMgr    : breed  (축종별로 묶어서)
+ProductMgr: product 컬럼 · product_category(트리)
+            feeding_purpose · ingredient · ingredient_allergen
+
+<span class="c"># 트리를 세우는 방식 (allergen · product_category 공통)</span>
+nodes = {row[<span class="s">'id'</span>]: {**row, <span class="s">'children'</span>: []} <span class="k">for</span> row <span class="k">in</span> rows}
+<span class="k">for</span> node <span class="k">in</span> nodes.values():
+    parent = nodes.get(node[<span class="s">'parent_id'</span>])
+    (parent[<span class="s">'children'</span>] <span class="k">if</span> parent <span class="k">else</span> roots).append(node)</pre>
+      <div class="card" style="margin-top:12px"><h3>왜 캐시인가</h3>
+        <p style="margin:0">수백 행짜리 <b>정적 데이터</b>다. 매 요청 조회할 이유가 없고,
+          알러지 판정은 원료마다 조회가 필요해 조인 대신 캐시로 들고 있는 편이 훨씬 싸다.
+          대신 <b>관리자가 행을 추가하면 캐시를 비워야</b> 한다 — 트리 인식이 낡으면 틀린 목록이 들어간다.</p></div>
+    </div>
+    <div>
+      <pre class="code"><span class="c"># domain/safty.py — DB에 닿지 않는 판정</span>
+<span class="k">def</span> judge(product_ingredient_ids, pet_allergen_ids,
+          ingredients_verified):
+    <span class="k">if not</span> product_ingredient_ids:
+        <span class="k">return</span> UNKNOWN, <span class="s">'원료표가 없습니다'</span>
+    hits = _hit_allergens(...)                 <span class="c"># 교집합</span>
+    <span class="k">if</span> hits:
+        <span class="k">return</span> WARN, f<span class="s">'{names} 알러지원이 들어 있습니다'</span>   <span class="n">근거</span>
+    <span class="k">if not</span> ingredients_verified:
+        <span class="k">return</span> UNKNOWN, <span class="s">'사람이 확인한 적이 없습니다'</span>
+    <span class="k">return</span> SAFE, <span class="s">''</span></pre>
+      <div class="card hi" style="margin-top:12px"><h3>뷰와 무엇이 다른가</h3>
+        <p style="margin:0">뷰는 펫 × 상품 전량을 걸러 <b>후보를 만들고</b>, <code>judge()</code>는 이미 뽑아 둔 후보에
+          <b>“왜 걸렸는지” 근거 문장을 붙인다.</b> 근거 없는 차단은 사용자가 고칠 수 없다 —
+          “닭고기 알러지원이 들어 있습니다”라고 말해 줘야 다음 행동이 생긴다.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 37 ----------------------------------------------------------------->
+<section class="slide" data-c="app" data-part="3부 · domain" data-title="순수 함수들 — 마스킹과 나이 계산">
+  <p class="kicker">3부 · domain</p>
+  <h2>DB가 못 하는 계산은 도메인이 한다</h2>
+  <div class="grid g2">
+    <div class="card"><h3>petcalc.age_months() — 왜 SQL로 안 하나</h3>
+      <pre class="code" style="margin-top:8px">SQLite: julianday 차이 / 30.44  <span class="c"># 평균 일수, 근사</span>
+2023-03-15 생 → 2027-03-15 는?
+   SQL  <span class="n">47개월</span>   (틀림)
+   달력 <span class="k">48개월</span>   (맞음)</pre>
+      <p style="margin:8px 0 0">하필 <b>퍼피/성견/노견 경계</b>가 걸리는 지점에서 틀린다.
+        그래서 달력으로 세고, 생일이 안 지났으면 1을 뺀다. 생일 미입력은 <code>None</code> —
+        0으로 뭉개면 ‘모름’이 ‘신생아’가 된다. 파일 하나로 <code>_demo()</code> 경계 테스트까지 돈다.</p></div>
+    <div class="card"><h3>masking.py — 새는 쪽을 택한다</h3>
+      <p style="margin:0 0 8px">후기에 섞인 전화번호·이메일·오픈채팅 유도를 가린다. 되돌릴 수 없는 변환이라
+        <b>저장이 아니라 나가는 글에만</b> 쓴다.</p>
+      <pre class="code">mask(<span class="s">"박승호입니다 오 픈 채 팅 주세요 010-1234-1234 충남 아산시 배방읍"</span>)
+→ <span class="s">"[이름]입니다 [연락처] 주세요 [전화번호] [주소]"</span></pre>
+      <p style="margin:8px 0 0">설계 원칙이 분명하다: 형식이 뚜렷한 것만 확실히 막고 <b>애매하면 남긴다.</b>
+        우회를 다 쫓다 보면 규칙이 조여져 평범한 후기가 먼저 지워진다
+        (‘-더라고요’ 106건을 통째로 먹은 규칙을 실제로 걷어냈다). 문장째 지우지 않고 <b>연락 수단 부분만</b> 치환한다.</p></div>
+  </div>
+  <div class="card hi" style="margin-top:12px"><h3>공통점</h3>
+    <p style="margin:0">둘 다 <b>입력 → 출력</b>만 있는 순수 함수라 DB 없이 테스트된다. 파이프라인(색인 전 정제)과 서버(응답 직전) 양쪽에서 같은 코드를 쓸 수 있는 이유.</p></div>
+</section>
+
+<!-- 38 ----------------------------------------------------------------->
+<section class="slide" data-c="app" data-part="3부 · 앱" data-title="인증 흐름">
+  <p class="kicker">3부 · API</p>
+  <h2>두 개의 로그인, 하나의 토큰 형식</h2>
+  <div class="grid g2">
+    <div>
+      <pre class="code"><span class="c"># 사용자 — POST /auth/google</span>
+브라우저 → Supabase 구글 로그인 → access_token
+   ↓
+verify_supabase_token(access_token)          <span class="n">①</span>
+   ↓ {sub, email, name}
+features/auth.login_or_signup()              <span class="n">②</span>
+   ├ 있으면 last_login_at 갱신
+   └ 없으면 INSERT (가입과 로그인이 한 경로)
+   ↓
+jwt.encode({user_id, exp}, JWT_SECRET)       <span class="n">③</span></pre>
+      <pre class="code" style="margin-top:10px"><span class="c"># 관리자 — POST /admin/login</span>
+secrets.compare_digest(password, ADMIN_PASSWORD)   <span class="n">④</span>
+   ↓
+jwt.encode({<span class="s">"role"</span>: <span class="s">"admin"</span>, exp})
+   ↓
+Depends(get_current_admin)  ← 상품 CRUD 전체에 부착  <span class="n">⑤</span></pre>
+    </div>
+    <ul class="anno">
+      <li><span class="m">①</span><span>토큰 검증은 <code>adapters/stores/</code>에 둔다. 바깥 세계(Supabase)와 말하는 자리는 한 곳으로 모은다.
+        반환 모양을 고정해 두면 나중에 제공자를 바꿔도 위층이 안 바뀐다.</span></li>
+      <li><span class="m">②</span><span>DB의 <code>uq_user_auth(auth_provider, auth_uid)</code> 유니크 인덱스를 그대로 타는 조회 한 방.
+        스키마가 “같은 계정이 두 유저에 붙는 것”을 이미 막고 있다.</span></li>
+      <li><span class="m">③</span><span>이후 요청은 자체 발급 JWT로 다닌다. <code>user_id</code>는 <b>검증된 토큰에서만</b> 꺼내고 요청 body로 받지 않는다.</span></li>
+      <li><span class="m">④</span><span><code>==</code>가 아니라 <code>compare_digest</code> — 비교 시간이 값에 따라 달라지지 않게 하는 타이밍 공격 방어.</span></li>
+      <li><span class="m">⑤</span><span>라우터 단위로 의존성을 걸어 <b>엔드포인트마다 빠뜨릴 수 없게</b> 만든다. 인증은 개별 함수가 기억할 일이 아니다.</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- 39 ----------------------------------------------------------------->
+<section class="slide" data-c="ck" data-part="4부 · 검증" data-title="verify.py 6단계">
+  <p class="kicker">4부 · 검증과 평가</p>
+  <h2>“만들어졌다”와 “쓸 수 있다”는 다르다 <span class="file">pipeline/verify.py</span></h2>
+  <p class="sub">아무것도 만들지 않는다. 몇 번을 돌려도 데이터가 안 바뀐다. 여기서 문제가 하나라도 나오면 앱을 붙이기 전에 고친다.</p>
+  <table>
+    <tr><th>단계</th><th>보는 것</th><th>놓치면 생기는 일</th></tr>
+    <tr><td class="m">1 개수</td><td>표마다 몇 행인가, 벡터가 빠진 행은 없는가</td><td>일부 리뷰가 영원히 검색되지 않는다</td></tr>
+    <tr><td class="m">2 벡터</td><td>차원·모델·정규화가 맞는가</td><td>유사도가 조용히 의미를 잃는다</td></tr>
+    <tr><td class="m">3 저장</td><td>BLOB 실제 크기가 예상과 맞는가<br><span class="m">384 × 4바이트 = 1,536</span></td><td>직렬화가 깨진 걸 검색해 보고서야 안다</td></tr>
+    <tr><td class="m">4 토큰</td><td>상한을 넘어 잘리는 조각이 있는가</td><td>후기 뒷부분이 색인에서 사라진다</td></tr>
+    <tr><td class="m">5 합치기</td><td>한 상품의 조각 점수를 max vs mean</td><td>랭킹 방식을 감으로 고르게 된다</td></tr>
+    <tr><td class="m">6 눈으로</td><td>실제 질문을 던져 결과를 본다</td><td>숫자는 좋은데 결과가 이상한 상태를 못 잡는다</td></tr>
+  </table>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card hi"><h3>검사가 거짓말하는 자리</h3>
+      <p style="margin:0"><code>KINDS</code>에 벡터 표 세 벌(<code>chunk / product / customer</code>)을 적어 두는데,
+        여기서 한 줄을 빠뜨리면 점검이 <b>두 벌만 보고 “이상 없다”</b>고 말한다. 검증 코드 자체의 커버리지를 의심하라는 뜻.</p></div>
+    <div class="card"><h3>이 데이터의 급소를 직접 센다</h3>
+      <pre class="code" style="margin-top:8px"><span class="k">SELECT</span> COUNT(*) <span class="k">FROM</span> chunks <span class="k">WHERE</span> body <span class="k">LIKE</span> <span class="s">'%환불%'</span></pre>
+      <p style="margin:8px 0 0">참고 프로젝트는 ‘환불’이 한 번도 안 나오고 ‘교환·반품’으로만 적혀 있었다.
+        <b>어느 낱말을 쓰든 벡터 검색만 믿으면 안 된다</b>는 것을 데이터로 확인한다.</p></div>
+  </div>
+</section>
+
+<!-- 40 ----------------------------------------------------------------->
+<section class="slide" data-c="ck" data-part="4부 · 평가" data-title="eval.py — recall@k와 MRR">
+  <p class="kicker">4부 · 검증과 평가</p>
+  <h2>홀드아웃 리뷰를 질문처럼 넣어 정답을 다시 찾아낸다 <span class="file">pipeline/eval/eval.py</span></h2>
+  <div class="grid g21">
+    <div>
+      <pre class="code"><span class="c"># 1) 색인에서 빠진, 정답을 이미 아는 표본</span>
+<span class="k">WHERE</span> r.is_holdout = 1 <span class="k">AND</span> TRIM(r.body) &lt;&gt; <span class="s">''</span>          <span class="n">①</span>
+
+<span class="c"># 2) 그 리뷰 본문을 질의로 던진다 — 검색 코드는 그대로 재사용</span>
+where, params = build_where({animal_category, size, allergy})
+results = search(con, review, where=where, params=params, top_k=50)  <span class="n">②</span>
+
+<span class="c"># 3) 정답 상품이 몇 위에 나왔나 — 정수 하나로 압축</span>
+rank = rank_of_answer(product_of, product_id, results)     <span class="n">③</span>
+
+<span class="c"># 4) 지표</span>
+recall@k = (rank &lt;= k 인 표본 수) / 전체
+mrr      = 평균(1 / rank)                                   <span class="n">④</span></pre>
+      <div class="card warn" style="margin-top:12px"><h3>이길 수 없는 표본을 따로 센다</h3>
+        <p style="margin:0">정답 상품에 그 펫의 알러지 원료가 실제로 들어 있으면
+          <b>알러지 필터가 정답 자체를 후보에서 뺀다.</b> 검색 품질과 무관한 미스이므로
+          <code>count_allergy_contamination()</code>이 그 비율을 따로 찍는다 — 지표를 해석할 때 이 비율을 먼저 본다.</p></div>
+    </div>
+    <ul class="anno">
+      <li><span class="m">①</span><span>홀드아웃은 <code>prep_rec.mark_holdout()</code>이 고객별 <b>최근 구매 1건</b>을 <code>ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY purchased_at DESC)</code>로 고른다.
+        “가장 최근 것을 맞혀 보라”는 추천 문제의 자연스러운 형태.</span></li>
+      <li><span class="m">②</span><span>평가가 <b>따로 검색 코드를 갖지 않는다.</b> 실제 서비스와 다른 경로로 재면 그 숫자는 서비스 품질이 아니다.</span></li>
+      <li><span class="m">③</span><span>recall@k도 MRR도 전부 이 정수 하나에서 파생된다. k마다 결과를 다시 훑을 이유가 없다.</span></li>
+      <li><span class="m">④</span><span>recall@k만 보면 <b>k 경계에서 우연히 갈린 표본</b>에 결론이 휘둘린다. MRR은 순위를 통째로 반영해(1위=1.0, 5위=0.2) 흔들림이 덜하다.</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- 41 ----------------------------------------------------------------->
+<section class="slide" data-c="ck" data-part="4부 · 평가" data-title="모델 비교 — 잡음과 신호">
+  <p class="kicker">4부 · 검증과 평가</p>
+  <h2>차이처럼 보이는 것의 대부분은 표본 운이다</h2>
+  <div class="grid g2">
+    <div class="card hi"><h3>먼저 잡음의 폭을 잰다 — <code>noise_band()</code></h3>
+      <pre class="code" style="margin-top:8px">hits  = [1 if rank &lt;= k else 0 for r in records]
+rates = [복원추출로 다시 뽑은 recall@k] × 2000회
+<span class="k">return</span> 하위 2.5%, 상위 97.5%</pre>
+      <p style="margin:8px 0 0">표본이 66건이면 <b>1건 = 1.5%p</b>다. 이 폭 안의 모델 간 차이는 ‘차이’가 아니라
+        어느 리뷰가 홀드아웃으로 뽑혔느냐의 운이다. <b>모델을 고르기 전에 이 폭부터 안다</b>는 순서가 핵심.</p></div>
+    <div class="card"><h3>표본을 짝지어 비교한다 — <code>compare.py</code></h3>
+      <pre class="code" style="margin-top:8px">python -m pipeline.eval.compare \
+    intfloat/multilingual-e5-small BAAI/bge-m3</pre>
+      <ul style="margin:10px 0 0">
+        <li>두 모델이 <b>똑같은 질의</b>를 풀었으므로 표본을 짝지어 “누가 어디서 이겼는지”를 센다</li>
+        <li>뒤집힘이 <b>6건 미만</b>이면 부호검정상 우열을 말할 수 없다 → 비용 축(차원·속도)에서 고른다</li>
+        <li>recall 경계에 안 걸린 이동(43위 → 39위)도 신호로 함께 본다</li>
+      </ul></div>
+  </div>
+  <div class="card" style="margin-top:14px"><h3>결과를 DB 밖에 남기는 이유</h3>
+    <p style="margin:0">모델을 바꿔 재색인하면 <code>chunk_vectors</code>가 DROP되므로 이전 모델의 결과는 DB에 남지 않는다.
+      그래서 <code>data/eval/&lt;모델명&gt;.json</code>으로 <b>표본별 순위까지</b> 저장한다 — 총점만 남기면 짝지어 비교할 수가 없다.</p></div>
+</section>
+
+<!-- 42 ----------------------------------------------------------------->
+<section class="slide" data-c="ck" data-part="정리" data-title="파일 의존 지도">
+  <p class="kicker">정리</p>
+  <h2>한 장으로 보는 파일 관계</h2>
+  <pre class="code">                        <span class="k">app/core/config.py</span>  ← 경로 · 모델 프로파일 · INDEX_FILTER · SIZE_CASE
+                                 │  (거의 모든 파일이 여기를 읽는다)
+        ┌────────────────────────┼─────────────────────────┐
+        │                        │                         │
+<span class="n">pipeline (배치)</span>            <span class="k">core/embedder.py</span>            <span class="n">app (서버)</span>
+        │                  (모델 싱글톤, 양쪽 공유)              │
+create_schema/*_schema.py                                main.py
+   └ execute_schema.py ──┐                                 ├ api/lifespan.py ─→ vector_db.connect()
+                         ↓                                 ├ api/routes/recommend.py
+                    load_csv.py                            │     ├ features/profile.py ─→ domain/common.py
+                         ↓  pet_reco.db                    │     ├ features/searching.py
+                    chunk.py ──→ prep/chunking.py          │     │     ├ features/retrieve.py (FILTERS)
+                         │       prep/options.py           │     │     └ pipeline/vector_db.py (search)
+                         ↓       prep/storage.py           │     └ features/recommending.py
+                    embed.py ──→ <span class="k">vector_db.py</span> ←───────────────┘     └ domain/prompting.py
+                         │        (save_vectors · search)              └ adapters/stores/llm.py
+                         ↓                                 ├ api/routes/products.py
+                    prep_rec.py                            │     └ features/products.py ─→ repositories/*.py ─→ core/db.py
+                         ↓                                 └ api/routes/auth.py ─→ adapters/stores/supabase_auth.py
+              eval/eval.py ─→ features/retrieve.build_where()   <span class="c">← 평가가 서비스와 같은 필터를 쓴다</span>
+              verify.py   ─→ prep/verifying.py · prep/inspect.py</pre>
+  <div class="grid g3" style="margin-top:14px">
+    <div class="card hi"><h3>양쪽을 잇는 세 파일</h3>
+      <p style="margin:0"><code>core/config.py</code> · <code>core/embedder.py</code> · <code>pipeline/vector_db.py</code>.
+        배치와 서버가 <b>같은 설정·같은 모델·같은 검색 함수</b>를 쓰기 때문에 색인과 검색이 어긋나지 않는다.</p></div>
+    <div class="card"><h3>거꾸로 도는 화살표</h3>
+      <p style="margin:0"><code>app/features/searching.py</code>가 <code>pipeline/</code>을 import한다.
+        “앱은 pipeline 없이도 떠야 한다”는 원칙과 충돌하는 유일한 지점 — <code>search()</code>를
+        <code>app/</code> 쪽으로 옮기면 해소된다.</p></div>
+    <div class="card"><h3>아직 안 이어진 곳</h3>
+      <p style="margin:0"><code>domain/port.py</code>(VectorStore 인터페이스)와
+        <code>adapters/stores/sqlite_store.py</code>는 <b>계약만 있고 구현이 비어</b> 있다.
+        지금은 <code>vector_db.py</code>를 직접 부르는 구조.</p></div>
+  </div>
+</section>
+
+<!-- 43 ----------------------------------------------------------------->
+<section class="slide" data-c="ck" data-part="정리" data-title="지금 상태와 다음 할 일">
+  <p class="kicker">정리</p>
+  <h2>돌아가는 것 · 비어 있는 것 · 정리할 것</h2>
+  <div class="grid g3">
+    <div class="card"><h3 style="color:var(--vec)">돌아간다</h3>
+      <ul style="margin:0">
+        <li>스키마 생성 → CSV 적재 → FK·데이터 품질 검사</li>
+        <li>리뷰 조립 → 청킹 → 임베딩 → <code>chunk_vectors</code></li>
+        <li>선필터 + 코사인 검색, 대화형 CLI <code>app.query</code></li>
+        <li>홀드아웃 평가(recall@k · MRR · 잡음 구간)와 모델 비교</li>
+        <li>FastAPI: <code>/recommend</code> · 관리자 상품 CRUD · 로그인</li>
+      </ul></div>
+    <div class="card warn"><h3>비어 있다</h3>
+      <ul style="margin:0">
+        <li><code>recommending.py</code>의 <code>except</code> 블록 — 재시도가 실제로 안 돈다</li>
+        <li><code>repositories/users.py</code> 전부 <code>NotImplementedError</code></li>
+        <li><code>adapters/stores/sqlite_store.py</code>, <code>domain/port.py</code> 구현</li>
+        <li><code>prep/matrics.py</code>의 <code>calculate_score()</code></li>
+        <li><code>pipeline/__main__.py</code>, <code>routes/health.py</code> 빈 파일</li>
+      </ul></div>
+    <div class="card hi"><h3>정리하면 좋다</h3>
+      <ul style="margin:0">
+        <li>벡터 저장 형식 이원화(BLOB vs JSON) 일원화</li>
+        <li>한 요청에 커넥션 3개 → <code>app.state.con</code>으로 통일</li>
+        <li><code>candidates()</code>의 N+1 조회를 조인 한 번으로</li>
+        <li>알러지 규칙 3중 정의(뷰 · FILTERS · judge) 동기화 문서화</li>
+        <li>README의 경로/명령 최신화, <code>config.py</code> 중복 정의 제거</li>
+      </ul></div>
+  </div>
+  <div class="card" style="margin-top:16px"><h3>이 코드에서 가져갈 태도 하나</h3>
+    <p style="margin:0">이 저장소의 주석은 대부분 <b>“무엇을 하는가”가 아니라 “왜 이렇게 안 했는가”</b>를 적는다 —
+      적재 순서를 손으로 안 적는 이유, 체급 표를 한 곳에만 두는 이유, 임베딩 문장에서 필터가 거르는 값을 빼는 이유.
+      조용히 틀리는 코드는 나중에 원인을 못 찾는다. 그래서 이 파이프라인은 단계마다 <b>스스로를 검사하고 경고를 남긴다.</b></p></div>
+</section>
+
+</div><!-- /deck -->
+
+<div id="track"></div>
+<div class="bar">
+  <button id="prev" aria-label="이전 장">←</button>
+  <button id="next" aria-label="다음 장">→</button>
+  <button id="menu">목차</button>
+  <span class="ttl" id="ttl"></span>
+  <span class="count" id="count"></span>
+</div>
+
+<div id="toc" role="dialog" aria-label="목차">
+  <h3>목차</h3>
+  <div class="tocgrid" id="tocgrid"></div>
+</div>
+
+<script>
+(function(){
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var i = 0;
+  var elTtl = document.getElementById('ttl');
+  var elCount = document.getElementById('count');
+  var elTrack = document.getElementById('track');
+  var toc = document.getElementById('toc');
+
+  // 목차 채우기
+  var grid = document.getElementById('tocgrid');
+  slides.forEach(function(s, n){
+    var a = document.createElement('a');
+    a.href = '#' + (n + 1);
+    a.setAttribute('data-c', s.dataset.c || '');
+    a.innerHTML = '<i>' + (n + 1) + '</i><span>' + (s.dataset.title || '') + '</span>';
+    a.addEventListener('click', function(){ toc.classList.remove('on'); });
+    grid.appendChild(a);
+  });
+
+  function show(n, push){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach(function(s, k){ s.classList.toggle('on', k === i); });
+    var s = slides[i];
+    document.documentElement.style.setProperty('--spine',
+      getComputedStyle(s).getPropertyValue('--spine'));
+    elTtl.textContent = s.dataset.title || '';
+    elCount.textContent = (i + 1) + ' / ' + slides.length;
+    elTrack.style.width = ((i + 1) / slides.length * 100) + '%';
+    elTrack.style.background = getComputedStyle(s).getPropertyValue('--spine');
+    s.scrollTop = 0;
+    if (push !== false) history.replaceState(null, '', '#' + (i + 1));
+  }
+  function go(d){ show(i + d); }
+
+  document.getElementById('prev').addEventListener('click', function(){ go(-1); });
+  document.getElementById('next').addEventListener('click', function(){ go(1); });
+  document.getElementById('menu').addEventListener('click', function(){ toc.classList.toggle('on'); });
+
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { go(1); e.preventDefault(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { go(-1); e.preventDefault(); }
+    else if (e.key === 'Home') show(0);
+    else if (e.key === 'End') show(slides.length - 1);
+    else if (e.key === 'm' || e.key === 'M') toc.classList.toggle('on');
+    else if (e.key === 'p' || e.key === 'P') window.print();
+    else if (e.key === 'Escape') toc.classList.remove('on');
+  });
+
+  // 화면 좌우 클릭 (텍스트 선택·링크는 방해하지 않음)
+  document.addEventListener('click', function(e){
+    if (e.target.closest('.bar') || e.target.closest('#toc')) return;
+    if (window.getSelection().toString()) return;
+    if (window.innerWidth < 820) return;
+    var x = e.clientX / window.innerWidth;
+    if (x > 0.88) go(1);
+    else if (x < 0.06) go(-1);
+  });
+
+  // 스와이프
+  var x0 = null, y0 = null;
+  document.addEventListener('touchstart', function(e){
+    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY;
+  }, {passive:true});
+  document.addEventListener('touchend', function(e){
+    if (x0 === null) return;
+    var dx = e.changedTouches[0].clientX - x0;
+    var dy = e.changedTouches[0].clientY - y0;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.6) go(dx < 0 ? 1 : -1);
+    x0 = null;
+  }, {passive:true});
+
+  window.addEventListener('hashchange', function(){
+    var n = parseInt(location.hash.slice(1), 10);
+    if (n) show(n - 1, false);
+  });
+
+  var start = parseInt(location.hash.slice(1), 10);
+  show(start ? start - 1 : 0, false);
+})();
+</script>
+</body>
+</html>

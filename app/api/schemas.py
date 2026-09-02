@@ -18,6 +18,13 @@ class RecommendRequest(BaseModel):
     allergy: str | None = None
     n_pick: int = 5
 
+class AskRequest(BaseModel):
+    """routes/ask 요청 바디."""
+    user_query: str
+    animal_category: str | None = None
+    size_category: str | None = None
+    allergy: str | None = None
+
 class Pick(BaseModel):
     product_id: int
     reason: str
@@ -79,3 +86,5 @@ class Product(ProductCreate):
     product_id: int
     created_at: str
     updated_at: str
+
+
