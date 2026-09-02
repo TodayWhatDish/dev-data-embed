@@ -324,12 +324,18 @@
   @keyframes spin{ to{ transform: rotate(360deg); } }
 </style>
 </head>
+
+<!-- 로그인 페이지 부분입니다 -->
+
 <body>
 
 <section id="loginGate">
-  <label>관리자 아이디 <input id="adminIdInput" placeholder="예: admin" /></label>
+  <label>관리자 비밀번호 <input id="adminPasswordInput" type="password" placeholder="비밀번호" /></label>
   <button id="loginBtn">입장</button>
+  <p id="loginError" style="color:#c0392b; font-size:13px; min-height:18px;"></p>
 </section>
+
+<!-- 관리자 대시보드 부분입니다 -->
 
 <div class="app" id="adminArea" hidden>
   <div class="topbar">
