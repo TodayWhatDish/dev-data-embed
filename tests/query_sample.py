@@ -60,15 +60,19 @@ if __name__ == '__main__':
 
     # 테이블 전체 UPDATE 는 사고가 크다. 부른 쪽이 True 를 적어야만 나간다
     rejects('not_verified', update_query_all, 'product', {'price_krw': 1})
+    
     # SET 이 비면 'UPDATE product SET  WHERE ...' 라는 깨진 SQL 이 된다
     rejects('no_values', update_query_all, 'product', {}, True)
     rejects('no_values', update_query, 'product', {}, {'product_id': pid})
+    
     # WHERE 가 비면 조건 없는 UPDATE = 테이블 전체다. update_query 로는 안 받는다
     rejects('no_where', update_query, 'product', {'price_krw': 1}, {})
+    
     # 테이블·컬럼 이름은 ? 로 못 묶어 f-string 에 글자로 박힌다. 박기 전에 ColumnMgr 로 본다
     rejects('unknown_table', update_query, 'no_such_table', {'price_krw': 1}, {'product_id': pid})
     rejects('unknown_column', update_query, 'product', {'no_such_col': 1}, {'product_id': pid})
     rejects('unknown_column', update_query, 'product', {'price_krw': 1}, {'no_such_col': 1})
+
     # 주입. 키 하나에 SET 절을 통째로 넣는 시도다. E-1 에서 안 막으면 어떻게 되는지 본다
     rejects('unknown_column', update_query, 'product', {'price_krw = 1, name': 'x'}, {'product_id': pid})
     logger.info('#' * 20)
@@ -139,9 +143,9 @@ if __name__ == '__main__':
     assert mem.execute('SELECT ? FROM product', ('name',)).fetchall() == [('name',)]
     logger.info("\tE-3 SELECT ? FROM product -> [('name',)] : 컬럼이 아니라 문자열이다")
     mem.execute("INSERT INTO product VALUES (2, 1, '간식', 500)")
-    got = mem.execute('SELECT product_id FROM product ORDER BY ?', ('name',)).fetchall()
+    got = mem.execute('SELECT product_id FROM product ORDER BY ? DESC', ('name',)).fetchall()
     assert got == [(1,), (2,)], got
-    logger.info(f'\tE-3 ORDER BY ? -> {got} : 상수 취급이라 정렬이 그냥 안 된다')
+    logger.info(f'\tE-3 ORDER BY ? DESC-> {got} : 상수 취급이라 정렬이 그냥 안 된다')
 
     # E-4. FK 는 켜야 본다. 꺼져 있으면 없는 부모를 가리켜도 INSERT 가 통과한다
     mem.execute("INSERT INTO product VALUES (3, 999999, '유령', 100)")
