@@ -78,6 +78,7 @@ const getCustomerInfo = async (id) => {
 // ==================================
 let customers = [];
 let selectedCustomer = null; // getCustomerInfo() 결과 (pets, purchases 포함)
+let askGen = 0; // askQuestion()이 겹쳐 호출돼도 오래된 스트림이 화면에 못 쓰게 막는 세대 번호
 
 // ==================================
 //  고객 목록 (사이드바)
@@ -145,13 +146,16 @@ const renderCustomerDetail = (c) => {
         p.rating != null
           ? `<span class="rating">별점 ${p.rating}</span>`
           : `<span class="rating none">리뷰 없음</span>`;
+      const reviewText = p.review_body
+        ? `<div class="review-text">${p.review_body}</div>`
+        : "";
       return `
         <tr>
           <td>${(p.purchased_at || "").slice(0, 10)}</td>
           <td>${p.product_name}</td>
           <td>${p.quantity}개</td>
-          <td>${p.unit_price_krw.toLocaleString()}원</td>
-          <td>${ratingBadge}</td>
+          <td>${(p.unit_price_krw * p.quantity).toLocaleString()}원</td>
+          <td>${ratingBadge}${reviewText}</td>
         </tr>`;
     })
     .join("");
@@ -173,6 +177,11 @@ const renderCustomerDetail = (c) => {
       </div>
     </div>
 
+    <div class="section-title">구매 금액 추이</div>
+    <div class="chart-card">
+      <canvas id="purchaseChartCanvas" height="90"></canvas>
+    </div>
+
     <div class="section-title">구매 이력</div>
     <table class="purchases">
       <thead>
@@ -181,12 +190,56 @@ const renderCustomerDetail = (c) => {
       <tbody>${rows || `<tr><td colspan="5">구매 이력이 없습니다.</td></tr>`}</tbody>
     </table>
   `;
+
+  drawPurchaseChart(c.purchases || []);
+};
+
+// ==================================
+//  구매 금액 선그래프 (Chart.js)
+// ==================================
+let purchaseChart = null;
+
+const drawPurchaseChart = (purchases) => {
+  const ctx = document.getElementById("purchaseChartCanvas");
+  if (!ctx) return;
+
+  if (purchaseChart) {
+    purchaseChart.destroy();
+  }
+
+  const sorted = [...purchases].sort((a, b) => a.purchased_at.localeCompare(b.purchased_at));
+  const labels = sorted.map((p) => (p.purchased_at || "").slice(0, 10));
+  const amounts = sorted.map((p) => p.unit_price_krw * p.quantity);
+
+  purchaseChart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{
+        label: "구매 금액(원)",
+        data: amounts,
+        borderColor: "#2f6f5e",
+        backgroundColor: "rgba(47,111,94,0.12)",
+        tension: 0.25,
+        fill: true,
+        pointRadius: 3,
+        pointBackgroundColor: "#2f6f5e",
+      }],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, ticks: { callback: (v) => v.toLocaleString() + "원" } },
+      },
+    },
+  });
 };
 
 // ==================================
 //  AI 분석 패널 (슬라이드오버)
-//  ※ 지금은 실제 LLM 호출 없이 구매이력 기반으로 로컬에서 만든 임시 문구.
-//    나중에 이 buildAiContent() 자리를 백엔드 LLM 호출로 교체하면 됨.
+//  위쪽: 이 고객의 최근 리뷰를 근거로 한 구매 이력 기반 추천 (패널 열면 바로 조회)
+//  아래쪽: admin이 직접 친 질문에 대한 실시간 LLM 답변 + 그 질문 기준 임베딩 검색 결과
 // ==================================
 const overlay = document.querySelector("#overlay");
 const aiPanel = document.querySelector("#aiPanel");
@@ -198,55 +251,174 @@ const openAiPanel = () => {
   aiPanelName.textContent = `${selectedCustomer.name} 고객 AI 분석`;
   overlay.classList.add("open");
   aiPanel.classList.add("open");
-  aiPanelBody.innerHTML = `<div class="ai-loading"><div class="spinner"></div>분석 중...</div>`;
-
-  setTimeout(() => {
-    aiPanelBody.innerHTML = buildAiContent(selectedCustomer);
-  }, 700);
+  renderAskForm();
+  loadHistoryBasedRecs(selectedCustomer.user_id);
 };
 
-const closeAiPanel = () => {
+const closeAllPanels = () => {
   overlay.classList.remove("open");
   aiPanel.classList.remove("open");
 };
 
-const buildAiContent = (c) => {
-  const purchases = c.purchases || [];
-  const rated = purchases.filter((p) => p.rating != null);
-  const avgRating = rated.length
-    ? (rated.reduce((s, p) => s + p.rating, 0) / rated.length).toFixed(1)
-    : null;
-  const hasFood = purchases.some((p) => p.product_name.includes("사료"));
-  const hasSnack = purchases.some((p) => p.product_name.includes("간식") || p.product_name.includes("트릿"));
-  const noReviewCount = purchases.length - rated.length;
+const renderAskForm = () => {
+  aiPanelBody.innerHTML = `
+    <div id="historyRecs"><div class="ai-loading" style="height:auto;padding:10px 0;"><div class="spinner"></div>구매 이력 확인 중...</div></div>
 
-  const sales = [];
-  if (hasSnack && !hasFood) sales.push("간식 위주 구매 고객 - 사료 카테고리 교차 판매를 제안해볼 것");
-  if (hasFood && !hasSnack) sales.push("사료만 구매 중 - 간식/영양제 추가 구매 유도 가능성 있음");
-  if (purchases.length >= 3) sales.push("구매 빈도가 높은 편 - 정기구독(구독형 배송) 전환 제안 고려");
-  if (sales.length === 0) sales.push("구매 이력이 적어 아직 뚜렷한 패턴 없음 - 첫 구매 후속 안내 필요");
+    <div class="section-title" style="font-size:13px;margin-top:22px;">판매전략 / CS 응대안</div>
+    <button id="strategyBtn" class="ai-btn" style="width:100%;justify-content:center;">생성하기</button>
+    <div id="strategyResult" style="margin-top:14px;"></div>
 
-  const marketing = [];
-  marketing.push(`${(c.pets || [])[0]?.name ?? "반려동물"} 이름을 넣은 맞춤 안내 메시지 발송`);
-  if (avgRating && avgRating >= 4) marketing.push("만족도가 높은 고객 - 리뷰 작성 리워드/추천인 이벤트 안내 적합");
-  if (!avgRating) marketing.push("아직 남긴 후기가 없음 - 후기 작성 유도 쿠폰 제안");
+    <div class="section-title" style="font-size:13px;margin-top:22px;">직접 질문하기</div>
+    <form id="askForm">
+      <input id="askInput" type="text" placeholder="예) 이 고객에게 어떤 사료가 맞을까요?"
+             style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:13.5px;outline:none;">
+      <button type="submit" class="ai-btn" style="margin-top:10px;width:100%;justify-content:center;">묻기</button>
+    </form>
+    <div id="askError" style="color:#c0392b;font-size:13px;margin-top:10px;"></div>
+    <div id="askAnswer" class="review-text" style="margin-top:16px;white-space:pre-wrap;"></div>
+    <div id="askSources"></div>
+  `;
+  document.querySelector("#askForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const text = document.querySelector("#askInput").value.trim();
+    if (!text) return;
+    const btn = e.target.querySelector("button[type=submit]");
+    btn.disabled = true;
+    try {
+      await askQuestion(text);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+  document.querySelector("#strategyBtn").addEventListener("click", loadStrategy);
+};
 
-  const cs = [];
-  if (avgRating && avgRating < 3) cs.push("평균 별점이 낮음 - CS 우선 대응 및 만족도 확인 연락 권장");
-  if (noReviewCount > 0) cs.push(`후기 미작성 구매 ${noReviewCount}건 - 배송/제품 이슈 여부 확인 필요`);
-  if (cs.length === 0) cs.push("특별한 CS 이슈 신호 없음 - 정기 안부 메시지 정도로 충분");
+// 판매전략/CS 응대안 생성. LLM 호출 비용이 있어 패널을 열 때 자동 실행하지 않고 버튼으로 트리거한다.
+// citations의 verified는 서버가 SQL로 대조한 결과 - 실제 이 고객 구매가 아니면 false.
+const loadStrategy = async () => {
+  const btn = document.querySelector("#strategyBtn");
+  const resultEl = document.querySelector("#strategyResult");
+  btn.disabled = true;
+  resultEl.innerHTML = `<div class="ai-loading" style="height:auto;padding:10px 0;"><div class="spinner"></div>생성 중...</div>`;
 
-  const block = (title, items) => `
-    <div class="ai-block">
-      <h3><span class="dot"></span>${title}</h3>
-      <ul>${items.map((t) => `<li>${t}</li>`).join("")}</ul>
-    </div>`;
+  const res = await fetch(`${API}/api/customers/${selectedCustomer.user_id}/strategy`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  btn.disabled = false;
+  if (res.status === 401) { showLoginGate(); return; }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    resultEl.innerHTML = `<p style="font-size:13px;color:#c0392b;">${err.detail ?? "생성 실패"}</p>`;
+    return;
+  }
 
-  return (
-    block("판매 전략", sales) +
-    block("마케팅 아이디어", marketing) +
-    block("CS 응대 전략", cs)
-  );
+  const data = await res.json();
+  resultEl.innerHTML =
+    `<div class="review-text" style="white-space:pre-wrap;">${data.strategy}</div>` +
+    `<div class="section-title" style="font-size:12px;margin-top:12px;">근거</div>` +
+    data.citations.map((c) => `
+      <div class="ai-block">
+        <h3><span class="dot" style="background:${c.verified ? "#2e9e5b" : "#c0392b"};"></span>
+          구매#${c.purchase_id} · ${c.verified ? "확인됨" : "확인 불가"}</h3>
+        <div class="review-text">${c.quote}</div>
+      </div>`).join("");
+};
+
+// 이 고객이 실제로 남긴 최근 리뷰를 근거로 한 추천. 질문 없이도 패널을 열면 항상 뜬다
+const loadHistoryBasedRecs = async (userId) => {
+  const el = document.querySelector("#historyRecs");
+  const res = await fetch(`${API}/api/customers/${userId}/similar-reviews`, { headers: authHeaders() });
+  if (res.status === 401) { showLoginGate(); return; }
+  const data = await res.json();
+
+  if (!data.found.length) {
+    el.innerHTML = `<p style="font-size:13px;color:var(--muted);">참고할 구매 후기가 없어 이력 기반 추천을 만들 수 없습니다.</p>`;
+    return;
+  }
+  el.innerHTML =
+    `<div class="section-title" style="font-size:13px;">구매 이력 기반 추천 <span style="font-weight:400;color:var(--muted);">(근거: "${data.product_name}" 후기)</span></div>` +
+    data.found.map((s) => `
+      <div class="ai-block">
+        <h3><span class="dot"></span>${s.name} (${s.brand}) · 유사도 ${s.score.toFixed(3)}</h3>
+        <div class="review-text">${s.review}</div>
+      </div>`).join("");
+};
+
+// 선택된 고객의 첫 번째 펫 프로필로 /ask 를 스트리밍 호출.
+// NDJSON 을 줄 단위로 읽는다 - 네트워크 조각이 줄 한가운데를 자를 수 있어 buffer 가 꼭 필요
+const askQuestion = async (question) => {
+  // 이 호출만의 세대 번호. 도중에 새 askQuestion()이 또 호출되면 askGen이 바뀌어
+  // 이 호출의 타이머/쓰기는 전부 스스로 멈춘다 - 같은 #askAnswer에 두 스트림이 동시에 안 써진다.
+  const myGen = ++askGen;
+  const answerEl = document.querySelector("#askAnswer");
+  const sourcesEl = document.querySelector("#askSources");
+  const errorEl = document.querySelector("#askError");
+  answerEl.textContent = "";
+  sourcesEl.innerHTML = "";
+  errorEl.textContent = "";
+
+  // 델타가 네트워크 조각 단위(단어/문장)로 오더라도 화면엔 한 글자씩 흘러나오게 큐에 쌓아 타이핑한다
+  let typeQueue = "";
+  const typeTimer = setInterval(() => {
+    if (myGen !== askGen) { clearInterval(typeTimer); return; }
+    if (!typeQueue) return;
+    answerEl.textContent += typeQueue[0];
+    typeQueue = typeQueue.slice(1);
+  }, 20);
+
+  const petId = (selectedCustomer.pets || [])[0]?.pet_id ?? null;
+
+  const res = await fetch(`${API}/ask`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ user_query: question, pet_id: petId, user_id: selectedCustomer.user_id }),
+  });
+  if (res.status === 401) { showLoginGate(); return; }
+  if (!res.body) { errorEl.textContent = "응답을 받지 못했습니다."; return; }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    if (myGen !== askGen) { reader.cancel(); return; } // 그 사이 새 질문이 시작됐으면 이 스트림은 그만 읽는다
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      try {
+        const chunk = JSON.parse(line);
+        if (chunk.type === "sources") renderSources(chunk.sources);
+        else if (chunk.type === "delta") typeQueue += chunk.text;
+        else if (chunk.type === "error") errorEl.textContent = chunk.message;
+      } catch { /* 깨진 줄 하나 때문에 전체를 멈추지 않는다 */ }
+    }
+  }
+
+  // 큐에 남은 글자를 마저 흘려보낸 뒤 타이머를 정리한다
+  const drain = setInterval(() => {
+    if (myGen !== askGen || !typeQueue) {
+      clearInterval(typeTimer);
+      clearInterval(drain);
+    }
+  }, 20);
+};
+
+// 질문 기준 임베딩 검색 결과 (candidates() 가 찾은, 이 고객 프로필 조건에 맞는 유사 리뷰)
+const renderSources = (sources) => {
+  const sourcesEl = document.querySelector("#askSources");
+  if (!sources.length) return;
+  sourcesEl.innerHTML = `<div class="section-title" style="font-size:13px;margin-top:16px;">질문 기준 임베딩 검색 결과</div>` +
+    sources.map((s) => `
+      <div class="ai-block">
+        <h3><span class="dot"></span>${s.name} (${s.brand}) · 유사도 ${s.score.toFixed(3)}</h3>
+        <div class="review-text">${s.review}</div>
+      </div>`).join("");
 };
 
 // 새로고침해도 로그인 상태 유지 (모든 함수 선언이 끝난 뒤에 실행해야 함)

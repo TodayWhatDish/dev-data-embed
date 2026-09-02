@@ -31,7 +31,7 @@ def get_user_detail(user_id: int) -> dict | None:
 
     user["purchases"] = fetch("""
         SELECT pu.purchase_id, pu.purchased_at, pu.unit_price_krw, pu.quantity,
-               p.name AS product_name, r.rating
+               p.product_id, p.name AS product_name, r.rating, r.body AS review_body
         FROM purchase AS pu
         JOIN pet AS pe ON pe.pet_id = pu.pet_id
         JOIN product AS p ON p.product_id = pu.product_id

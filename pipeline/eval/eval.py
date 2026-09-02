@@ -10,7 +10,7 @@
 
 검색 로직 자체는 pipeline/vector_db.py 의 search() 를 그대로 재사용한다.
 """
-
+import time
 import json
 import random
 import sqlite3
@@ -162,6 +162,18 @@ def noise_band(records: list[dict], k: int = 3, trials: int = 2000, seed: int = 
     rates = sorted(sum(rng.choice(hits) for _ in range(n)) / n for _ in range(trials))
     return rates[int(trials * 0.025)], rates[int(trials * 0.975)]
 
+def measure_query_latency(n: int = 30) -> float:
+    """질의 1건을 벡터로 만드는 평균 시간(ms).
+
+    색인은 배포 때 한 번이지만 질의 인코딩은 요청마다 일어난다 - 사용자가 체감하는
+    비용은 이쪽이고, 품질이 노이즈 안에서 뭉칠 때 결정을 가르는 축이 된다.
+    """
+    from app.core.embedder import embed_query
+    embed_query('워밍업')  # 첫 호출엔 모델 로딩이 섞여서 지표로 못 쓴다
+    start = time.perf_counter()
+    for i in range(n):
+        embed_query(f'피부가 예민한 아이에게 줄 사료를 찾고 있어요 {i}')
+    return (time.perf_counter() - start) / n * 1000
 
 def save_run(records: list[dict], metrics: dict) -> None:
     """모델 이름으로 결과 파일을 남긴다.
@@ -183,6 +195,7 @@ if __name__ == '__main__':
     runs = run_holdout_search(con)
     records = score_runs(con, runs)
     metrics = summarize(records)
+    metrics['query_ms'] = measure_query_latency()
 
     print(f'모델: {EMBED_MODEL} ({EMBED_DIM}차원)')
     for name, value in metrics.items():

@@ -13,7 +13,7 @@ from app.domain.prompting import ANSWER_PROMPT, build_answer_context
 ANSWER_CHAIN = ANSWER_PROMPT | chat_answer | StrOutputParser()
 
 
-def stream(user_query: str, candidates: list[dict[str, Any]]) -> Iterator[str]:
-    """후보 리뷰를 '자료'로 묶어 답변 체인에 넘기고, 모델이 흘려보내는 글자 조각을 그대로 다시 흘려보낸다."""
+def stream(user_query: str, candidates: list[dict[str, Any]], customer_context: str = "정보 없음") -> Iterator[str]:
+    """검색 후보와 실제 고객 구매 이력을 분리된 슬롯으로 넘기고, 모델이 흘려보내는 글자 조각을 그대로 다시 흘려보낸다."""
     context = build_answer_context(candidates)
-    yield from ANSWER_CHAIN.stream({"context": context, "question": user_query})
+    yield from ANSWER_CHAIN.stream({"context": context, "customer_context": customer_context, "question": user_query})

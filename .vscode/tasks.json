@@ -66,6 +66,27 @@
             }
         },
         {
+            "label": "📊 모델 비교 (조각 -> 색인 -> 평가)",
+            "detail": "모델을 하나 골라 chunk -> embed -> eval 을 한 번에 돌린다. bge-m3 는 CPU 에서 20~40분 걸릴 수 있다.",
+            "type": "shell",
+            // Windows PowerShell 5.1 에는 && 가 없다(파서 에러). 그렇다고 ; 로 잇기만 하면
+            // chunk 가 실패해도 embed 가 낡은 chunks 를 그대로 임베딩해 조용히 오염된
+            // 비교 결과가 남는다. 그래서 $LASTEXITCODE 로 앞 단계 성공을 직접 확인한다.
+            // $py: 인터프리터 경로에 공백이 있을 수 있어 & (호출 연산자)로 부른다.
+            "command": "$py = '${command:python.interpreterPath}'; & $py -m pipeline.chunk; if ($LASTEXITCODE -eq 0) { & $py -m pipeline.embed }; if ($LASTEXITCODE -eq 0) { & $py -m pipeline.eval.eval }",
+            "options": {
+                "env": {
+                    "EMBED_MODEL": "${input:embedModel}"
+                }
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "clear": true,
+                "reveal": "always"
+            }
+        },
+        
+        {
             "label": "검색 CLI (query)",
             "detail": "질문을 입력받아 유사 리뷰를 찾는다. 입력을 받아야 하므로 전용 터미널에서 연다.",
             "type": "shell",
@@ -142,5 +163,44 @@
                 "clear": true
             }
         }
+    ],
+    // 모델 목록은 app/core/config.py 의 EMBED_PROFILES 와 같아야 한다.
+    // 표에 없는 모델을 넣으면 config.py 가 SystemExit 으로 즉시 막는다 - 오타로
+    // 엉뚱한 모델을 반나절 돌리는 사고를 그 검사가 대신 막아준다.
+    "inputs": [
+        {
+            "id": "embedModel",
+            "type": "pickString",
+            "description": "재색인·평가할 임베딩 모델",
+            "options": [
+                "intfloat/multilingual-e5-small",
+                "intfloat/multilingual-e5-base",
+                "BAAI/bge-m3"
+            ],
+            "default": "intfloat/multilingual-e5-small"
+        },
+        {
+            "id": "modelA",
+            "type": "pickString",
+            "description": "비교 기준(A)",
+            "options": [
+                "intfloat/multilingual-e5-small",
+                "intfloat/multilingual-e5-base",
+                "BAAI/bge-m3"
+            ],
+            "default": "intfloat/multilingual-e5-small"
+        },
+        {
+            "id": "modelB",
+            "type": "pickString",
+            "description": "비교 대상(B)",
+            "options": [
+                "intfloat/multilingual-e5-small",
+                "intfloat/multilingual-e5-base",
+                "BAAI/bge-m3"
+            ],
+            "default": "intfloat/multilingual-e5-base"
+        }
     ]
 }
+

@@ -6,7 +6,9 @@
 from typing import Any
 from app.core.config import PASSAGE_PREFIX
 from app.features.retrieve import build_where
-from app.core.db import fetch_tuples
+from app.core.db import fetch_tuples,query
+from app.features.profile import pet_profile
+from app.repositories import users as users_repo
 from pipeline.vector_db import search,connect
 
 def candidates(profiles: dict[str, Any],user_query: str, limit: int=20) -> list[dict[str, Any]]:
@@ -37,6 +39,26 @@ def candidates(profiles: dict[str, Any],user_query: str, limit: int=20) -> list[
         })
     con.close()
     return result
-    
 
+
+def similar_reviews_for(user_id: int, limit: int = 5) -> dict[str, Any]:
+    """이 고객이 실제로 남긴 가장 최근 리뷰를 쿼리 삼아 추천을 찾는다.
+
+    admin이 임의로 친 질문이 아니라 이 고객의 구매 이력 자체가 근거다.
+    이미 산 그 상품은 결과에서 뺀다 - 방금 산 걸 또 추천하면 의미가 없다.
+    """
+    detail = users_repo.get_user_detail(user_id)
+    if detail is None:
+        return {"query": "", "product_name": "", "found": []}
+
+    reviewed = [p for p in detail["purchases"] if p["review_body"]]
+    if not reviewed:
+        return {"query": "", "product_name": "", "found": []}
+
+    latest = reviewed[0]  # get_user_detail이 이미 purchased_at DESC로 정렬해서 준다
+    profile = pet_profile(detail["pets"][0]["pet_id"]) if detail["pets"] else {}
+
+    found = [c for c in candidates(profile, latest["review_body"], limit=limit + 1)
+             if c["product_id"] != latest["product_id"]][:limit]
+    return {"query": latest["review_body"], "product_name": latest["product_name"], "found": found}
 
