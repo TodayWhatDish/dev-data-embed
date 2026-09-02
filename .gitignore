@@ -231,3 +231,5 @@ query_log.jsonl
 local/
 
 .headroom_wrap_marker.json
+.headroom_wrap_owners.json
+.headroom_wrap_settings.lock
