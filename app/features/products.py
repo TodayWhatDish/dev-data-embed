@@ -19,6 +19,9 @@ CLIENT_FAULT = {
     'constraint_check':   ("params_error", "입력 값이 허용 범위를 벗어났습니다."),
     'constraint_fk':      ("params_error", "참조하는 대상이 없습니다."),
     'constraint_notnull': ("params_error", "필수 값이 비었습니다."),
+    # bad_range 만 constraint_ 가 아닌데 여기 있다. page/size 는 클라이언트가 보낸 값이라
+    # 서버 버그가 아니다 — unknown_column 처럼 500 으로 보내면 고칠 게 없는 걸 고치러 간다
+    'bad_range':          ("params_error", "페이지 번호나 크기가 잘못되었습니다."),
 }
 
 class ProductError(Exception):
@@ -30,8 +33,25 @@ class ProductError(Exception):
 
 
 def list_products(page:int, size:int) -> list[dict]:
-    """상품 여러 건 조회"""
-    return product_repo.find_page(page,size)
+    """상품 여러 건 조회. page/size 가 잘못되면 ProductError("params_error") 다.
+
+    거절 사유 자체는 repositories 가 이미 찍었다. 여기서 남기는 건 '그래서 어떻게 했나' 다 —
+    같은 예외를 두 층이 다 찍으면 트레이스백이 두 번 남아 에러가 하나인지 둘인지 못 가린다.
+    """
+    try:
+        products = product_repo.find_page(page,size)
+    except QueryError as e:
+        kind_msg = CLIENT_FAULT.get(e.reason)
+        if kind_msg is None:
+            raise                       # 서버 버그 -> 500 + 트레이스백
+        logging.getLogger().info(f"List products -> ProductError({kind_msg[0]}), page: {page}, size: {size}")
+        raise ProductError(*kind_msg) from e
+
+    if not products:
+        # 빈 목록은 에러가 아니다. 마지막 페이지 다음이면 정상이라 판단은 부르는 쪽 몫이다
+        logging.getLogger().info(f"List products 결과 없음, page: {page}, size: {size}")    
+
+    return products
 
 def get_product(product_id:int) -> dict:
     """상품 한 건 조회"""

@@ -1,13 +1,23 @@
-# Last Updated: 2026-09-01
+# Last Updated: 2026-09-02
 
 """chunk_vectors를 기반으로 유사리뷰를 찾는 행위를한다. (검색)
-   
+
    프로필 키를 기준으로 조각 점수를 반환하며, 사용자 쿼리 호출시 사용된다.
+
+   DB 에는 repositories/embedding.py 를 통해서만 닿는다. features 에 SQL 이 있으면
+   스키마가 바뀔 때 고칠 곳이 두 층으로 흩어진다.
+
+   FILTERS 의 조건절은 SQL 조각이지만 여기 남는다. 실행하는 게 아니라 벡터 검색에
+   넘길 WHERE 를 조립하는 것이고, 무엇으로 거를지는 검색 정책이라 features 의 일이다.
 """
 
+import logging
 import sqlite3
 
 from app.core.config import EMBED_MODEL, EMBED_DIM, SIZE_CASE
+from app.repositories import embedding as embedding_repo
+
+logger = logging.getLogger()
 
 
 # 프로필 키 -> SQL 조건절. 값이 들어온 키만 WHERE 에 붙는다.
@@ -54,6 +64,11 @@ def build_where(profile):
     params 로 바인딩하므로 사용자 입력을 SQL 문자열에 이어붙이지 않는다.
     """
     clauses, params = [f"r.rating >= {MIN_RATING}"], []
+    unknown = profile.keys() - FILTERS.keys()
+    if unknown:
+        # 오타난 프로필 키는 조건이 통째로 안 걸리는데 에러도 안 난다 - 결과가 넓어질 뿐이라 조용하다
+        logger.warning(f"프로필에 모르는 키 {sorted(unknown)} - 해당 조건은 안 걸린다")
+
     for key, clause in FILTERS.items():
         value = profile.get(key)
         if not value:
@@ -64,13 +79,12 @@ def build_where(profile):
             clauses.append(clause)
             params.append(item)
 
+    logger.debug(f"WHERE 조립: 조건 {len(clauses)}개, params={tuple(params)}")
     return " AND ".join(clauses) or "1=1", tuple(params)
 
 def chunk_fingerprint(con: sqlite3.Connection) -> str:
     """지금 chunks 테이블의 지문. embed.py:50 이 색인 때 남기는 것과 같은 식으로 계산한다."""
-    n, id_sum, token_sum = con.execute(
-        "SELECT COUNT(*), COALESCE(SUM(purchase_id), 0), COALESCE(SUM(n_tokens), 0) FROM chunks"
-    ).fetchone()
+    n, id_sum, token_sum = embedding_repo.get_chunk_stats(con)
     return f"{n}:{id_sum}:{token_sum}"
 
 def check_freshness(con: sqlite3.Connection):
@@ -79,7 +93,7 @@ def check_freshness(con: sqlite3.Connection):
     load_csv.py 재실행 후 재색인을 잊으면 chunk_vectors 만 옛 데이터를 가리키는데,
     조인이 purchase_id 로 조용히 성립해 에러 없이 엉뚱한 리뷰가 나온다. 알리기만 하고 막지는 않는다.
     """
-    meta = dict(con.execute("SELECT key, value FROM embedding_meta").fetchall())
+    meta = embedding_repo.get_embedding_meta(con)
     problems = []
 
     if meta.get("model") != EMBED_MODEL:
@@ -103,6 +117,12 @@ def check_freshness(con: sqlite3.Connection):
 
     if problems:
         problems.append("chunk.py 와 embed.py 를 다시 실행하세요.")
+        # 부르는 쪽이 문장만 출력하고 넘어가므로, 로그에도 남겨야 나중에 되짚을 수 있다
+        for line in problems:
+            logger.warning(f"색인 신선도: {line}")
+    else:
+        logger.debug("색인 신선도 확인 - 모델/차원/조각 지문 모두 일치")
+
     return problems
 
 
