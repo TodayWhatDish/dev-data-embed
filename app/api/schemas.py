@@ -28,6 +28,14 @@ class RecommendResponse(BaseModel):
     retries: int
     error: str
 
+class AuthResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+class AdminLoginRequest(BaseModel):
+    """관리자 로그인 - 계정 없이 공용 비밀번호만 받는다."""
+    password: str
+
 class ProductCreate(BaseModel):
     """관리자 화면 상품등록 폼 바디."""
     product_category_id: int

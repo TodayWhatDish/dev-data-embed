@@ -22,6 +22,7 @@ from app.core.config import ROOT
 init_logger()
 app = FastAPI()
 from app.api.routes.recommend import router as recommend_router
+from app.api.routes.admin_auth import router as admin_auth_router
 from app.api.routes.customers import router as customers_router
 from app.api.routes.products import router as products_router
 
@@ -38,6 +39,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(recommend_router)
+app.include_router(admin_auth_router)
 app.include_router(customers_router)
 app.include_router(products_router)
 

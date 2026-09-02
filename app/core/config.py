@@ -90,3 +90,9 @@ else:
     LLM_BASE_URL = "http://localhost:11434/v1"
     LLM_API_KEY = "ollama"
     LLM_MODEL = "qwen2.5:3b"
+
+# 관리자 로그인용 - 계정 없이 비밀번호 하나로만 검증한다
+JWT_SECRET = env("JWT_SECRET", "")
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRE_MINUTES = 60 * 24 * 7  # 7일
+ADMIN_PASSWORD = env("ADMIN_PASSWORD", "")

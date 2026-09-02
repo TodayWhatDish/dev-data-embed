@@ -2,11 +2,12 @@
 
 """관리자 화면 고객 조회. GET /api/customers, GET /api/customers/{user_id}."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from app.core.auth import get_current_admin
 from app.repositories import users as users_repo
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_admin)])
 
 
 @router.get("/api/customers")

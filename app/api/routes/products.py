@@ -2,12 +2,13 @@
 
 """관리자 화면 상품 조회/등록. GET /api/products, POST /api/products."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from app.api.schemas import ProductCreate
+from app.core.auth import get_current_admin
 from app.repositories import products as products_repo
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_admin)])
 
 
 @router.get("/api/products")
