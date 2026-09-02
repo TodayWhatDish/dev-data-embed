@@ -40,8 +40,12 @@ def ask(req: AskRequest):
             yield json.dumps({"type": "error", "message": "조건에 맞는 후보를 찾지 못했습니다."}, ensure_ascii=False) + "\n"
             return
         yield json.dumps({"type": "sources", "sources": matches}, ensure_ascii=False) + "\n"
-        for piece in answering.stream(req.user_query, matches):
-            yield json.dumps({"type": "delta", "text": piece}, ensure_ascii=False) + "\n"
+        try:
+            for piece in answering.stream(req.user_query, matches):
+                yield json.dumps({"type": "delta", "text": piece}, ensure_ascii=False) + "\n"
+        except Exception as e:
+            yield json.dumps({"type": "error", "message": f"LLM 응답 실패: {e}"}, ensure_ascii=False) + "\n"
+            return
         yield json.dumps({"type": "done"}, ensure_ascii=False) + "\n"
 
     return StreamingResponse(generate(), media_type="application/x-ndjson")

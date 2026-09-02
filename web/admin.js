@@ -310,6 +310,14 @@ const askQuestion = async (question) => {
   sourcesEl.innerHTML = "";
   errorEl.textContent = "";
 
+  // 델타가 네트워크 조각 단위(단어/문장)로 오더라도 화면엔 한 글자씩 흘러나오게 큐에 쌓아 타이핑한다
+  let typeQueue = "";
+  const typeTimer = setInterval(() => {
+    if (!typeQueue) return;
+    answerEl.textContent += typeQueue[0];
+    typeQueue = typeQueue.slice(1);
+  }, 20);
+
   const petId = (selectedCustomer.pets || [])[0]?.pet_id ?? null;
 
   const res = await fetch(`${API}/ask`, {
@@ -336,11 +344,18 @@ const askQuestion = async (question) => {
       try {
         const chunk = JSON.parse(line);
         if (chunk.type === "sources") renderSources(chunk.sources);
-        else if (chunk.type === "delta") answerEl.textContent += chunk.text;
+        else if (chunk.type === "delta") typeQueue += chunk.text;
         else if (chunk.type === "error") errorEl.textContent = chunk.message;
       } catch { /* 깨진 줄 하나 때문에 전체를 멈추지 않는다 */ }
     }
   }
+
+  // 큐에 남은 글자를 마저 흘려보낸 뒤 타이머를 정리한다
+  const drain = setInterval(() => {
+    if (typeQueue) return;
+    clearInterval(typeTimer);
+    clearInterval(drain);
+  }, 20);
 };
 
 // 질문 기준 임베딩 검색 결과 (candidates() 가 찾은, 이 고객 프로필 조건에 맞는 유사 리뷰)
