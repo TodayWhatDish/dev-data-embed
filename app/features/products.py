@@ -8,6 +8,7 @@
 
 from app.repositories import products as product_repo
 from app.repositories import purchases as purchase_repo
+import logging
 
 class ProductError(Exception):
     """상품 관련 오류 : CRUD가 거부한 이유로 routes가 HTTP 상태로 옮긴다."""
@@ -33,21 +34,41 @@ def create_product(values:dict) -> dict:
     product_id = product_repo.insert(values)
     return product_repo.find_by_id(product_id)
 
-def update_product(product_id:int, values:dict) -> dict:
-    """없으면 ProductError를 raise 하고, 있으면 수정하고 다시 조회해서 돌려준다."""
-    if product_repo.find_by_id(product_id) is None:
+def update_product(product_id:int, values:dict) -> int:
+    """
+    수정 한 후, 수정된 행 갯수를 반환
+    업데이트된 행이 없다면 0을 반환
+    """
+    if not values:                      # PATCH 빈 바디. 안 막으면 'SET  WHERE' 라는 깨진 SQL 이 나간다
+        raise ProductError("params_error", "조건 입력이 잘못되었습니다.")
+    updated_row = product_repo.update_product(product_id, values)
+
+    logging.getLogger().debug(f"Try Update product table, updated_row: {updated_row}, where: {product_id},  update_cols: {values.keys()}")
+
+    if updated_row < 0: #line 41에서 막아서 탈 일 없음
+        raise ProductError("params_error", "조건 입력이 잘못되었습니다.")
+    return updated_row
+
+def update_after_select_product(product_id:int, values:dict) -> tuple[int, dict]:
+    """수정하고 다시 조회해서 돌려준다. 존재 여부는 선조회가 아니라 고친 행 수로 안다."""
+    if not values:                      # PATCH 빈 바디. 안 막으면 'SET  WHERE' 라는 깨진 SQL 이 나간다
+            raise ProductError("params_error","조건 입력이 잘못되었습니다.")
+    updated_row = update_product(product_id, values)
+
+    logging.getLogger().debug("update after select to product table")
+
+    if updated_row < 0:
+        raise ProductError("params_error", "조건 입력이 잘못되었습니다.")
+    if updated_row == 0:
         raise ProductError("not_found",f"{product_id}상품이 없다.")
 
-    product_repo.update(product_id,values)
-    return product_repo.find_by_id(product_id)
+    return (updated_row, product_repo.find_by_id(product_id))
 
-def delete_product(product_id:int) -> None:
-    """구매 이력이 있으면 ProductError로 막는다."""
-    if product_repo.find_by_id(product_id) is None:
-        raise ProductError("not_found",f"{product_id}상품이 없다.")
+# def delete_product(product_id:int) -> None:
+#     """구매 이력이 있으면 ProductError로 막는다. 이력 검사는 지우기 전이어야 해서 순서를 못 바꾼다."""
+#     used = purchase_repo.count_for_product(product_id)
+#     if used : 
+#         raise ProductError("conflict", f"구매 이력이 {used}건 있어 지울 수 없다")
 
-    used = purchase_repo.count_for_product(product_id)
-    if used : 
-        raise ProductError("conflict", f"구매 이력이 {used}건 있어 지울 수 없다")
-    
-    product_repo.delete(product_id)
+#     if product_repo.delete(product_id) == 0:
+#         raise ProductError("not_found",f"{product_id}상품이 없다.")

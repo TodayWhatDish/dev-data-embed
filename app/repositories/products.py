@@ -1,4 +1,5 @@
 from app.core.db import query, dicts,one,con
+from app.repositories.general_query import update_query
 import sqlite3
 
 # def get_product_detail_info():
@@ -64,17 +65,25 @@ def insert(values: dict) -> int:
     con.commit()
     return cur.lastrowid
 
-def update(product_id: int, values: dict) -> None:
-    """상품 한 건을 수정한다."""
+
+def update_product(product_id: int, values: dict) -> int:
+    """상품 한 건을 수정하고 고친 행 수를 돌려준다. 없는 id 면 예외가 아니라 0 이다."""
+    updated_cnt = update_query('product', values, {'product_id' : product_id})
+    return updated_cnt
+    
+def update(product_id: int, values: dict) -> int:
+    """상품 한 건을 수정하고 고친 행 수를 돌려준다. 없는 id 면 예외가 아니라 0 이다."""
     sets = ", ".join(f"{k} = ?" for k in values)
-    con.execute(f"UPDATE product SET {sets} WHERE product_id = ?",
+    cur = con.execute(f"UPDATE product SET {sets} WHERE product_id = ?",
                (*values.values(), product_id))
     con.commit()
+    return cur.rowcount
 
-def delete(product_id: int) -> None:
-    """상품 한 건을 삭제한다."""
-    con.execute("DELETE FROM product WHERE product_id = ?", (product_id,))
+def delete(product_id: int) -> int:
+    """상품 한 건을 삭제하고 지운 행 수를 돌려준다. 없는 id 면 예외가 아니라 0 이다."""
+    cur = con.execute("DELETE FROM product WHERE product_id = ?", (product_id,))
     con.commit()
+    return cur.rowcount
     
 def get_ingredient_allergen_ids():
     return query("SELECT ingredient_id, allergen_id FROM ingredient_allergen")
