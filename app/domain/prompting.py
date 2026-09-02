@@ -73,6 +73,20 @@ def build_strategy_prompt(detail: dict[str, Any]) -> str:
         + "\n".join(lines)
     )
 
+class FactCheck(BaseModel):
+    accuracy: float = Field(description="0~1 사이 숫자. 답변이 [고객 정보]의 사실과 일치하는 정도")
+    note: str = Field(description="이 점수를 매긴 근거. 답변의 어느 부분이 [고객 정보]의 어느 내용과 일치/불일치하는지 구체적으로 짚어서 설명한다. 100%가 아니면 무엇 때문에 깎였는지 반드시 밝힌다. 완전히 일치해도 어떤 근거로 그렇게 판단했는지 한두 문장으로 적는다 - '일치'처럼 한 단어로 끝내지 않는다")
+
+def build_factcheck_prompt(customer_context: str, answer: str) -> str:
+    """답변을 만든 모델과 별도 호출로 [고객 정보]와 대조한다 - 반증(팩트체크) 단계라 자기 자신을 채점하게 두지 않는다."""
+    return (
+        f"[고객 정보]\n{customer_context}\n\n"
+        f"[답변]\n{answer}\n\n"
+        f"위 [답변]이 [고객 정보]의 사실과 일치하는지 확인하라. "
+        f"[고객 정보]에 없는 내용을 답변이 사실처럼 말했다면 accuracy를 낮춰라. "
+        f"note에는 채점 근거를 구체적으로 적어라."
+    )
+
 def build_answer_context(candidates: list[dict[str, Any]]) -> str:
     """searching.candidates()가 찾아준 후보 리뷰들을 답변용 '자료' 텍스트로 묶는다."""
     lines = [
