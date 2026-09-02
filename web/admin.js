@@ -1,29 +1,5 @@
 const API = window.location.origin;
 
-// 개/고양이 두 종만 있는 데이터셋 - 종 이름으로 이모지 매핑 (아바타/태그에 사용)
-const petEmoji = (species) => (species === "개" ? "🐶" : species === "고양이" ? "🐱" : "🐾");
-// DB 값은 "개"지만 화면엔 "강아지"로 표기
-const speciesLabel = (species) => (species === "개" ? "강아지" : species);
-// list_users()가 준 species(콤마로 합친 문자열)로 강아지/고양이/모두 카테고리를 가른다
-const petCategory = (speciesCsv) => {
-  const has = (s) => (speciesCsv || "").includes(s);
-  if (has("개") && has("고양이")) return "모두";
-  if (has("개")) return "강아지";
-  if (has("고양이")) return "고양이";
-  return "미등록";
-};
-const genderLabel = (g) => (g === "M" ? "♂" : g === "F" ? "♀" : "-");
-// 반려동물 생년월일로 나이 계산 (사람 나이가 아니다 - user 테이블엔 생년월일이 없다)
-const ageLabel = (birthDate) => {
-  if (!birthDate) return "-";
-  const b = new Date(birthDate);
-  const now = new Date();
-  let months = (now.getFullYear() - b.getFullYear()) * 12 + (now.getMonth() - b.getMonth());
-  if (now.getDate() < b.getDate()) months -= 1;
-  if (months < 0) return "-";
-  return months < 12 ? `${months}개월` : `${Math.floor(months / 12)}살`;
-};
-
 // ==================================
 //  로그인 (계정 없이 공용 비밀번호 하나로만 검증. 서버가 JWT 토큰을 발급해준다)
 // ==================================
@@ -46,8 +22,6 @@ const enterAdmin = () => {
   adminArea.hidden = false;
   whoami.textContent = "관리자";
   loadCustomers();
-  checkSystemStatus();
-  setInterval(checkSystemStatus, 30000);
 };
 
 const showLoginGate = () => {
@@ -105,8 +79,6 @@ const getCustomerInfo = async (id) => {
 let customers = [];
 let selectedCustomer = null; // getCustomerInfo() 결과 (pets, purchases 포함)
 let askGen = 0; // askQuestion()이 겹쳐 호출돼도 오래된 스트림이 화면에 못 쓰게 막는 세대 번호
-// 사료/간식 표 각각의 정렬 상태 - 헤더 클릭 때마다 갱신되고 renderCustomerDetail() 재호출로 반영된다
-let purchaseSort = { 사료: { key: "purchased_at", dir: "desc" }, 간식: { key: "purchased_at", dir: "desc" } };
 
 // ==================================
 //  고객 목록 (사이드바)
@@ -130,8 +102,8 @@ const renderCustomerList = (list) => {
       <div class="customer-item${selectedCustomer && selectedCustomer.user_id === c.user_id ? " active" : ""}" data-id="${c.user_id}">
         <div class="avatar">${(c.name || "?")[0]}</div>
         <div class="cust-meta">
-          <div class="cust-name">${c.name} <span class="cust-id">펫 ${genderLabel(c.gender)} ${ageLabel(c.birth_date)}</span></div>
-          <div class="cust-sub">${c.region ?? ""} · ${petCategory(c.species)}</div>
+          <div class="cust-name">${c.name}</div>
+          <div class="cust-sub">${c.region ?? ""}</div>
         </div>
       </div>`
     )
@@ -142,12 +114,9 @@ const renderCustomerList = (list) => {
   });
 };
 
-// 이름 또는 고객 id(부분 일치)로 검색 - id는 화면엔 안 보이지만 검색은 되게 한다
-const matchesSearch = (c, kw) => c.name.toLowerCase().includes(kw) || String(c.user_id).includes(kw);
-
 const filterCustomers = (keyword) => {
   const kw = keyword.trim().toLowerCase();
-  const filtered = kw ? customers.filter((c) => matchesSearch(c, kw)) : customers;
+  const filtered = kw ? customers.filter((c) => c.name.toLowerCase().includes(kw)) : customers;
   renderCustomerList(filtered);
 };
 
@@ -159,82 +128,49 @@ const aiBtn = document.querySelector("#aiBtn");
 
 const selectCustomer = async (userId) => {
   selectedCustomer = await getCustomerInfo(userId);
-  const kw = searchInput.value.trim().toLowerCase();
-  renderCustomerList(kw ? customers.filter((c) => matchesSearch(c, kw)) : customers);
+  renderCustomerList(searchInput.value ? customers.filter((c) => c.name.toLowerCase().includes(searchInput.value.trim().toLowerCase())) : customers);
   renderCustomerDetail(selectedCustomer);
   aiBtn.disabled = false;
 };
 
 const renderCustomerDetail = (c) => {
   const petTags = (c.pets || [])
-    .map((p) => `<span class="tag">${speciesLabel(p.animal_category)} · ${p.name}</span>`)
+    .map((p) => `<span class="tag">${p.animal_category} · ${p.name}</span>`)
     .join("") || `<span class="tag">등록된 반려동물 없음</span>`;
 
   const totalSpent = (c.purchases || []).reduce((sum, p) => sum + p.unit_price_krw * p.quantity, 0);
 
-  // 사료/간식 구분 - product_type은 백엔드가 product_category 트리를 최상위(사료/간식)로 접어서 준다
-  const purchaseRow = (p) => {
-    const ratingBadge =
-      p.rating != null
-        ? `<span class="rating">별점 ${p.rating}</span>`
-        : `<span class="rating none">리뷰 없음</span>`;
-    const reviewText = p.review_body
-      ? `<div class="review-text">${p.review_body}</div>`
-      : "";
-    return `
+  const rows = (c.purchases || [])
+    .map((p) => {
+      const ratingBadge =
+        p.rating != null
+          ? `<span class="rating">별점 ${p.rating}</span>`
+          : `<span class="rating none">리뷰 없음</span>`;
+      const reviewText = p.review_body
+        ? `<div class="review-text">${p.review_body}</div>`
+        : "";
+      return `
         <tr>
           <td>${(p.purchased_at || "").slice(0, 10)}</td>
           <td>${p.product_name}</td>
           <td>${p.quantity}개</td>
-          <td>${p.amount.toLocaleString()}원</td>
+          <td>${(p.unit_price_krw * p.quantity).toLocaleString()}원</td>
           <td>${ratingBadge}${reviewText}</td>
         </tr>`;
-  };
-  // 헤더 클릭으로 날짜/금액/별점 정렬 (오름/내림 토글) - purchaseSort에 상태 저장, 클릭 시 상세 화면 전체를 다시 그린다
-  const sortArrow = (type, key) =>
-    purchaseSort[type].key === key ? (purchaseSort[type].dir === "desc" ? " ▼" : " ▲") : "";
-  const purchaseTable = (type) => {
-    const sort = purchaseSort[type];
-    const rows = (c.purchases || [])
-      .filter((p) => p.product_type === type)
-      .map((p) => ({ ...p, amount: p.unit_price_krw * p.quantity }))
-      .sort((a, b) => {
-        const av = a[sort.key] ?? -Infinity;
-        const bv = b[sort.key] ?? -Infinity;
-        const cmp = typeof av === "string" ? av.localeCompare(bv) : av - bv;
-        return sort.dir === "desc" ? -cmp : cmp;
-      })
-      .map(purchaseRow)
-      .join("");
-    return `
-    <table class="purchases">
-      <thead>
-        <tr><th colspan="5">${type}</th></tr>
-        <tr>
-          <th class="sortable" onclick="sortPurchases('${type}','purchased_at')">날짜${sortArrow(type, "purchased_at")}</th>
-          <th>상품</th>
-          <th>수량</th>
-          <th class="sortable" onclick="sortPurchases('${type}','amount')">금액${sortArrow(type, "amount")}</th>
-          <th class="sortable" onclick="sortPurchases('${type}','rating')">별점${sortArrow(type, "rating")}</th>
-        </tr>
-      </thead>
-      <tbody>${rows || `<tr><td colspan="5">구매 이력이 없습니다.</td></tr>`}</tbody>
-    </table>`;
-  };
+    })
+    .join("");
 
   mainArea.innerHTML = `
     <div class="profile-card">
       <div class="profile-left">
-        <div class="avatar-lg">${petEmoji((c.pets || [])[0]?.animal_category)}</div>
+        <div class="avatar-lg">${(c.name || "?")[0]}</div>
         <div>
           <div class="profile-name">${c.name}</div>
           <div class="profile-tags">${petTags}</div>
         </div>
       </div>
       <div class="profile-right">
-        <span>이메일</span><b>${c.email ?? "-"}</b>
         <span>연락처</span><b>${c.phone ?? "-"}</b>
-        <span>반려동물 나이</span><b>${ageLabel((c.pets || [])[0]?.birth_date)}</b>
         <span>가입일</span><b>${(c.created_at || "").slice(0, 10)}</b>
         <span>구매 건수</span><b>${(c.purchases || []).length}건</b>
         <span>총 구매액</span><b>${totalSpent.toLocaleString()}원</b>
@@ -247,20 +183,15 @@ const renderCustomerDetail = (c) => {
     </div>
 
     <div class="section-title">구매 이력</div>
-    ${purchaseTable("사료")}
-    <div style="height:16px;"></div>
-    ${purchaseTable("간식")}
+    <table class="purchases">
+      <thead>
+        <tr><th>날짜</th><th>상품</th><th>수량</th><th>금액</th><th>후기</th></tr>
+      </thead>
+      <tbody>${rows || `<tr><td colspan="5">구매 이력이 없습니다.</td></tr>`}</tbody>
+    </table>
   `;
 
   drawPurchaseChart(c.purchases || []);
-};
-
-// 같은 컬럼을 다시 누르면 방향만 뒤집고, 다른 컬럼이면 내림차순부터 시작
-const sortPurchases = (type, key) => {
-  const cur = purchaseSort[type];
-  cur.dir = cur.key === key ? (cur.dir === "desc" ? "asc" : "desc") : "desc";
-  cur.key = key;
-  renderCustomerDetail(selectedCustomer);
 };
 
 // ==================================
@@ -329,85 +260,24 @@ const closeAllPanels = () => {
   aiPanel.classList.remove("open");
 };
 
-// ==================================
-//  회원 / 검증 / 시스템 화면 전환 - sidebar+main(회원)과 두 full-view 섹션 중 하나만 보여준다.
-// ==================================
-const sidebarEl = document.querySelector(".sidebar");
-const verifyView = document.querySelector("#verifyView");
-const systemView = document.querySelector("#systemView");
-
-const switchView = (view) => {
-  document.querySelectorAll(".view-btn").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
-  sidebarEl.hidden = view !== "members";
-  mainArea.hidden = view !== "members";
-  verifyView.hidden = view !== "verify";
-  systemView.hidden = view !== "system";
-  if (view === "system") checkSystemStatus();
-};
-
-document.querySelectorAll(".view-btn").forEach((btn) => {
-  btn.addEventListener("click", () => switchView(btn.dataset.view));
-});
-
-// ==================================
-//  DB / API 연결 상태 (시스템 화면) - /ready 를 주기적으로 폴링
-// ==================================
-const checkSystemStatus = async () => {
-  const dbDot = document.querySelector("#dbDot");
-  const apiDot = document.querySelector("#apiDot");
-  try {
-    const res = await fetch(`${API}/ready`);
-    const data = await res.json();
-    dbDot.style.background = data.db ? "#2e9e5b" : "#c0392b";
-    apiDot.style.background = data.llm ? "#2e9e5b" : "#c0392b";
-  } catch {
-    dbDot.style.background = "#c0392b";
-    apiDot.style.background = "#c0392b";
-  }
-};
-
-// 추천/전략/질문을 탭으로 나눠 한 화면에 다 쌓이지 않게 한다 - 패널이 좁아 셋을 동시에 보여주면 스크롤이 너무 길어진다.
 const renderAskForm = () => {
   aiPanelBody.innerHTML = `
-    <div class="ai-tabs">
-      <button class="ai-tab active" data-tab="recs">추천</button>
-      <button class="ai-tab" data-tab="strategy">전략</button>
-      <button class="ai-tab" data-tab="ask">질문</button>
-    </div>
+    <div id="historyRecs"><div class="ai-loading" style="height:auto;padding:10px 0;"><div class="spinner"></div>구매 이력 확인 중...</div></div>
 
-    <div class="ai-tab-panel" data-panel="recs">
-      <div id="historyRecs"><div class="ai-loading" style="height:auto;padding:10px 0;"><div class="spinner"></div>구매 이력 확인 중...</div></div>
-    </div>
+    <div class="section-title" style="font-size:13px;margin-top:22px;">판매전략 / CS 응대안</div>
+    <button id="strategyBtn" class="ai-btn" style="width:100%;justify-content:center;">생성하기</button>
+    <div id="strategyResult" style="margin-top:14px;"></div>
 
-    <div class="ai-tab-panel" data-panel="strategy" hidden>
-      <div class="section-title" style="font-size:13px;">판매전략 / CS 응대안</div>
-      <button id="strategyBtn" class="ai-btn" style="width:100%;justify-content:center;">생성하기</button>
-      <div id="strategyResult" style="margin-top:14px;"></div>
-    </div>
-
-    <div class="ai-tab-panel" data-panel="ask" hidden>
-      <form id="askForm">
-        <input id="askInput" type="text" placeholder="예) 이 고객에게 어떤 사료가 맞을까요?"
-               style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:13.5px;outline:none;">
-        <button type="submit" class="ai-btn" style="margin-top:10px;width:100%;justify-content:center;">묻기</button>
-      </form>
-      <div id="askError" style="color:#c0392b;font-size:13px;margin-top:10px;"></div>
-      <div id="askAnswer" class="answer-text" style="margin-top:14px;white-space:pre-wrap;"></div>
-      <div id="askVerify" style="color:#c0392b;font-size:13px;margin-top:10px;line-height:1.7;white-space:pre-wrap;"></div>
-
-      <div class="scroll-block" id="askFacts"></div>
-      <div class="scroll-block" id="askSources"></div>
-    </div>
+    <div class="section-title" style="font-size:13px;margin-top:22px;">직접 질문하기</div>
+    <form id="askForm">
+      <input id="askInput" type="text" placeholder="예) 이 고객에게 어떤 사료가 맞을까요?"
+             style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:13.5px;outline:none;">
+      <button type="submit" class="ai-btn" style="margin-top:10px;width:100%;justify-content:center;">묻기</button>
+    </form>
+    <div id="askError" style="color:#c0392b;font-size:13px;margin-top:10px;"></div>
+    <div id="askAnswer" class="review-text" style="margin-top:16px;white-space:pre-wrap;"></div>
+    <div id="askSources"></div>
   `;
-  document.querySelectorAll(".ai-tab").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll(".ai-tab").forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      document.querySelectorAll(".ai-tab-panel").forEach((p) => {
-        p.hidden = p.dataset.panel !== btn.dataset.tab;
-      });
-    });
-  });
   document.querySelector("#askForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const text = document.querySelector("#askInput").value.trim();
@@ -445,7 +315,7 @@ const loadStrategy = async () => {
 
   const data = await res.json();
   resultEl.innerHTML =
-    `<div class="answer-text" style="white-space:pre-wrap;">${data.strategy}</div>` +
+    `<div class="review-text" style="white-space:pre-wrap;">${data.strategy}</div>` +
     `<div class="section-title" style="font-size:12px;margin-top:12px;">근거</div>` +
     data.citations.map((c) => `
       <div class="ai-block">
@@ -468,7 +338,7 @@ const loadHistoryBasedRecs = async (userId) => {
   }
   el.innerHTML =
     `<div class="section-title" style="font-size:13px;">구매 이력 기반 추천 <span style="font-weight:400;color:var(--muted);">(근거: "${data.product_name}" 후기)</span></div>` +
-    data.found.slice(0, 3).map((s) => `
+    data.found.map((s) => `
       <div class="ai-block">
         <h3><span class="dot"></span>${s.name} (${s.brand}) · 유사도 ${s.score.toFixed(3)}</h3>
         <div class="review-text">${s.review}</div>
@@ -487,8 +357,6 @@ const askQuestion = async (question) => {
   answerEl.textContent = "";
   sourcesEl.innerHTML = "";
   errorEl.textContent = "";
-  document.querySelector("#askFacts").innerHTML = "";
-  document.querySelector("#askVerify").textContent = "";
 
   // 델타가 네트워크 조각 단위(단어/문장)로 오더라도 화면엔 한 글자씩 흘러나오게 큐에 쌓아 타이핑한다
   let typeQueue = "";
@@ -525,17 +393,7 @@ const askQuestion = async (question) => {
       if (!line.trim()) continue;
       try {
         const chunk = JSON.parse(line);
-        if (chunk.type === "customer_facts") {
-          document.querySelector("#askFacts").innerHTML =
-            `<div class="section-title" style="font-size:12px;margin-top:12px;">실제 구매 이력 (답변 검증 기준)</div>` +
-            `<div class="review-text" style="white-space:pre-wrap;">${chunk.text}</div>`;
-        }
-        else if (chunk.type === "verification") {
-          const pct = Math.round(chunk.accuracy * 100);
-          document.querySelector("#askVerify").innerHTML =
-            `반증 결과 · 정확도 ${pct}% — ${chunk.note}`;
-        }
-        else if (chunk.type === "sources") renderSources(chunk.sources);
+        if (chunk.type === "sources") renderSources(chunk.sources);
         else if (chunk.type === "delta") typeQueue += chunk.text;
         else if (chunk.type === "error") errorEl.textContent = chunk.message;
       } catch { /* 깨진 줄 하나 때문에 전체를 멈추지 않는다 */ }
@@ -556,7 +414,7 @@ const renderSources = (sources) => {
   const sourcesEl = document.querySelector("#askSources");
   if (!sources.length) return;
   sourcesEl.innerHTML = `<div class="section-title" style="font-size:13px;margin-top:16px;">질문 기준 임베딩 검색 결과</div>` +
-    sources.slice(0, 3).map((s) => `
+    sources.map((s) => `
       <div class="ai-block">
         <h3><span class="dot"></span>${s.name} (${s.brand}) · 유사도 ${s.score.toFixed(3)}</h3>
         <div class="review-text">${s.review}</div>

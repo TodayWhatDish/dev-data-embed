@@ -42,24 +42,13 @@ def ask(req: AskRequest):
         if not matches:
             yield json.dumps({"type": "error", "message": "조건에 맞는 후보를 찾지 못했습니다."}, ensure_ascii=False) + "\n"
             return
-        # 답변이 나오기 전에 실제 근거(고객 정보)를 먼저 보여준다 - 관리자가 아래 답변을
-        # 이 사실과 눈으로 대조해서 반증(팩트체크)할 수 있게 하는 게 목적이다.
-        yield json.dumps({"type": "customer_facts", "text": customer_context}, ensure_ascii=False) + "\n"
         yield json.dumps({"type": "sources", "sources": matches}, ensure_ascii=False) + "\n"
-        answer_parts = []
         try:
             for piece in answering.stream(req.user_query, matches, customer_context):
-                answer_parts.append(piece)
                 yield json.dumps({"type": "delta", "text": piece}, ensure_ascii=False) + "\n"
         except Exception as e:
             yield json.dumps({"type": "error", "message": f"LLM 응답 실패: {e}"}, ensure_ascii=False) + "\n"
             return
-        # 답변을 만든 모델이 아니라 별도 호출로 [고객 정보]와 대조해 정확도를 매긴다 - 반증(팩트체크).
-        try:
-            verification = answering.verify(customer_context, "".join(answer_parts))
-            yield json.dumps({"type": "verification", **verification}, ensure_ascii=False) + "\n"
-        except Exception as e:
-            yield json.dumps({"type": "error", "message": f"반증 실패: {e}"}, ensure_ascii=False) + "\n"
         yield json.dumps({"type": "done"}, ensure_ascii=False) + "\n"
 
     return StreamingResponse(generate(), media_type="application/x-ndjson")
