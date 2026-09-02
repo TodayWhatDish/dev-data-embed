@@ -137,8 +137,11 @@ else:
     LLM_API_KEY = "ollama"
     LLM_MODEL = "qwen2.5:3b"
 
-# # 관리자 로그인 / 서버 세션 토큰 만드는 데 필요한 설정값.
-# JWT_SECRET = env("JWT_SECRET", "")
-# JWT_ALGORITHM = "HS256"
-# JWT_EXPIRE_MINUTES = 60 * 24 * 7  # 7일
+# 관리자 로그인 / 서버 세션 토큰 만드는 데 필요한 설정값.
+# 관리자 로그인 전용 JWT 설정. 사용자 인증은 Supabase 로 이관 중이라 구글 로그인과
+# 함께 걷어냈지만, 관리자 인증(features/admin_auth.py)은 공용 비밀번호 + 자체 JWT 라
+# 그 이관과 무관하다. core/auth.py 와 features/admin_auth.py 가 이 세 값을 import 한다.
+JWT_SECRET = env("JWT_SECRET", "")
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRE_MINUTES = 60 * 24 * 7  # 7일
 ADMIN_PASSWORD = env("ADMIN_PASSWORD", "")
