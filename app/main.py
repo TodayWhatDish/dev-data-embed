@@ -32,7 +32,7 @@ app.include_router(health_router)
 app.include_router(admin_auth_router)
 app.include_router(products_router)
 app.include_router(customers_router)
-app.mount("/static/admin",StaticFiles(directory="web/admin"), name="admin_static")
+app.mount("/static/admin",StaticFiles(directory="web"), name="admin_static")
 
 @app.get("/health")
 def health():
