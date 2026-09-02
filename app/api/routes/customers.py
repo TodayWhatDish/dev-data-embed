@@ -5,6 +5,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.auth import get_current_admin
+from app.features.searching import similar_reviews_for
 from app.repositories import users as users_repo
 
 router = APIRouter(dependencies=[Depends(get_current_admin)])
@@ -21,3 +22,9 @@ def customer_detail(user_id: int):
     if detail is None:
         raise HTTPException(status_code=404, detail="고객을 찾을 수 없습니다.")
     return detail
+
+
+@router.get("/api/customers/{user_id}/similar-reviews")
+def customer_similar_reviews(user_id: int):
+    """이 고객의 최근 리뷰를 근거로 한 상품 추천. 구매 이력이 없으면 빈 목록."""
+    return similar_reviews_for(user_id)

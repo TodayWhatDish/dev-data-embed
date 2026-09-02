@@ -19,8 +19,9 @@ class RecommendRequest(BaseModel):
     n_pick: int = 5
 
 class AskRequest(BaseModel):
-    """routes/ask 요청 바디."""
+    """routes/ask 요청 바디. pet_id 를 주면 그 펫의 DB 프로필을 그대로 쓴다(관리자 대시보드용)."""
     user_query: str
+    pet_id: int | None = None
     animal_category: str | None = None
     size_category: str | None = None
     allergy: str | None = None
