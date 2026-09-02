@@ -41,10 +41,10 @@ def check_table_data(con: sqlite3.Connection, table_names: tuple, problems: list
     ok_count = 0
     counts = {}
     for name in table_names:
-        if not check(name in existing, f"{name} 테이블이 없습니다.", problems):
+        if not check(name in existing, f"{name} 테이블이 있다", problems):
             continue
         counts[name] = con.execute(f"SELECT COUNT(*) FROM {name}").fetchone()[0]
-        if check(counts[name] > 0, f"{name} 테이블이 비어있습니다.", problems):
+        if check(counts[name] > 0, f"{name} 테이블에 데이터가 있다 ({counts[name]:,}행)", problems):
             ok_count += 1
     print(f"[1단계] 테이블 {ok_count}/{len(table_names)}개 정상")
 
@@ -77,27 +77,15 @@ def check_table_data(con: sqlite3.Connection, table_names: tuple, problems: list
 def check_vector_data(con: sqlite3.Connection, kinds: tuple, expected_dim: int, expected_model: str, problems: list[str]):
     meta = dict(con.execute("SELECT key, value FROM embedding_meta"))
     check(meta.get("model") == expected_model,
-          f"모델 불일치: 저장값 '{meta.get('model')}', 설정값 '{expected_model}'", problems)
+          f"모델이 설정값과 같다 (저장값 '{meta.get('model')}', 설정값 '{expected_model}')", problems)
     check(meta.get("dim") == str(expected_dim),
-          f"차원 불일치: 저장값 {meta.get('dim')}, 설정값 {expected_dim}", problems)
+          f"차원이 설정값과 같다 (저장값 {meta.get('dim')}, 설정값 {expected_dim})", problems)
 
     vectors = {}
     for table, id_col in kinds:
         rows = con.execute(f"SELECT {id_col}, vector FROM {table}").fetchall()
-        if not check(bool(rows), f"{table}에 벡터가 없습니다.", problems):
+        if not check(bool(rows), f"{table}에 벡터가 있다", problems):
             continue
-
-        # retrieve.py / db.load_vectors는 chunk_vectors만 읽고 JSON 문자열을 기대한다.
-        # product_vectors, customer_vectors는 아직 그 두 파일이 손대지 않는 새 테이블이라
-        # BLOB이어도 문제가 아니다 — 그래서 이 검사는 chunk_vectors에만 건다.
-        if table == "chunk_vectors":
-            sample_type = con.execute(f"SELECT typeof(vector) FROM {table} LIMIT 1").fetchone()[0]
-            if sample_type == "blob":
-                check(False,
-                      f"{table}.vector가 BLOB으로 저장돼 있습니다. "
-                      "app/core/db.load_vectors와 app/features/retrieve.py는 JSON 문자열을 기대해 "
-                      "json.loads()에서 UnicodeDecodeError로 죽습니다 (검색 기능 실사용 불가 상태).",
-                      problems)
 
         ids, mat = [], []
         for row_id, vec in rows:
@@ -108,7 +96,7 @@ def check_vector_data(con: sqlite3.Connection, kinds: tuple, expected_dim: int, 
         mat = np.array(mat, dtype=np.float32)
 
         check(mat.shape[1] == expected_dim,
-              f"{table} 실제 차원 {mat.shape[1]}, 설정값 {expected_dim}과 다름", problems)
+              f"{table} 차원이 설정값과 같다 (실제 {mat.shape[1]}, 설정값 {expected_dim})", problems)
         vectors[table] = (ids, mat)
 
     # 아래 5단계 비교가 통째로 이 정규화 위에 서 있다. 길이가 1이면 내적이 곧

@@ -14,10 +14,10 @@ from fastapi.staticfiles import StaticFiles
 from app.api.routes.admin_auth import router as admin_auth_router
 from app.api.routes.products import router as products_router
 from app.app_logger.logger import init_logger
+from app.core.config import ROOT
 
 init_logger()
 from app.api.routes.recommend import router as recommend_router
-from app.api.routes.auth import router as auth_router
 from app.api.lifespan import lifespan
 
 app = FastAPI(lifespan=lifespan)
