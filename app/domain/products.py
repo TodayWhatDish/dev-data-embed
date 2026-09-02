@@ -4,12 +4,6 @@ class ProductMgr:
     def __init__(self):
         pass
 
-    def set_col(self, cols: list[str]):
-        self._product_col = tuple(col[0] for col in cols) # cols는 열 하나 짜리 여러 행 -> 열 하나 임을 [0]으로 인덱싱
-
-    def get_col(self):
-        return self._product_col
-    
     def set_product_category(self, rows: list[dict]):
         """
         # Summary
