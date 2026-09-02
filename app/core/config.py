@@ -131,8 +131,8 @@ else:
     LLM_API_KEY = "ollama"
     LLM_MODEL = "qwen2.5:3b"
 
-# # 관리자 로그인 / 서버 세션 토큰 만드는 데 필요한 설정값.
-# JWT_SECRET = env("JWT_SECRET", "")
-# JWT_ALGORITHM = "HS256"
-# JWT_EXPIRE_MINUTES = 60 * 24 * 7  # 7일
+# 관리자 로그인 / 서버 세션 토큰 만드는 데 필요한 설정값.
+JWT_SECRET = env("JWT_SECRET", "")
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRE_MINUTES = 60 * 24 * 7  # 7일
 ADMIN_PASSWORD = env("ADMIN_PASSWORD", "")
