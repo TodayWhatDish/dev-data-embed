@@ -18,6 +18,13 @@ class RecommendRequest(BaseModel):
     allergy: str | None = None
     n_pick: int = 5
 
+class AskRequest(BaseModel):
+    """routes/ask 요청 바디."""
+    user_query: str
+    animal_category: str | None = None
+    size_category: str | None = None
+    allergy: str | None = None
+
 class Pick(BaseModel):
     product_id: int
     reason: str
@@ -28,16 +35,12 @@ class RecommendResponse(BaseModel):
     retries: int
     error: str
 
-class SupabaseLoginRequest(BaseModel):
-    access_token: str
-
 class AuthResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
 
-
-# 관리자 로그인
 class AdminLoginRequest(BaseModel):
+    """관리자 로그인 - 계정 없이 공용 비밀번호만 받는다."""
     password: str
 
 class ProductCreate(BaseModel):
@@ -79,3 +82,5 @@ class Product(ProductCreate):
     product_id: int
     created_at: str
     updated_at: str
+
+

@@ -1,4 +1,4 @@
-# Last updated: 2026-08-27
+# Last updated: 2026-09-02
 # Last Updated : 2026-08-23
 
 """ 모든 스크립트가 공유하는 설정값과 상수를 모아둔다
@@ -131,13 +131,8 @@ else:
     LLM_API_KEY = "ollama"
     LLM_MODEL = "qwen2.5:3b"
 
-# CHOI 추가함. 구글 로그인이랑 서버 세션 토큰 만드는 데 필요한 설정값 4개를 미리 꺼내놓음.
-# 이 값들 없으면 나중에 구글 로그인 기능 자체가 동작을 못 함.
-GOOGLE_CLIENT_ID = env("GOOGLE_CLIENT_ID", "")
+# 관리자 로그인용 - 계정 없이 비밀번호 하나로만 검증한다
 JWT_SECRET = env("JWT_SECRET", "")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = 60 * 24 * 7  # 7일
 ADMIN_PASSWORD = env("ADMIN_PASSWORD", "")
-
-SUPABASE_URL = env("SUPABASE_URL", "") # CHOI 추가
-SUPABASE_KEY = env("SUPABASE_KEY", "") # CHOI 추가
