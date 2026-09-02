@@ -6,7 +6,7 @@
 from typing import Any
 from app.core.config import PASSAGE_PREFIX
 from app.features.retrieve import build_where
-from app.core.db import query
+from app.core.db import fetch_tuples
 from pipeline.vector_db import search,connect
 
 def candidates(profiles: dict[str, Any],user_query: str, limit: int=20) -> list[dict[str, Any]]:
@@ -21,10 +21,10 @@ def candidates(profiles: dict[str, Any],user_query: str, limit: int=20) -> list[
 
     result = []
     for purchase_id, score, review in hits:
-        product_id = query(
+        product_id = fetch_tuples(
             "SELECT product_id FROM purchase WHERE purchase_id = ?", (purchase_id,)
         )[0][0]
-        name, brand, price = query(
+        name, brand, price = fetch_tuples(
             "SELECT name, brand, price_krw FROM product WHERE product_id = ?", (product_id,)
         )[0]
         result.append({

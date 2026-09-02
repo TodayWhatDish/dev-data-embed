@@ -1,4 +1,4 @@
-from app.core.db import dicts
+from app.core.db import fetch
 
 def get_breeds():
-    return dicts("SELECT * FROM breed")
+    return fetch("SELECT * FROM breed")

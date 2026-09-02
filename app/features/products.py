@@ -8,7 +8,18 @@
 
 from app.repositories import products as product_repo
 from app.repositories import purchases as purchase_repo
+from app.core.db import QueryError
 import logging
+
+# QueryError.reason -> (ProductError.kind, 사용자에게 보일 말)
+# 여기 없는 reason(unknown_table, unknown_column, no_where ...)은 서버 코드 버그다.
+# 잡지 않고 그대로 올려보내 500 이 되게 둔다 — 클라이언트 탓으로 돌리면 고칠 사람이 로그를 안 본다
+CLIENT_FAULT = {
+    'constraint_unique':  ("conflict", "이미 있는 값입니다."),
+    'constraint_check':   ("params_error", "입력 값이 허용 범위를 벗어났습니다."),
+    'constraint_fk':      ("params_error", "참조하는 대상이 없습니다."),
+    'constraint_notnull': ("params_error", "필수 값이 비었습니다."),
+}
 
 class ProductError(Exception):
     """상품 관련 오류 : CRUD가 거부한 이유로 routes가 HTTP 상태로 옮긴다."""
@@ -41,12 +52,16 @@ def update_product(product_id:int, values:dict) -> int:
     """
     if not values:                      # PATCH 빈 바디. 안 막으면 'SET  WHERE' 라는 깨진 SQL 이 나간다
         raise ProductError("params_error", "조건 입력이 잘못되었습니다.")
-    updated_row = product_repo.update_product(product_id, values)
+    try:
+        updated_row = product_repo.update_product(product_id, values)
+    except QueryError as e:
+        kind_msg = CLIENT_FAULT.get(e.reason)
+        if kind_msg is None:
+            raise                       # 서버 버그 -> 500 + 트레이스백
+        raise ProductError(*kind_msg) from e
 
     logging.getLogger().debug(f"Try Update product table, updated_row: {updated_row}, where: {product_id},  update_cols: {values.keys()}")
 
-    if updated_row < 0: #line 41에서 막아서 탈 일 없음
-        raise ProductError("params_error", "조건 입력이 잘못되었습니다.")
     return updated_row
 
 def update_after_select_product(product_id:int, values:dict) -> tuple[int, dict]:
@@ -57,8 +72,6 @@ def update_after_select_product(product_id:int, values:dict) -> tuple[int, dict]
 
     logging.getLogger().debug("update after select to product table")
 
-    if updated_row < 0:
-        raise ProductError("params_error", "조건 입력이 잘못되었습니다.")
     if updated_row == 0:
         raise ProductError("not_found",f"{product_id}상품이 없다.")
 
