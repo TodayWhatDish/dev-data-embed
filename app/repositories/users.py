@@ -1,20 +1,44 @@
 # Last Updated : 2026-09-01
 
-"""user 테이블에 연결되는 곳. 현재는 구글 로그인 조회/갱신/가입만 다룬다."""
-from app.core.db import one, query, con
+"""user 테이블에 연결되는 곳. 관리자 화면용 고객 조회."""
 
-def find_by_google_uid(sub: str) -> int | None:
-    """auth_provider = 'google'인 user_id를 반환한다. 없으면 None."""
-    row = one("SELECT user_id FROM user WHERE auth_provider = 'google' AND auth_provider_uid = ?", (sub,))
-    return row[0] if row else None
+from app.core.db import dicts
 
-def touch_login(user_id: int) -> None:
-    """last_login_at를 현재 시각으로 갱신한다."""
-    query("UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?", (user_id,))
-    con.commit()  # UPDATE는 commit을 해줘야 실제 DB에 반영된다.
+def list_users() -> list[dict]:
+    """관리자 화면 왼쪽 목록용. 고객 전체를 이름순으로."""
+    return dicts("""
+        SELECT user_id, name, email, region, created_at
+        FROM user
+        ORDER BY name
+    """)
 
-def create_google_user(sub: str, email: str, name: str) -> int:
-    """user 행을 만들고 새 user_id를 돌려준다."""
-    query("INSERT INTO users (auth_provider, auth_provider_uid, email, name) VALUES (?, ?, ?, ?)", ("google", sub, email, name))
-    con.commit()
-    return find_by_google_uid(sub)
+
+def get_user_detail(user_id: int) -> dict | None:
+    """고객 한 명의 프로필 + 반려동물 + 구매이력을 한 번에 묶는다."""
+    rows = dicts("""
+        SELECT user_id, name, email, phone, region, created_at, last_login_at
+        FROM user WHERE user_id = ?
+    """, (user_id,))
+    if not rows:
+        return None
+    user = rows[0]
+
+    user["pets"] = dicts("""
+        SELECT pe.pet_id, pe.name, ac.name_ko AS animal_category, pe.weight_kg, pe.neutered
+        FROM pet AS pe
+        JOIN animal_category AS ac ON ac.animal_category_id = pe.animal_category_id
+        WHERE pe.user_id = ?
+    """, (user_id,))
+
+    user["purchases"] = dicts("""
+        SELECT pu.purchase_id, pu.purchased_at, pu.unit_price_krw, pu.quantity,
+               p.name AS product_name, r.rating
+        FROM purchase AS pu
+        JOIN pet AS pe ON pe.pet_id = pu.pet_id
+        JOIN product AS p ON p.product_id = pu.product_id
+        LEFT JOIN review AS r ON r.purchase_id = pu.purchase_id
+        WHERE pe.user_id = ?
+        ORDER BY pu.purchased_at DESC
+    """, (user_id,))
+
+    return user

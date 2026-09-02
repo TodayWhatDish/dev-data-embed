@@ -1,3 +1,4 @@
+# Last updated: 2026-09-02
 # Last Updated : 2026-09-01
 
 """API 서버의 진입점. uvicorn이 이 파일의 'app' 객체를 찾아 실행한다.
@@ -11,20 +12,26 @@
 """
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+
+from app.api.routes.ask import router as ask_router
+from app.api.routes.health import router as health_router
 from app.api.routes.admin_auth import router as admin_auth_router
 from app.api.routes.products import router as products_router
+from app.api.routes.customers import router as customers_router
 from app.app_logger.logger import init_logger
+from app.core.config import ROOT
 
 init_logger()
 from app.api.routes.recommend import router as recommend_router
-from app.api.routes.auth import router as auth_router
 from app.api.lifespan import lifespan
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(recommend_router)
-app.include_router(auth_router)
+app.include_router(ask_router)
+app.include_router(health_router)
 app.include_router(admin_auth_router)
 app.include_router(products_router)
+app.include_router(customers_router)
 app.mount("/static/admin",StaticFiles(directory="web/admin"), name="admin_static")
 
 @app.get("/health")

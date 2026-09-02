@@ -20,11 +20,13 @@ def _http(exc: products.ProductError) -> HTTPException:
 
 @router.get("", response_model=list[Product])
 def product_list(page: int = 0, size: int = 20):
+    """전체 제품 리스트 출력(page방식)"""
     return products.list_products(page, size)
 
 
 @router.get("/{product_id}", response_model=Product)
 def product_get(product_id: int):
+    """product_id로 제품 정보를 출력, 없으면 에러"""
     try:
         return products.get_product(product_id)
     except products.ProductError as exc:
@@ -33,6 +35,7 @@ def product_get(product_id: int):
 
 @router.post("", response_model=Product, status_code=201)
 def product_create(draft: ProductCreate):
+    """"product_id는 PK로 auto ingrement"""
     return products.create_product(draft.model_dump())
 
 
@@ -50,3 +53,25 @@ def product_delete(product_id: int):
         products.delete_product(product_id)
     except products.ProductError as exc:
         raise _http(exc) from exc
+
+    
+"""관리자 화면 상품 조회/등록. GET /api/products, POST /api/products."""
+
+from fastapi import APIRouter, Depends
+
+from app.api.schemas import ProductCreate
+from app.core.auth import get_current_admin
+from app.repositories import products as products_repo
+
+router = APIRouter(dependencies=[Depends(get_current_admin)])
+
+
+@router.get("/api/products")
+def list_products():
+    return products_repo.get_products()
+
+
+@router.post("/api/products")
+def create_product(payload: ProductCreate):
+    product_id = products_repo.create_product(payload.model_dump())
+    return {"product_id": product_id}
