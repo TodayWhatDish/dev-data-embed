@@ -1,0 +1,73 @@
+<!doctype html>
+  <html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>관리자 대시보드</title>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #f3f5f1;
+        color: #16211d;
+        font-family: Arial, "Malgun Gothic", sans-serif;
+      }
+      .panel {
+        width: min(420px, calc(100% - 40px));
+        padding: 28px;
+        text-align: center;
+        background: #fff;
+        border: 1px solid #e1e5df;
+        border-radius: 12px;
+      }
+      h1 { margin: 0 0 14px; font-size: 21px; }
+      #whoami { color: #4a5c55; font-size: 14px; }
+      button {
+        margin-top: 20px;
+        padding: 9px 18px;
+        border: 1px solid #e1e5df;
+        border-radius: 8px;
+        background: #fff;
+        font-size: 13px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="panel">
+      <h1>관리자 대시보드</h1>
+      <p id="whoami">확인 중...</p>
+      <button id="logout">로그아웃</button>
+    </main>
+
+    <script>
+      const TOKEN_KEY = "admin_token";
+      const token = localStorage.getItem(TOKEN_KEY);
+      const whoami = document.querySelector("#whoami");
+
+      // 토큰이 없으면 로그인 화면으로 돌려보낸다.
+      if (!token) {
+        window.location.href = "/static/admin/login.html";
+      } else {
+        fetch("/admin/me", { headers: { Authorization: `Bearer ${token}` } })
+          .then((res) => {
+            // 토큰이 만료됐거나 위조면 401이 온다.
+            if (!res.ok) throw new Error();
+            return res.json();
+          })
+          .then((data) => { whoami.textContent = `로그인됨 — role: ${data.role}`; })
+          .catch(() => {
+            localStorage.removeItem(TOKEN_KEY);
+            whoami.textContent = "세션이 만료되었습니다. 다시 로그인해 주세요.";
+          });
+      }
+
+      document.querySelector("#logout").addEventListener("click", () => {
+        localStorage.removeItem(TOKEN_KEY);
+        window.location.href = "/static/admin/login.html";
+      });
+    </script>
+  </body>
+  </html>

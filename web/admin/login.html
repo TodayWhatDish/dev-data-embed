@@ -1,0 +1,100 @@
+<!doctype html>
+  <html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>관리자 로그인</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #f3f5f1;
+        color: #16211d;
+        font-family: Arial, "Malgun Gothic", sans-serif;
+      }
+      .login {
+        width: min(340px, calc(100% - 40px));
+        padding: 28px;
+        text-align: center;
+        background: #fff;
+        border: 1px solid #e1e5df;
+        border-radius: 12px;
+        box-shadow: 0 8px 24px rgb(22 33 29 / 8%);
+      }
+      .corgi {
+        width: 88px;
+        height: 88px;
+        display: block;
+        margin: 0 auto 18px;
+        object-fit: cover;
+        border: 4px solid #e4efe9;
+        border-radius: 50%;
+      }
+      h1 { margin: 0 0 22px; font-size: 21px; }
+      label {
+        display: block;
+        margin-bottom: 8px;
+        text-align: left;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      input {
+        width: 100%;
+        padding: 11px 12px;
+        border: 1px solid #e1e5df;
+        border-radius: 8px;
+        font-size: 14px;
+        outline: none;
+      }
+      input:focus { border-color: #2f6f5e; }
+      button {
+        width: 100%;
+        margin-top: 12px;
+        padding: 11px;
+        border: 0;
+        border-radius: 8px;
+        background: #2f6f5e;
+        color: #fff;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      button:hover {
+        /* 마우스를 올리면 버튼색이 진해짐 */
+        background: #24564a;
+        box-shadow: 0 4px 12px rgb(47 111 94 / 35%);
+        transform: translateY(-2px);
+      }
+      button:active {
+        /* 누르고 있는동안 버튼이 조금 아래로 내려감 */
+        transform: translateY(1px);
+        box-shadow: none;
+      }
+      button:disabled { background: #9bb5ac; cursor: default; }
+      #error {
+        min-height: 18px;
+        margin: 10px 0 0;
+        color: #c0392b;
+        font-size: 13px;
+        text-align: left;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="login">
+      <img class="corgi" src="assets/corgi-face.png" alt="웰시코기 얼굴">
+      <h1>관리자 로그인</h1>
+      <form id="login-form">
+        <label for="password">관리자 비밀번호</label>
+        <input id="password" type="password" placeholder="비밀번호" required>
+        <button type="submit">입장</button>
+        <p id="error"></p>
+      </form>
+    </main>
+    <script src="/static/admin/app.js"></script>
+  </body>
+  </html>
