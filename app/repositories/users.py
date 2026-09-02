@@ -2,7 +2,7 @@
 
 """user 테이블에 연결되는 곳. 관리자 화면용 고객 조회."""
 
-from app.core.db import fetch, fetch_one, dicts
+from app.core.db import fetch, fetch_one
 
 def list_users() -> list[dict]:
     """관리자 화면 왼쪽 목록용. 고객 전체를 이름순으로.
@@ -11,7 +11,7 @@ def list_users() -> list[dict]:
     강아지/고양이/모두 카테고리를 나누는 데 쓴다. gender/birth_date는 첫 번째로 등록된
     반려동물의 것이다 (사람 성별·나이가 아니다 - user 테이블엔 그 둘이 없다).
     """
-    return dicts("""
+    return fetch("""
         SELECT u.user_id, u.name, u.email, u.region, u.created_at,
                (SELECT GROUP_CONCAT(DISTINCT ac.name_ko)
                   FROM pet AS pe
@@ -33,7 +33,7 @@ def get_user_detail(user_id: int) -> dict | None:
     if not user:
         return None
 
-    user["pets"] = dicts("""
+    user["pets"] = fetch("""
         SELECT pe.pet_id, pe.name, ac.name_ko AS animal_category, pe.gender, pe.birth_date, pe.weight_kg, pe.neutered
         FROM pet AS pe
         JOIN animal_category AS ac ON ac.animal_category_id = pe.animal_category_id
@@ -42,7 +42,7 @@ def get_user_detail(user_id: int) -> dict | None:
 
     # product_type: product_category는 "간식" 아래 덴탈껌/트릿/수제간식처럼 한 단계 더 나뉠 수 있어
     # parent_id가 있으면 그 부모(=최상위 카테고리)로 올려서 사료(1)/간식(2) 둘로만 구분한다.
-    user["purchases"] = dicts("""
+    user["purchases"] = fetch("""
         SELECT pu.purchase_id, pu.purchased_at, pu.unit_price_krw, pu.quantity,
                p.product_id, p.name AS product_name, r.rating, r.body AS review_body,
                CASE WHEN COALESCE(pc.parent_id, pc.product_category_id) = 1 THEN '사료' ELSE '간식' END AS product_type

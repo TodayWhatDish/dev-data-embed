@@ -7,7 +7,7 @@
 import sqlite3
 import sqlite_vec
 
-def _chunk_id(purchase_id: int, chunk_index: int) -> str:
+def chunk_id(purchase_id: int, chunk_index: int) -> str:
     """ chunk_vectors의 복합키 (purchase_id, chunk_index)를 
         VectorStore가 기대하는 문자열 id 하나로 합친다."""
     return f"{purchase_id}:{chunk_index}"
@@ -68,7 +68,7 @@ class SqliteVectorStore:
         except sqlite3.OperationalError:
             return {}  # 테이블이 아직 없다 = 아는 지문이 없다
 
-        result = {_chunk_id(pid, idx): h for pid, idx, h in rows}
+        result = {chunk_id(pid, idx): h for pid, idx, h in rows}
         if ids is None:
             return result
         wanted = set(ids)
@@ -99,4 +99,3 @@ class SqliteVectorStore:
             f"DELETE FROM {table} WHERE purchase_id = ? AND chunk_index = ?", pairs
         )
         self._con.commit()
-    

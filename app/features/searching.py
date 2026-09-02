@@ -6,7 +6,7 @@
 from typing import Any
 from app.core.config import PASSAGE_PREFIX
 from app.features.retrieve import build_where
-from app.core.db import fetch_tuples,query
+from app.core.db import fetch_tuples
 from app.features.profile import pet_profile
 from app.repositories import users as users_repo
 from pipeline.vector_db import search,connect
