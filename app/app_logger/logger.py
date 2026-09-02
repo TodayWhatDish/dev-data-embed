@@ -37,7 +37,8 @@ getLogger().debug(msg)
 형태로 써도 됩니다.
 """
 
-def init_logger(file_name = 'pet_rec', level = logging.DEBUG):
+
+def init_logger(file_name = 'pet_rec', level = logging.DEBUG, console = True):
     
     """
     # params
@@ -48,6 +49,10 @@ def init_logger(file_name = 'pet_rec', level = logging.DEBUG):
     * level: log level
 
             * write log file at write level > log level
+    * console: 로그를 콘솔에도 뿌린다
+
+            * 파일에는 [시각][레벨][위치] 가 붙지만 콘솔은 메시지만 - print 처럼 읽으라고
+            * 자체검증 스크립트가 결과를 logger 로 뿌리는데 파일만 쓰면 화면이 빈다
 
     # log format
     [time][log_level][file::func:line] > msg
@@ -79,12 +84,21 @@ def init_logger(file_name = 'pet_rec', level = logging.DEBUG):
     logging.basicConfig(
         filename= LOGGER_DIR / file_name, 
         filemode = 'w',
+        encoding = 'utf-8',   # 기본값은 로케일(cp949)이라 '·', '—' 한 글자에 로그가 터진다
         format = FMT,
         datefmt = DATEFMT,
         level=level)
 
     # 인자 없이 호출하면 root logger를 리턴
     logger = logging.getLogger()
+
+    # 콘솔은 메시지만. 두 번 불러도 핸들러가 겹치지 않게 이미 있으면 건너뛴다.
+    # FileHandler 가 StreamHandler 의 자식이라 isinstance 로 보면 파일 핸들러를 콘솔로 착각한다
+    if console and not any(type(h) is logging.StreamHandler for h in logger.handlers):
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(logging.Formatter('%(message)s'))
+        logger.addHandler(console_handler)
+
     logger.info('Start Logger!!!')
 
     # logger.debug('Log level Test')
