@@ -19,9 +19,11 @@ def recommend(candidates: list[dict[str,Any]], profile: dict[str,Any], n_pick: i
         try:
             result: Recommendation = structured_chat.invoke(prompt)
         except Exception as exc:
-            # 채우기: last_error에 str(exc) 담고, 이번 attempt는 결과가 없으니
-            # 아래 검증 코드로 안 내려가고 바로 다음 attempt로 넘어가야 함 (continue)
-            ...
+            # 결과가 없는데 아래 검증으로 내려가면 result 가 미정의라 NameError 가 난다.
+            # 연결 실패·타임아웃·형식 오류가 엉뚱한 에러로 둔갑하지 않도록 여기서 붙잡는다.
+            # 예외 종류까지 남긴다 - "왜 실패했나"를 응답만 보고 판단해야 하기 때문이다.
+            last_error = f"{type(exc).__name__}: {exc}"
+            continue
 
         # 후보 밖 product_id가 섞였는지, 개수가 n_pick과 맞는지 검증한다.
         bad_ids = [p.product_id for p in result.picks if p.product_id not in valid_ids]

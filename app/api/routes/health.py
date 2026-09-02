@@ -25,7 +25,7 @@ def ready() -> dict:
     llm_ok = False
 
     try:
-        con.execute("SELECT 1").fetchon()
+        con.execute("SELECT 1").fetchone()
         db_ok = True
     except Exception:
         db_ok = False
