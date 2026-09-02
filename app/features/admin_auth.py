@@ -1,12 +1,13 @@
-# Last Updated : 2026-09-01
+# Last Updated : 2026-09-02
 
 """관리자 로그인 검증 + JWT 토큰 발급"""
 
-import secrets   
-from datetime import datetime, timedelta,timezone
+import secrets
+from datetime import datetime, timedelta, timezone
 
 import jwt
-from app.core.config import JWT_SECRET,JWT_ALGORITHM,JWT_EXPIRE_MINUTES,ADMIN_PASSWORD
+from app.core.config import JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRE_MINUTES, ADMIN_PASSWORD
+
 
 def login(password: str) -> str:
     """공용 비밀번호를 검증하고, 맞으면 JWT 토큰을 발급한다. 틀리면 ValueError."""

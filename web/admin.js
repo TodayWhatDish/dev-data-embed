@@ -1,59 +1,74 @@
 const API = window.location.origin;
 
 // ==================================
-//  로그인 (비번 없음, 아이디만 받는다)
+//  로그인 (계정 없이 공용 비밀번호 하나로만 검증. 서버가 JWT 토큰을 발급해준다)
 // ==================================
 const loginGate = document.querySelector("#loginGate");
 const adminArea = document.querySelector("#adminArea");
-const adminIdInput = document.querySelector("#adminIdInput");
+const adminPasswordInput = document.querySelector("#adminPasswordInput");
 const loginBtn = document.querySelector("#loginBtn");
+const loginError = document.querySelector("#loginError");
 const logoutBtn = document.querySelector("#logoutBtn");
 const whoami = document.querySelector("#whoami");
 
-let adminId = localStorage.getItem("adminId") || "";
+let adminToken = localStorage.getItem("adminToken") || "";
 
 const authHeaders = () => ({
-  Authorization: "Bearer dev-token",
-  "X-User-Id": adminId,
+  Authorization: `Bearer ${adminToken}`,
 });
 
-const enterAdmin = (id) => {
-  adminId = id;
-  localStorage.setItem("adminId", id);
+const enterAdmin = () => {
   loginGate.hidden = true;
   adminArea.hidden = false;
-  whoami.textContent = id;
+  whoami.textContent = "관리자";
   loadCustomers();
 };
 
-loginBtn.addEventListener("click", () => {
-  const id = adminIdInput.value.trim();
-  if (id !== "admin") {
-    alert("관리자 아이디가 아닙니다.");
-    return;
-  }
-  enterAdmin(id);
-});
-
-logoutBtn.addEventListener("click", () => {
-  adminId = "";
-  localStorage.removeItem("adminId");
+const showLoginGate = () => {
+  adminToken = "";
+  localStorage.removeItem("adminToken");
   adminArea.hidden = true;
   loginGate.hidden = false;
-  adminIdInput.value = "";
+  adminPasswordInput.value = "";
+};
+
+loginBtn.addEventListener("click", async () => {
+  loginError.textContent = "";
+  const password = adminPasswordInput.value;
+
+  const res = await fetch(`${API}/admin/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password }),
+  });
+
+  if (!res.ok) {
+    const body = await res.json();
+    loginError.textContent = body.detail || "로그인 실패";
+    return;
+  }
+
+  const { access_token } = await res.json();
+  adminToken = access_token;
+  localStorage.setItem("adminToken", adminToken);
+  enterAdmin();
 });
+
+logoutBtn.addEventListener("click", showLoginGate);
 
 // ==================================
 //  API 호출
 // ==================================
 const getCustomers = async () => {
   const res = await fetch(`${API}/api/customers`, { headers: authHeaders() });
+  if (res.status === 401) { showLoginGate(); throw new Error("토큰 만료"); }
   if (!res.ok) throw new Error();
   return res.json();
 };
 
 const getCustomerInfo = async (id) => {
   const res = await fetch(`${API}/api/customers/${id}`, { headers: authHeaders() });
+  if (res.status === 401) { showLoginGate(); throw new Error("토큰 만료"); }
   if (!res.ok) throw new Error();
   return res.json();
 };
@@ -235,4 +250,5 @@ const buildAiContent = (c) => {
 };
 
 // 새로고침해도 로그인 상태 유지 (모든 함수 선언이 끝난 뒤에 실행해야 함)
-if (adminId) enterAdmin(adminId);
+// 토큰이 만료됐으면 getCustomers()가 401을 받아 자동으로 로그인 화면으로 돌려보낸다
+if (adminToken) enterAdmin();

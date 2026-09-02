@@ -35,16 +35,12 @@ class RecommendResponse(BaseModel):
     retries: int
     error: str
 
-class SupabaseLoginRequest(BaseModel):
-    access_token: str
-
 class AuthResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
 
-
-# 관리자 로그인
 class AdminLoginRequest(BaseModel):
+    """관리자 로그인 - 계정 없이 공용 비밀번호만 받는다."""
     password: str
 
 class ProductCreate(BaseModel):
