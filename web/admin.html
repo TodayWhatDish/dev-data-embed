@@ -219,6 +219,14 @@
     margin: 4px 0 12px;
   }
 
+  .chart-card{
+    background: var(--panel);
+    border:1px solid var(--line);
+    border-radius: 12px;
+    padding: 18px 20px 8px;
+    margin-bottom: 24px;
+  }
+
   table.purchases{
     width:100%;
     border-collapse: collapse;
@@ -250,6 +258,13 @@
     color: var(--accent);
   }
   .rating.none{ background:#f1f2ef; color:var(--muted); }
+  .review-text{
+    margin-top: 5px;
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 2;
+    max-width: 550px;
+  }
 
   .overlay{
     position:fixed; inset:0;
@@ -366,18 +381,19 @@
   </div>
 </div>
 
-<div class="overlay" id="overlay" onclick="closeAiPanel()"></div>
+<div class="overlay" id="overlay" onclick="closeAllPanels()"></div>
 <div class="ai-panel" id="aiPanel">
   <div class="ai-panel-header">
     <div>
       <h2 id="aiPanelName">AI 분석</h2>
       <p>구매 이력 기반 맞춤 전략 제안</p>
     </div>
-    <button class="close-btn" onclick="closeAiPanel()">×</button>
+    <button class="close-btn" onclick="closeAllPanels()">×</button>
   </div>
   <div class="ai-panel-body" id="aiPanelBody"></div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.1/chart.umd.min.js"></script>
 <script src="admin.js"></script>
 </body>
 </html>

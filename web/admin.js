@@ -145,13 +145,16 @@ const renderCustomerDetail = (c) => {
         p.rating != null
           ? `<span class="rating">별점 ${p.rating}</span>`
           : `<span class="rating none">리뷰 없음</span>`;
+      const reviewText = p.review_body
+        ? `<div class="review-text">${p.review_body}</div>`
+        : "";
       return `
         <tr>
           <td>${(p.purchased_at || "").slice(0, 10)}</td>
           <td>${p.product_name}</td>
           <td>${p.quantity}개</td>
-          <td>${p.unit_price_krw.toLocaleString()}원</td>
-          <td>${ratingBadge}</td>
+          <td>${(p.unit_price_krw * p.quantity).toLocaleString()}원</td>
+          <td>${ratingBadge}${reviewText}</td>
         </tr>`;
     })
     .join("");
@@ -173,6 +176,11 @@ const renderCustomerDetail = (c) => {
       </div>
     </div>
 
+    <div class="section-title">구매 금액 추이</div>
+    <div class="chart-card">
+      <canvas id="purchaseChartCanvas" height="90"></canvas>
+    </div>
+
     <div class="section-title">구매 이력</div>
     <table class="purchases">
       <thead>
@@ -181,6 +189,50 @@ const renderCustomerDetail = (c) => {
       <tbody>${rows || `<tr><td colspan="5">구매 이력이 없습니다.</td></tr>`}</tbody>
     </table>
   `;
+
+  drawPurchaseChart(c.purchases || []);
+};
+
+// ==================================
+//  구매 금액 선그래프 (Chart.js)
+// ==================================
+let purchaseChart = null;
+
+const drawPurchaseChart = (purchases) => {
+  const ctx = document.getElementById("purchaseChartCanvas");
+  if (!ctx) return;
+
+  if (purchaseChart) {
+    purchaseChart.destroy();
+  }
+
+  const sorted = [...purchases].sort((a, b) => a.purchased_at.localeCompare(b.purchased_at));
+  const labels = sorted.map((p) => (p.purchased_at || "").slice(0, 10));
+  const amounts = sorted.map((p) => p.unit_price_krw * p.quantity);
+
+  purchaseChart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{
+        label: "구매 금액(원)",
+        data: amounts,
+        borderColor: "#2f6f5e",
+        backgroundColor: "rgba(47,111,94,0.12)",
+        tension: 0.25,
+        fill: true,
+        pointRadius: 3,
+        pointBackgroundColor: "#2f6f5e",
+      }],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, ticks: { callback: (v) => v.toLocaleString() + "원" } },
+      },
+    },
+  });
 };
 
 // ==================================
@@ -205,7 +257,7 @@ const openAiPanel = () => {
   }, 700);
 };
 
-const closeAiPanel = () => {
+const closeAllPanels = () => {
   overlay.classList.remove("open");
   aiPanel.classList.remove("open");
 };
