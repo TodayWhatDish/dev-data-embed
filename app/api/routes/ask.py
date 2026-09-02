@@ -19,9 +19,11 @@ from fastapi.responses import StreamingResponse
 
 from app.api.schemas import AskRequest
 from app.core.auth import get_current_admin
+from app.domain.prompting import build_customer_context
 from app.features import answering
 from app.features.profile import build_profile, pet_profile
 from app.features.searching import candidates
+from app.repositories import users as users_repo
 
 router = APIRouter(dependencies=[Depends(get_current_admin)])
 
@@ -34,6 +36,7 @@ def ask(req: AskRequest):
     """
     profile = pet_profile(req.pet_id) if req.pet_id else build_profile(req.model_dump())
     matches = candidates(profile, req.user_query)
+    customer_context = build_customer_context(users_repo.get_user_detail(req.user_id) if req.user_id else None)
 
     def generate():
         if not matches:
@@ -41,7 +44,7 @@ def ask(req: AskRequest):
             return
         yield json.dumps({"type": "sources", "sources": matches}, ensure_ascii=False) + "\n"
         try:
-            for piece in answering.stream(req.user_query, matches):
+            for piece in answering.stream(req.user_query, matches, customer_context):
                 yield json.dumps({"type": "delta", "text": piece}, ensure_ascii=False) + "\n"
         except Exception as e:
             yield json.dumps({"type": "error", "message": f"LLM 응답 실패: {e}"}, ensure_ascii=False) + "\n"

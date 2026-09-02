@@ -78,6 +78,7 @@ const getCustomerInfo = async (id) => {
 // ==================================
 let customers = [];
 let selectedCustomer = null; // getCustomerInfo() 결과 (pets, purchases 포함)
+let askGen = 0; // askQuestion()이 겹쳐 호출돼도 오래된 스트림이 화면에 못 쓰게 막는 세대 번호
 
 // ==================================
 //  고객 목록 (사이드바)
@@ -263,6 +264,10 @@ const renderAskForm = () => {
   aiPanelBody.innerHTML = `
     <div id="historyRecs"><div class="ai-loading" style="height:auto;padding:10px 0;"><div class="spinner"></div>구매 이력 확인 중...</div></div>
 
+    <div class="section-title" style="font-size:13px;margin-top:22px;">판매전략 / CS 응대안</div>
+    <button id="strategyBtn" class="ai-btn" style="width:100%;justify-content:center;">생성하기</button>
+    <div id="strategyResult" style="margin-top:14px;"></div>
+
     <div class="section-title" style="font-size:13px;margin-top:22px;">직접 질문하기</div>
     <form id="askForm">
       <input id="askInput" type="text" placeholder="예) 이 고객에게 어떤 사료가 맞을까요?"
@@ -273,11 +278,51 @@ const renderAskForm = () => {
     <div id="askAnswer" class="review-text" style="margin-top:16px;white-space:pre-wrap;"></div>
     <div id="askSources"></div>
   `;
-  document.querySelector("#askForm").addEventListener("submit", (e) => {
+  document.querySelector("#askForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const text = document.querySelector("#askInput").value.trim();
-    if (text) askQuestion(text);
+    if (!text) return;
+    const btn = e.target.querySelector("button[type=submit]");
+    btn.disabled = true;
+    try {
+      await askQuestion(text);
+    } finally {
+      btn.disabled = false;
+    }
   });
+  document.querySelector("#strategyBtn").addEventListener("click", loadStrategy);
+};
+
+// 판매전략/CS 응대안 생성. LLM 호출 비용이 있어 패널을 열 때 자동 실행하지 않고 버튼으로 트리거한다.
+// citations의 verified는 서버가 SQL로 대조한 결과 - 실제 이 고객 구매가 아니면 false.
+const loadStrategy = async () => {
+  const btn = document.querySelector("#strategyBtn");
+  const resultEl = document.querySelector("#strategyResult");
+  btn.disabled = true;
+  resultEl.innerHTML = `<div class="ai-loading" style="height:auto;padding:10px 0;"><div class="spinner"></div>생성 중...</div>`;
+
+  const res = await fetch(`${API}/api/customers/${selectedCustomer.user_id}/strategy`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  btn.disabled = false;
+  if (res.status === 401) { showLoginGate(); return; }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    resultEl.innerHTML = `<p style="font-size:13px;color:#c0392b;">${err.detail ?? "생성 실패"}</p>`;
+    return;
+  }
+
+  const data = await res.json();
+  resultEl.innerHTML =
+    `<div class="review-text" style="white-space:pre-wrap;">${data.strategy}</div>` +
+    `<div class="section-title" style="font-size:12px;margin-top:12px;">근거</div>` +
+    data.citations.map((c) => `
+      <div class="ai-block">
+        <h3><span class="dot" style="background:${c.verified ? "#2e9e5b" : "#c0392b"};"></span>
+          구매#${c.purchase_id} · ${c.verified ? "확인됨" : "확인 불가"}</h3>
+        <div class="review-text">${c.quote}</div>
+      </div>`).join("");
 };
 
 // 이 고객이 실제로 남긴 최근 리뷰를 근거로 한 추천. 질문 없이도 패널을 열면 항상 뜬다
@@ -303,6 +348,9 @@ const loadHistoryBasedRecs = async (userId) => {
 // 선택된 고객의 첫 번째 펫 프로필로 /ask 를 스트리밍 호출.
 // NDJSON 을 줄 단위로 읽는다 - 네트워크 조각이 줄 한가운데를 자를 수 있어 buffer 가 꼭 필요
 const askQuestion = async (question) => {
+  // 이 호출만의 세대 번호. 도중에 새 askQuestion()이 또 호출되면 askGen이 바뀌어
+  // 이 호출의 타이머/쓰기는 전부 스스로 멈춘다 - 같은 #askAnswer에 두 스트림이 동시에 안 써진다.
+  const myGen = ++askGen;
   const answerEl = document.querySelector("#askAnswer");
   const sourcesEl = document.querySelector("#askSources");
   const errorEl = document.querySelector("#askError");
@@ -313,6 +361,7 @@ const askQuestion = async (question) => {
   // 델타가 네트워크 조각 단위(단어/문장)로 오더라도 화면엔 한 글자씩 흘러나오게 큐에 쌓아 타이핑한다
   let typeQueue = "";
   const typeTimer = setInterval(() => {
+    if (myGen !== askGen) { clearInterval(typeTimer); return; }
     if (!typeQueue) return;
     answerEl.textContent += typeQueue[0];
     typeQueue = typeQueue.slice(1);
@@ -323,7 +372,7 @@ const askQuestion = async (question) => {
   const res = await fetch(`${API}/ask`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify({ user_query: question, pet_id: petId }),
+    body: JSON.stringify({ user_query: question, pet_id: petId, user_id: selectedCustomer.user_id }),
   });
   if (res.status === 401) { showLoginGate(); return; }
   if (!res.body) { errorEl.textContent = "응답을 받지 못했습니다."; return; }
@@ -333,6 +382,7 @@ const askQuestion = async (question) => {
   let buffer = "";
 
   while (true) {
+    if (myGen !== askGen) { reader.cancel(); return; } // 그 사이 새 질문이 시작됐으면 이 스트림은 그만 읽는다
     const { done, value } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
@@ -352,9 +402,10 @@ const askQuestion = async (question) => {
 
   // 큐에 남은 글자를 마저 흘려보낸 뒤 타이머를 정리한다
   const drain = setInterval(() => {
-    if (typeQueue) return;
-    clearInterval(typeTimer);
-    clearInterval(drain);
+    if (myGen !== askGen || !typeQueue) {
+      clearInterval(typeTimer);
+      clearInterval(drain);
+    }
   }, 20);
 };
 
