@@ -57,3 +57,46 @@ class SqliteVectorStore:
     def search(self, kind:str, query_vector, k: int, *,
                only_ids = None, reverse: bool=False) -> list[tuple[str,float]]:
         pass
+
+    def hashes(self, kind: str, *, ids=None) -> dict[str, str]:
+        table, _parent = TABLES[kind]
+        cur = self._con.cursor()
+        try:
+            rows = cur.execute(
+                f"SELECT purchase_id, chunk_index, source_hash FROM {table}"
+            ).fetchall()
+        except sqlite3.OperationalError:
+            return {}  # 테이블이 아직 없다 = 아는 지문이 없다
+
+        result = {_chunk_id(pid, idx): h for pid, idx, h in rows}
+        if ids is None:
+            return result
+        wanted = set(ids)
+        return {k: v for k, v in result.items() if k in wanted}
+    
+    def upsert(self, kind, ids, vectors, *, model, hashes, payloads=None) -> None:
+        table, _parent = TABLES[kind]
+        cur = self._con.cursor()
+        rows = [
+            (*_split_chunk_id(item_id), sqlite_vec.serialize_float32(vec), h)
+            for item_id, vec, h in zip(ids, vectors, hashes)
+        ]
+        cur.executemany(
+            f"INSERT OR REPLACE INTO {table} "
+            "(purchase_id, chunk_index, vector, source_hash) VALUES (?, ?, ?, ?)",
+            rows,
+        )
+        cur.execute("INSERT OR REPLACE INTO embedding_meta VALUES ('model', ?)", (model,))
+        self._con.commit()
+
+    def delete(self, kind, ids) -> None:
+        if not ids:
+            return
+        table, _parent = TABLES[kind]
+        cur = self._con.cursor()
+        pairs = [_split_chunk_id(item_id) for item_id in ids]
+        cur.executemany(
+            f"DELETE FROM {table} WHERE purchase_id = ? AND chunk_index = ?", pairs
+        )
+        self._con.commit()
+    
