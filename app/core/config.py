@@ -128,11 +128,15 @@ def env(name: str, default: str) -> str:
 load_env()
 USE_API = env("USE_API",0) == "1"
 
+# LLM_PROVIDER는 langchain init_chat_model()의 provider 인자로 그대로 들어간다 (adapters/stores/llm.py).
+# 상용 API를 바꾸고 싶으면 .env의 LLM_PROVIDER/LLM_API_KEY/API_MODEL 세 값만 바꾸면 된다 - 코드 수정 불필요.
 if USE_API:
-    LLM_BASE_URL = "https://api.openai.com/v1"
-    LLM_API_KEY = env("OPENAI_API_KEY", "")
-    LLM_MODEL = env("API_MODEL", "gpt-4o-mini")
+    LLM_PROVIDER = env("LLM_PROVIDER", "anthropic")
+    LLM_BASE_URL = None  # provider 네이티브 클라이언트는 base_url이 필요 없다 (OpenAI 호환 프록시를 쓸 때만 .env로 지정)
+    LLM_API_KEY = env("LLM_API_KEY", "")
+    LLM_MODEL = env("API_MODEL", "claude-sonnet-5")
 else:
+    LLM_PROVIDER = "openai"  # Ollama가 OpenAI 호환 엔드포인트를 흉내내므로 provider는 openai로 두고 base_url만 로컬로 돌린다
     LLM_BASE_URL = "http://localhost:11434/v1"
     LLM_API_KEY = "ollama"
     LLM_MODEL = "qwen2.5:3b"
