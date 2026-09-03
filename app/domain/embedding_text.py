@@ -33,15 +33,17 @@ def source_hash(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
 
-def _group(pairs, name_of):
-    """(product_id, 마스터 id) 목록을 {product_id: [이름...]} 으로 묶는다.
+def _group(rows, name_of, master_key):
+    """관계 테이블 행을 {product_id: [이름...]} 으로 묶는다.
 
     1:N 관계 테이블을 조인하지 않고 전량 스캔해 오기 때문에 여기서 묶는다.
     이름은 마스터 캐시(name_of)에서 찍는다 - 관계 테이블 조회에 조인이 없다.
+    * rows: {'product_id': ..., master_key: ...} 행 목록
+    * master_key: 그 관계 테이블이 가리키는 마스터 id 컬럼 이름. 테이블마다 달라 인자로 받는다
     """
     grouped = {}
-    for product_id, master_id in pairs:
-        grouped.setdefault(product_id, []).append(name_of(master_id))
+    for row in rows:
+        grouped.setdefault(row["product_id"], []).append(name_of(row[master_key]))
     return grouped
 
 
@@ -52,16 +54,16 @@ def build_product_rows(products, animal_category_ids, feeding_purpose_ids, ingre
 
     DB 에 닿지 않는다. 재료는 repositories 가 읽어오고, 이름은 마스터 캐시가 준다.
     * products: product 행 목록(dict)
-    * *_ids: (product_id, 마스터 id) 튜플 목록
+    * *_ids: {product_id, 마스터 id} 행 목록(dict)
     * *_name: 마스터 id -> 이름 함수
     * category_of: product_category_id -> (대분류, 소분류) 함수
 
     수치(가격/중량/영양)는 넣지 않는다. 임베딩이 숫자로 의미를 만들지 못하고,
     그 조건은 프로필 선필터(SQL)가 거른다 (CLAUDE.md 도메인 규칙 4).
     """
-    animals = _group(animal_category_ids, animal_category_name)
-    purposes = _group(feeding_purpose_ids, feeding_purpose_name)
-    ingredients = _group(ingredient_ids, ingredient_name)
+    animals = _group(animal_category_ids, animal_category_name, "animal_category_id")
+    purposes = _group(feeding_purpose_ids, feeding_purpose_name, "feeding_purpose_id")
+    ingredients = _group(ingredient_ids, ingredient_name, "ingredient_id")
 
     rows = []
     for product in products:

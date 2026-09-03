@@ -1,13 +1,12 @@
-from app.core.db import fetch, fetch_one, fetch_tuples, con, execute, QueryError
+from app.core.db import QueryError
 from app.repositories.general_query import (select, select_all, select_range,
                                             insert_query, update_query)
 import logging
-import sqlite3
 
 # 단일 테이블 + = 조건인 쿼리는 general_query 로 간다. SQL 을 손으로 쓰지 않는 것보다,
 # 컬럼 이름이 틀렸을 때 QueryError('unknown_column') 로 통일되는 게 크다 —
 # features/products.py 의 CLIENT_FAULT 표가 reason 을 보고 HTTP 상태를 정하기 때문이다.
-# 조인·집계·DELETE 는 general_query 가 못 만들어서 아래에도 SQL 이 그대로 남아 있다.
+# 조인·집계는 general_query 가 못 만들어서 아래에도 SQL 이 그대로 남아 있다.
 
 # def get_product_detail_info():
 #     fetch_tuples("""
@@ -38,20 +37,20 @@ def get_ingredients():
 # 아래는 임베딩 문장 재료. 이름은 마스터 캐시에 있으니 관계 테이블에서 id 만 긁어온다.
 # 1:N 이라 조인하지 않고 전량 스캔 -> domain 에서 product_id 로 묶는다 (합쳐서 1500행 남짓)
 #
-# 관계 테이블 셋만 fetch_tuples 로 남는다. general_query 는 list[dict] 에 SELECT * 라
-# 부르는 쪽의 for a, b in ... 을 전부 고쳐야 하고, 1500행 전량 스캔이라 컬럼 수도 공짜가 아니다
+# 예전엔 컬럼 두 개만 뽑으려고 fetch_tuples 로 SQL 을 직접 썼다. select_all 이 cols 를 받게
+# 되면서 그 이유가 없어졌다 - 컬럼 이름이 붙어 오니 받는 쪽이 자리로 풀지 않아도 된다
 
 def get_products():
     return select("product", {"is_active": 1})
 
 def get_product_animal_category_ids():
-    return fetch_tuples("SELECT product_id, animal_category_id FROM product_animal_category")
+    return select_all("product_animal_category", None, ["product_id", "animal_category_id"])
 
 def get_product_feeding_purpose_ids():
-    return fetch_tuples("SELECT product_id, feeding_purpose_id FROM product_feeding_purpose")
+    return select_all("product_feeding_purpose", None, ["product_id", "feeding_purpose_id"])
 
 def get_product_ingredient_ids():
-    return fetch_tuples("SELECT product_id, ingredient_id FROM product_ingredient")
+    return select_all("product_ingredient", None, ["product_id", "ingredient_id"])
 
 def get_product_nutritions():
     return select_all("product_nutrition")
@@ -112,27 +111,14 @@ def update_product(product_id: int, values: dict) -> int:
         logging.getLogger().warning(
             f"Reject update product: reason={e.reason}, product_id={product_id}, detail={e.detail}")
         raise            # 인자 없는 raise 여야 원래 트레이스백이 안 날아간다
-    
-def update(product_id: int, values: dict) -> int:
-    """상품 한 건을 수정하고 고친 행 수를 돌려준다. 없는 id 면 예외가 아니라 0 이다."""
-    sets = ", ".join(f"{k} = ?" for k in values)
-    cur = execute(f"UPDATE product SET {sets} WHERE product_id = ?",
-                  (*values.values(), product_id), 'product')
-    return cur.rowcount
 
-def delete(product_id: int) -> int:
-    """상품 한 건을 삭제하고 지운 행 수를 돌려준다. 없는 id 면 예외가 아니라 0 이다."""
-    try:
-        cur = execute("DELETE FROM product WHERE product_id = ?", (product_id,), 'product')
-    except QueryError as e:
-        # 구매 이력이 참조 중이면 constraint_fk 로 걸린다 (foreign_keys 가 켜져 있을 때).
-        # 지워진 줄 알고 넘어가면 안 되니 삼키지 않는다
-        logging.getLogger().warning(
-            f"Reject delete product: reason={e.reason}, product_id={product_id}, detail={e.detail}")
-        raise
+def inactive_product(product_id: int) -> int:
+    """상품 한 건을 비활성화(is_active=0)하고 고친 행 수를 돌려준다. 없는 id 면 예외가 아니라 0 이다.
 
-    logging.getLogger().debug(f"Delete product, product_id: {product_id}, deleted_row: {cur.rowcount}")
-    return cur.rowcount
-    
+    행을 지우지 않는다 — 구매 이력이 product_id 를 참조하고 있어서 DELETE 는 constraint_fk 로
+    막히거나 이력을 끊는다. 조회 쪽은 get_products / v_safe_products 가 is_active = 1 로 거른다.
+    """
+    return update_product(product_id, {'is_active': 0})
+
 def get_ingredient_allergen_ids():
-    return fetch_tuples("SELECT ingredient_id, allergen_id FROM ingredient_allergen")
+    return select_all("ingredient_allergen", None, ["ingredient_id", "allergen_id"])

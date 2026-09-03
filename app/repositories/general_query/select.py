@@ -7,6 +7,33 @@ from app.core.db import fetch, QueryError
 from app.repositories.general_query.columns import ColumnMgr
 
 
+def _select_clause(table, table_cols, want) -> str:
+    """
+    # Summary
+    * SELECT 뒤에 올 컬럼 목록을 만든다. want 가 비면 '*' 라 지금까지와 똑같이 전 컬럼이다
+
+    # info
+    * 컬럼 이름은 ? 로 못 묶어 SQL 에 글자로 들어간다. _order_clause 와 같은 이유로 화이트리스트를 거친다
+    * 적은 순서가 그대로 SELECT 순서지만, 결과가 dict 라 부르는 쪽엔 순서가 안 보인다.
+      순서를 쓰는 건 사람이 SQL 로그를 읽을 때뿐이다
+
+    # params
+    * table: 거절할 때 사유에 담을 테이블 이름
+    * table_cols: 그 테이블의 실재 컬럼. 부른 쪽이 이미 읽어둔 걸 그대로 받는다
+    * want: 받고 싶은 컬럼 이름들. None 이나 [] 면 전 컬럼
+
+    # raises
+    * QueryError: unknown_column (그 테이블에 없는 컬럼)
+    """
+    if not want:
+        return "*"
+
+    unknown = set(want) - table_cols
+    if unknown:
+        raise QueryError("unknown_column", table, sorted(unknown))
+
+    return ", ".join(want)
+
 def _order_clause(table, cols, order_by) -> str:
     """
     # Summary
@@ -56,7 +83,8 @@ def _order_clause(table, cols, order_by) -> str:
 
     return " ORDER BY " + ", ".join(parts)
 
-def select_all(table : str, order_by : list[tuple] | None = None) -> list[dict]:
+def select_all(table : str, order_by : list[tuple] | None = None,
+               cols : list[str] | None = None) -> list[dict]:
     """
     # summary
     * 범용적인 TABLE 전체 SELECT 쿼리
@@ -65,6 +93,9 @@ def select_all(table : str, order_by : list[tuple] | None = None) -> list[dict]:
     * table: table name
     * order_by: 정렬 (선택)
         * [(컬럼, 'ASC' | 'DESC'), ...] 형태. 적은 순서가 곧 정렬 우선순위다
+    * cols: 받을 컬럼 (선택)
+        * ['name', 'price_krw'] 처럼 이름만 준다. 비거나 None 이면 SELECT * 다
+        * 없는 컬럼이면 unknown_column 으로 거절한다
 
     # return value
     * list[dict] : 행마다 dict. k 는 컬럼 이름, v 는 그 칸의 값
@@ -79,13 +110,16 @@ def select_all(table : str, order_by : list[tuple] | None = None) -> list[dict]:
     * QueryError: 쿼리를 만들지 못했습니다. reason 에 사유가 들어있습니다
     """
     # 테이블 이름은 ? 로 못 묶어 SQL 에 글자로 들어간다. 만들기 전에 실재하는 테이블인지 본다
-    cols = ColumnMgr.get_inst().get_col_names(table)
-    if not cols:
+    table_cols = ColumnMgr.get_inst().get_col_names(table)
+    if not table_cols:
         raise QueryError("unknown_table", table)
 
-    return fetch(f"SELECT * FROM {table}{_order_clause(table, cols, order_by)}")
+    picked = _select_clause(table, table_cols, cols)
 
-def select(table : str, where : dict, order_by : list[tuple] | None = None) -> list[dict]:
+    return fetch(f"SELECT {picked} FROM {table}{_order_clause(table, table_cols, order_by)}")
+
+def select(table : str, where : dict, order_by : list[tuple] | None = None,
+           cols : list[str] | None = None) -> list[dict]:
     """
     # summary
     * 범용적인 SELECT 쿼리
@@ -96,6 +130,9 @@ def select(table : str, where : dict, order_by : list[tuple] | None = None) -> l
         * dict 형태로 k = v, k = v ... (AND 로 이어진다)
     * order_by: 정렬 (선택)
         * [(컬럼, 'ASC' | 'DESC'), ...] 형태. 적은 순서가 곧 정렬 우선순위다
+    * cols: 받을 컬럼 (선택)
+        * ['name', 'price_krw'] 처럼 이름만 준다. 비거나 None 이면 SELECT * 다
+        * 없는 컬럼이면 unknown_column 으로 거절한다
 
     # return value
     * list[dict] : 행마다 dict. k 는 컬럼 이름, v 는 그 칸의 값
@@ -112,21 +149,24 @@ def select(table : str, where : dict, order_by : list[tuple] | None = None) -> l
     if not where:
         raise QueryError("no_where", table)
 
-    cols = ColumnMgr.get_inst().get_col_names(table)
-    if not cols:
+    table_cols = ColumnMgr.get_inst().get_col_names(table)
+    if not table_cols:
         raise QueryError("unknown_table", table)
 
-    unknown = where.keys() - cols
+    picked = _select_clause(table, table_cols, cols)
+
+    unknown = where.keys() - table_cols
     if unknown:
         raise QueryError("unknown_column", table, sorted(unknown))
 
     # 조건은 콤마가 아니라 AND 로 잇는다. 콤마로 이으면 조건이 하나일 때만 우연히 돌아간다
     wheres = " AND ".join(f"{k} = ?" for k in where)
-    orders = _order_clause(table, cols, order_by)
-    return fetch(f"SELECT * FROM {table} WHERE {wheres}{orders}", tuple(where.values()))
+    orders = _order_clause(table, table_cols, order_by)
+    return fetch(f"SELECT {picked} FROM {table} WHERE {wheres}{orders}", tuple(where.values()))
 
 def select_range(table: str, where : dict, size : int, start_offset : int | None = 0,
-                 order_by : list[tuple] | None = None) -> list[dict]:
+                 order_by : list[tuple] | None = None,
+                 cols : list[str] | None = None) -> list[dict]:
     """
     # summary
     * 범용적인 SELECT 쿼리 (페이징)
@@ -140,6 +180,9 @@ def select_range(table: str, where : dict, size : int, start_offset : int | None
     * start_offset: 건너뛸 행 수. None 이면 0
     * order_by: 정렬 (선택이지만 페이징에선 사실상 필수 — 아래 info)
         * [(컬럼, 'ASC' | 'DESC'), ...] 형태. 적은 순서가 곧 정렬 우선순위다
+    * cols: 받을 컬럼 (선택)
+        * ['name', 'price_krw'] 처럼 이름만 준다. 비거나 None 이면 SELECT * 다
+        * 없는 컬럼이면 unknown_column 으로 거절한다
 
     # return value
     * list[dict] : 행마다 dict. 최대 size 행
@@ -168,11 +211,13 @@ def select_range(table: str, where : dict, size : int, start_offset : int | None
     if offset < 0:
         raise QueryError("bad_range", table, f"start_offset={start_offset}")
 
-    cols = ColumnMgr.get_inst().get_col_names(table)
-    if not cols:
+    table_cols = ColumnMgr.get_inst().get_col_names(table)
+    if not table_cols:
         raise QueryError("unknown_table", table)
 
-    unknown = where.keys() - cols
+    picked = _select_clause(table, table_cols, cols)
+
+    unknown = where.keys() - table_cols
     if unknown:
         raise QueryError("unknown_column", table, sorted(unknown))
 
@@ -180,9 +225,9 @@ def select_range(table: str, where : dict, size : int, start_offset : int | None
     wheres = " AND ".join(f"{k} = ?" for k in where)
     clause = f" WHERE {wheres}" if where else ""
     # ORDER BY 는 LIMIT 보다 앞이다. 순서를 바꾸면 문법 오류다
-    orders = _order_clause(table, cols, order_by)
+    orders = _order_clause(table, table_cols, order_by)
 
     # WHERE 값이 먼저, size / offset 이 나중 - ? 자리 순서와 같아야 한다.
     # 정렬은 글자로 박혀 있어 ? 자리를 차지하지 않는다
-    return fetch(f"SELECT * FROM {table}{clause}{orders} LIMIT ? OFFSET ?",
+    return fetch(f"SELECT {picked} FROM {table}{clause}{orders} LIMIT ? OFFSET ?",
                  (*where.values(), size, offset))
