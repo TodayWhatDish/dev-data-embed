@@ -7,7 +7,6 @@
 """
 
 from app.repositories import products as product_repo
-from app.repositories import purchases as purchase_repo
 from app.core.db import QueryError
 import logging
 
@@ -97,11 +96,23 @@ def update_after_select_product(product_id:int, values:dict) -> tuple[int, dict]
 
     return (updated_row, product_repo.find_by_id(product_id))
 
-# def delete_product(product_id:int) -> None:
-#     """구매 이력이 있으면 ProductError로 막는다. 이력 검사는 지우기 전이어야 해서 순서를 못 바꾼다."""
-#     used = purchase_repo.count_for_product(product_id)
-#     if used : 
-#         raise ProductError("conflict", f"구매 이력이 {used}건 있어 지울 수 없다")
+def delete_product(product_id:int) -> None:
+    """상품을 판매 중지시킨다. 행은 지우지 않고 is_active 를 0 으로 내린다.
 
-#     if product_repo.delete(product_id) == 0:
-#         raise ProductError("not_found",f"{product_id}상품이 없다.")
+    구매 이력이 product_id 를 참조하고 있어서 DELETE 는 애초에 못 한다. is_active 컬럼이
+    있는 이유가 이거다 — 이력은 그대로 두고 목록·추천에서만 빠진다.
+    없는 id 는 0행이라 not_found 다 (선조회 대신 고친 행 수로 안다).
+    """
+    try:
+        updated_row = product_repo.inactive_product(product_id)
+    except QueryError as e:
+        kind_msg = CLIENT_FAULT.get(e.reason)
+        if kind_msg is None:
+            raise                       # 서버 버그 -> 500 + 트레이스백
+        raise ProductError(*kind_msg) from e
+
+    if updated_row == 0:
+        raise ProductError("not_found",f"비활성화(삭제)할 {product_id}상품이 없다.")
+
+    logging.getLogger().info(f"Inactivate product, product_id: {product_id}")
+ 
