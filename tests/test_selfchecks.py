@@ -28,11 +28,17 @@ SELFCHECKS = [
     'tests.features.db_threads',
     'tests.features.products',
     'tests.query_sample',
+    'tests.pipeline.eval_metrics',
 ]
 
 # 임베딩 모델을 올리거나(수백 MB) DB 에 썼다 지운다. 기본 실행에서 뺀다
 SLOW_SELFCHECKS = [
     'tests.features.smoke',
+    # AutoTokenizer.from_pretrained 가 pytest 프로세스 안에서만 죽는 환경이 있다(access
+    # violation) - `py -m tests.pipeline.chunking` 로 단독 실행하면 멀쩡하다. numpy/pyarrow/
+    # tokenizers 네이티브 확장이 pytest 와 얽히는 문제로 보이며, 원인은 pipeline/prep/chunking.py
+    # 최상단 주석 참고. 재현되면 pytest 목록에서 빼는 것 말고는 지금 당장 고칠 수 있는 게 없다.
+    'tests.pipeline.chunking',
 ]
 
 
