@@ -1,3 +1,4 @@
+# Last updated: 2026-09-03
 # Last Updated : 2026-08-31
 
 """ API 요청/응답 형태를 정의하는 자리. 라우트 함수는 이 모델로 입출력을 검증한다.
@@ -45,6 +46,23 @@ class AuthResponse(BaseModel):
 
 class AdminLoginRequest(BaseModel):
     """관리자 로그인 - 계정 없이 공용 비밀번호만 받는다."""
+    password: str
+
+class SignupRequest(BaseModel):
+    """일반 회원가입 - 계정 정보 + 반려동물(강아지) 프로필을 한 번에 받는다.
+    gender는 pet 테이블 CHECK 제약과 같은 값('M'/'F')만 받는다."""
+    email: str
+    password: str
+    name: str
+    phone: str | None = None
+    region: str | None = None
+    pet_name: str
+    pet_gender: str | None = None
+    pet_birth_date: str | None = None
+    pet_weight_kg: float | None = None
+
+class LoginRequest(BaseModel):
+    email: str
     password: str
 
 class ProductCreate(BaseModel):
