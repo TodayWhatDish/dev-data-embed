@@ -231,3 +231,6 @@ query_log.jsonl
 local/
 
 .headroom_wrap_marker.json
+
+# 깃 규약 매번 슬랙에서 보기 번거로워서 생성함.
+깃 규약.md
