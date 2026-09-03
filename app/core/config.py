@@ -154,3 +154,6 @@ JWT_SECRET = env("JWT_SECRET", "")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = 60 * 24 * 7  # 7일
 ADMIN_PASSWORD = env("ADMIN_PASSWORD", "")
+
+# 고객 페이지 배경 이미지용 (app/api/routes/background.py)
+UNSPLASH_ACCESS_KEY = env("UNSPLASH_ACCESS_KEY", "")
