@@ -21,8 +21,11 @@ import sqlite3
 import sys
 
 from app.features.retrieve import build_where  # 프로필 딕셔너리 -> SQL where절 변환
+from app.features.searching import candidates as search_candidates
+from app.features.recommending import recommend
 from app.core.config import DB_PATH, SIZE_CASE, EVAL_DIR, EMBED_MODEL, EMBED_DIM
 from pipeline.vector_db import search,connect
+
 
 def load_product_map(con: sqlite3.Connection)->dict[int,int]:
     """purchase_id -> product_id 사전을 만든다 검색 결과(purchase_id)를 상품으로 해석할 때 쓴다."""
@@ -187,8 +190,7 @@ def score_llm(holdout: list[tuple], n_pick: int = 5, limit: int | None = None) -
     위 지표들은 pipeline.vector_db.search()를 직접 부르지만, 여기는 서버가 실제로 타는
     함수를 그대로 불러야 배포된 것과 같은 걸 재는 의미가 있다.
     """
-    from app.features.searching import candidates as search_candidates
-    from app.features.recommending import recommend
+    
 
     sample = holdout[:limit] if limit else holdout
     hits = n_retry = n_fail = 0

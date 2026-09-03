@@ -8,6 +8,7 @@
 사실을 사용자에게 알린다.
 
 우선순위: 1번이 주 참고 대상이다. 2번은 1번의 이전 버전이라 충돌하면 1번을 따른다.
+3번은 1번에서 갈라져 나온 **평가 전용** 갈래다. 채점기·추적(`eval/`, LangSmith) 작업일 때만 3번을 본다.
 
 ---
 
@@ -60,3 +61,47 @@
 
 - **베끼면 안 되는 것**: 라우트를 `main.py` 한 파일에 몰아넣은 배치.
   1번이 이미 그걸 고쳤다. 구조는 무조건 1번을 따른다.
+
+---
+
+## 3. eval-test (평가·추적 전용)
+
+- **경로**: `C:\eval-test`
+- **무엇**: 1번(`cosmetic-admin`)에 **채점기 패키지 `eval/` 과 LangSmith 추적을 붙인** 갈래.
+  앱 계층(`app/`)은 1번과 같으므로 구조는 여기서 배우지 않는다.
+- **왜 여기를 보나**: 이 저장소의 `pipeline/eval/eval.py` 는 **검색 지표(recall@k·MRR)까지만**
+  잰다. 여기에는 그 위에 얹을 세 가지 — **골든셋 Q&A**, **LLM 형식 준수율**, **답변 품질(ragas)** —
+  과 그것들을 한 곳에 모으는 **러너·추적** 이 다 있다.
+
+### 무엇을 볼 것인가
+
+| 주제 | 파일 | 핵심 |
+|---|---|---|
+| 채점기 러너 | `eval/__main__.py` | `STEPS` 표 하나에 (이름, 설명, 요금여부, 기본인자, --with-llm 인자). `python -m eval all` 은 **공짜인 것만** 돈다 |
+| 골든셋 Q&A | `eval/qa_golden.json` | 질문 + `product_id` + `section` + `keywords`. **전부 DB 실제 문장에서 뽑는다** |
+| 골든셋 자가검증 | `eval/qa_check.py:24-38` | 채점 전에 `keywords` 가 그 섹션 원문에 정말 있는지부터 확인한다. 자가 성한지 먼저 본다 |
+| 자의 흔들림 | `eval/golden.py:65-77` | 방법을 안 바꾸고 표본만 바꿔 4번 잰다. **이 폭보다 작은 차이는 '개선'이 아니다** |
+| 천장(ceiling) | `eval/golden.py:20-32` | 후보 안에 정답이 있는 비율. LLM 이 아무리 잘해도 이걸 못 넘는다 |
+| 조건별 A/B | `eval/format_check.py:38` | `예시없음 / 프롬프트만 / 스키마 강제` 세 조건을 같은 표본에 돌려 JSON·스키마 통과율을 나란히 본다 |
+| 심판 LLM | `eval/ragas_check.py:97-101` | faithfulness·answer_relevancy·context_precision. **심판마다 LLM 객체를 따로 준다**(공유하면 `n` 이 덮어써져 조용히 틀린 점수가 나온다) |
+| 심판 쓸 자격 | `eval/ragas_check.py:43-50` | 구조화 출력이 약한 로컬 모델은 심판으로 안 쓴다. 못 믿을 심판의 숫자는 없느니만 못하다 |
+| 추적 배선 | `eval/tracing.py` | `eval_run()` 컨텍스트 매니저 하나. langsmith 가 없거나 꺼져 있으면 **그대로 통과**시켜 채점은 계속 돈다 |
+| 채점/운영 분리 | `eval/tracing.py:91` | 채점은 `LANGSMITH_EVAL_PROJECT`, 실제 요청은 별도 프로젝트. 섞으면 서비스 지표가 채점 때문에 망가진다 |
+| ragas 트리 분리 | `eval/tracing.py:108-115` | `detached()` 로 부모 run 을 끊는다. 안 끊으면 ragas 가 `IndexError` 로 죽는다 |
+| 무거운 의존성 격리 | `pyproject.toml` `[project.optional-dependencies]` | `eval`(ragas) · `trace`(langsmith) · `local` 을 본체에서 뺀다. 서버 돌리는 데 pandas 는 필요 없다 |
+| 경계를 CI 로 강제 | `.github/workflows/ci.yml` | `grep` 으로 `features`/`api` 안의 SQL·저장소 직접 import 를 막는다. 테스트보다 싸고 빠르다 |
+| 실습 절차서 | `docs/실습-eval-langsmith.md` | 단계마다 **"> 확인"** 문구가 있다. 안 나오면 거기서 멈춘다. 맨 아래 '막혔을 때' 표 |
+
+### 이 저장소와 다른 점 (그대로 옮기면 안 되는 것)
+
+- **과제가 다르다**: 저쪽은 *고객 → 다음에 살 상품*, 이쪽은 *리뷰 질의 → 사료 추천* 이다.
+  `golden.py` 의 `holdout_answers()` 자리에 이쪽은 이미 `is_holdout=1` 리뷰가 있다
+  (`pipeline/eval/eval.py:33`). 지표 계산을 새로 짜지 말고 그 파일을 옮겨 담는다.
+- **지표 이름**: 저쪽은 `hit@k`, 이쪽은 `recall@k` + `mrr` 을 이미 쓴다. 이름을 바꾸면
+  `data/eval/*.json` 에 쌓아 둔 이전 모델 결과와 비교가 끊긴다. **이쪽 이름을 유지한다.**
+- **추적 도구**: 저쪽은 LangSmith, 이쪽은 `app/core/trace.py` 의 `JsonlTracer`
+  (`logs/query_log.jsonl`). LangSmith 를 붙이더라도 `tracing.py` 처럼 **없으면 그냥 통과**하는
+  모양이라야 한다. 채점기가 추적 때문에 못 도는 일은 없어야 한다.
+- **`eval/` 위치**: 저쪽은 저장소 뿌리의 독립 패키지고 이쪽은 `pipeline/eval/` 안에 있다.
+  채점기는 `app.features` 를 부르는데 `pipeline` 은 색인을 만드는 아래층이라 방향이 거꾸로다.
+  뿌리로 올릴 때 저쪽 배치를 따른다.
