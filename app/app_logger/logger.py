@@ -1,3 +1,4 @@
+# Last updated: 2026-09-03
 import logging
 
 """
@@ -100,7 +101,7 @@ def init_logger(file_name = 'pet_rec', level = logging.DEBUG, console = True):
         logger.addHandler(console_handler)
 
     logger.info('Start Logger!!!')
-    logger.info('http://127.0.0.1:8000/static/admin/admin.html')
+    logger.info('admin 대시보드: dev-web 저장소(http://localhost:3000/admin/admin.html)에서 연다.')
 
     # logger.debug('Log level Test')
     # logger.info('Log level Test')

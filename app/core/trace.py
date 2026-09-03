@@ -1,3 +1,4 @@
+# Last updated: 2026-09-03
 # Last Updated : 2026-09-03
 
 """ LLM 호출 하나하나를 logs/query_log.jsonl 에 한 줄씩 남기는 LangChain 콜백.
@@ -54,12 +55,21 @@ class JsonlTracer(BaseCallbackHandler):
 
     def on_llm_error(self, error, *, run_id, **kwargs) -> None:
         started = self.started.pop(run_id, None)
+        # anthropic.APIConnectionError 등은 str(error)가 "Connection error."로 뭉뚱그려지고,
+        # with_retry()가 감싸면 __cause__도 같은 종류의 껍데기라 한 겹만 봐선 안 보인다 -
+        # 진짜 원인(httpx.ConnectError 등)이 나올 때까지 체인을 끝까지 타고 내려간다.
+        chain = []
+        cur = getattr(error, "__cause__", None)
+        while cur is not None and len(chain) < 5:
+            chain.append(repr(cur)[:200])
+            cur = getattr(cur, "__cause__", None)
         self._write({
             "type": "llm_call", "ok": False,
             "time": datetime.now().isoformat(timespec="seconds"),
             "run_id": str(run_id),
             "seconds": round(time.perf_counter() - started, 2) if started else None,
             "error": str(error)[:200],
+            "cause_chain": chain,
         })
 
     def _write(self, row: dict) -> None:

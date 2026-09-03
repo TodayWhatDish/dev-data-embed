@@ -1,5 +1,5 @@
-# Last updated: 2026-09-02
-# Last Updated : 2026-08-23
+# Last updated: 2026-09-03
+# Last Updated: 2026-09-03
 
 """ 모든 스크립트가 공유하는 설정값과 상수를 모아둔다
 
@@ -65,6 +65,7 @@ EMBED_PROFILES = {
 }
 
 # 재색인 없이 실험하려면 셸에서 바꾼다:  $env:EMBED_MODEL = 'BAAI/bge-m3'
+# EMBED_MODEL = env('EMBED_MODEL', 'intfloat/multilingual-e5-small')
 EMBED_MODEL = env('EMBED_MODEL', 'intfloat/multilingual-e5-small')
 
 if EMBED_MODEL not in EMBED_PROFILES:
@@ -135,11 +136,15 @@ if USE_API:
     LLM_BASE_URL = None  # provider 네이티브 클라이언트는 base_url이 필요 없다 (OpenAI 호환 프록시를 쓸 때만 .env로 지정)
     LLM_API_KEY = env("LLM_API_KEY", "")
     LLM_MODEL = env("API_MODEL", "claude-sonnet-5")
+    # 답변을 만든 모델이 자기 답을 채점하면 관대해지는 self-evaluation bias가 있다 -
+    # 반증(verify)은 이 모델을 대신 쓴다 (참고: https://mjforge.tistory.com/30).
+    VERIFY_MODEL = env("VERIFY_MODEL", "claude-haiku-4-5-20251001")
 else:
     LLM_PROVIDER = "openai"  # Ollama가 OpenAI 호환 엔드포인트를 흉내내므로 provider는 openai로 두고 base_url만 로컬로 돌린다
     LLM_BASE_URL = "http://localhost:11434/v1"
     LLM_API_KEY = "ollama"
     LLM_MODEL = "qwen2.5:3b"
+    VERIFY_MODEL = LLM_MODEL  # ponytail: 로컬은 모델 하나뿐이라 분리 안 함 - Ollama에 두 번째 모델 받으면 나눌 것
 
 # 관리자 로그인 / 서버 세션 토큰 만드는 데 필요한 설정값.
 # 관리자 로그인 전용 JWT 설정. 사용자 인증은 Supabase 로 이관 중이라 구글 로그인과
@@ -149,3 +154,6 @@ JWT_SECRET = env("JWT_SECRET", "")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = 60 * 24 * 7  # 7일
 ADMIN_PASSWORD = env("ADMIN_PASSWORD", "")
+
+# 고객 페이지 배경 이미지용 (app/api/routes/background.py)
+UNSPLASH_ACCESS_KEY = env("UNSPLASH_ACCESS_KEY", "")

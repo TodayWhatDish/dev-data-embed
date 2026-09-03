@@ -6,45 +6,22 @@ domain이 저장소에 요청할 수 있는 기능을 인터페이스로 정의�
 from typing import Any, Mapping, Protocol, Sequence
 
 
-# 벡터 저장소가 지켜야 할 약속. kind 는 'chunk' · 'product' · 'customer' · 'review' 중 하나다
+# 벡터 저장소가 지켜야 할 약속. kind 는 지금 'chunk' 하나뿐이다.
 class VectorStore(Protocol):
-    # 그 항목의 벡터 하나. 없으면 None
-    def get_vector(self, kind: str, item_id: str) -> Any: ...
-
-    # 가까운 것 k 개를 [(아이디, 점수), ...] 로. 점수는 클수록 가깝다.
-    def search(self, kind: str, query_vector: Any, k: int, *,
-               only_ids: Sequence[str] | None = None,
-               reverse: bool = False) -> list[tuple[str, float]]: ...
-
-    # 그 항목의 벡터가 있나
-    def has(self, kind: str, item_id: str) -> bool: ...
-
-    # 이 상품들에 딸린 조각 벡터의 아이디. 검색을 상품으로 좁힐 때 쓴다.
-    def chunk_ids_for_products(self, product_ids: Sequence[str]) -> list[str]: ...
-
-    # 베껴 둔 값을 읽는다. {아이디: {컬럼: 값}}.
-    def fetch_payloads(self, kind: str, ids: Sequence[str],
-                       columns: Sequence[str]) -> dict[str, dict[str, Any]]: ...
-
     # 저장된 source_hash 를 {아이디: 해시} 로. 무엇을 다시 만들지 고르는 재료다.
     def hashes(self, kind: str, *,
                ids: Sequence[str] | None = None) -> dict[str, str]: ...
 
-    # 벡터 표를 비우고 새로 만든다. 파이프라인이 전량 적재할 때 쓴다.
-    def recreate(self, kind: str, *, dim: int, model: str,
-                 payload_columns: Mapping[str, str] | None = None) -> None: ...
+    # 벡터 표를 비우고 새로 만든다. 최초 1회와 --full 에서만 부른다.
+    def recreate(self, kind: str, *, dim: int, model: str) -> None: ...
 
-    # 벡터를 넣거나 고친다. 증분 임베딩이 이걸 한 건씩 부른다.
+    # 벡터를 넣거나 갈아 끼운다. 증분 임베딩의 본작업이다.
     def upsert(self, kind: str, ids: Sequence[str], vectors: Sequence[Sequence[float]],
-               *, model: str, hashes: Sequence[str],
-               payloads: Mapping[str, Sequence[Any]] | None = None) -> None: ...
+               *, model: str, hashes: Sequence[str]) -> None: ...
 
-    # 벡터를 지운다. 원본에서 없어진 행을 따라 지울 때 쓴다
+    # 원본에서 없어진 조각의 벡터를 지운다.
     def delete(self, kind: str, ids: Sequence[str]) -> None: ...
 
-    # 베껴 둔 값 하나를 고친다. 벡터는 안 건드린다.
-    def set_payload(self, kind: str, ids: Sequence[str],
-                    column: str, value: Any) -> None: ...
 
 
 Row = dict[str, Any]
