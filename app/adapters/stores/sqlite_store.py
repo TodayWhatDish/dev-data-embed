@@ -54,10 +54,6 @@ class SqliteVectorStore:
         )
         self._con.commit()
 
-    def search(self, kind:str, query_vector, k: int, *,
-               only_ids = None, reverse: bool=False) -> list[tuple[str,float]]:
-        pass
-
     def hashes(self, kind: str, *, ids=None) -> dict[str, str]:
         table, _parent = TABLES[kind]
         cur = self._con.cursor()

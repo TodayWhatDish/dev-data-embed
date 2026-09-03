@@ -3,9 +3,6 @@
 분류 트리를 아는 건 여기(캐시)뿐이라, 트리를 걸어야 하는 판정도 여기서 한다.
 """
 
-# 최상위 분류 id -> 화면·프롬프트가 쓰는 이름. 여기 없는 루트가 생기면 그 루트 이름을 그대로 쓴다
-ROOT_TYPES = {1: '사료', 2: '간식'}
-
 
 def root_category_name(product_category_id: int) -> str | None:
     """
@@ -28,7 +25,8 @@ def root_category_name(product_category_id: int) -> str | None:
         node = mgr.get_product_category(node['parent_id'])
     if not node:
         return None
-    return ROOT_TYPES.get(node['product_category_id'], node['name_ko'])
+    # 루트 이름이 곧 화면이 쓰는 이름이다 - 시드가 '사료'/'간식' 이라 따로 표를 두면 같은 값이 두 벌 된다
+    return node['name_ko']
 
 
 def attach_product_type(rows: list[dict]) -> list[dict]:

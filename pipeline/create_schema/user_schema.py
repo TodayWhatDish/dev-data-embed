@@ -1,4 +1,4 @@
-# Last Updated: 2026-08-17
+# Last updated: 2026-09-03
 """
 계정 — 서비스 가입자(보호자).
 
@@ -20,6 +20,7 @@ CREATE TABLE user (
                           CHECK (auth_provider IN ('google', 'firebase', 'kakao', 'apple', 'local')),
     auth_uid      TEXT    NOT NULL,
     email         TEXT    NOT NULL UNIQUE,
+    password_hash TEXT,   -- local 전용. OAuth 계정은 NULL
     name          TEXT    NOT NULL,
     phone         TEXT,
     region        TEXT,

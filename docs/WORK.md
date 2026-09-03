@@ -1512,3 +1512,154 @@ small vs base   17:14 (총 31)   small vs m3   24:24 (총 48)   base vs m3   15:
   `load_csv.py`/`chunk.py`/`embed.py`/`app/query.py`. `/pet-reco` 는 지금 전부 실패한다.
 - `check_freshness()` 는 데이터 지문만 보므로 "코드만 바뀌고 `chunk.py` 를 안 돌린" 경우를
   못 잡는다. 코드 지문까지 뜨는 건 과하다고 판단해 습관으로 대체.
+
+## 2026-09-03
+## 작업일지
+> 증분 임베딩
+> `embed.py` 가 매번 `DROP TABLE chunk_vectors` 후 전량 재계산하던 것을, 조각마다 지문을
+> 남겨 **바뀐 것만** 다시 임베딩하도록 바꿨다. 리뷰 1건이 늘면 1건만 임베딩한다.
+> 미뤄뒀던 판단(아래 1번)을 뒤집은 것이고, 뒤집으면서 `port.py` 의 미검수 계약도 같이 검수했다.
+
+### 1. 미뤄둔 결정을 뒤집었다
+
+이 문서 위쪽에 이렇게 적혀 있었다.
+
+> 임베딩 주기·윈도우도 지금은 정하지 않는다. (…) `INSERT OR REPLACE` 하나로 어느 쪽이든
+> 되므로 지금 정할 필요가 없다. 현재 `embed.py` 는 매번 `DROP TABLE` 후 전량 재계산이고
+> 이 규모에선 그걸로 충분하다.
+
+"충분하다"가 깨지는 지점은 규모가 아니라 **반복 횟수**였다. `chunk.py` 만 한 번 돌려도,
+`CHUNK_SIZE` 를 한 번 만져도 매번 전량 재임베딩(모델 로딩 포함 20초 남짓)이 붙는다.
+개발 중 이 사이클이 하루에 수십 번 돈다.
+
+### 2. 지문(fingerprint) — 판정 기준을 하나로 접는다
+
+```python
+def fingerprint(text, model=EMBED_MODEL):
+    return source_hash(f"{model}\n{text}")
+```
+
+`chunk_vectors` 에 `source_hash TEXT NOT NULL` 컬럼을 추가하고, 다음 실행 때 다시 계산해
+대조한다. 다르면 재임베딩, 같으면 건너뛴다.
+
+**모델명을 텍스트와 함께 해시하는 것이 핵심이다.** 모델이 바뀌면 같은 글이어도 지문이
+전부 달라지므로, `if 모델 바뀜: 전량 재구축` 같은 특수 분기 없이 "전부 다름"으로 자연히
+판정된다. `recreate()`(DROP+CREATE)가 필요한 경우가 **최초 1회와 `--full` 둘로 줄어드는**
+이유가 이것이다. 모델 교체는 기존 행을 `INSERT OR REPLACE` 로 갈아 끼우는 것으로 끝난다.
+
+**행마다 `model`/`dim` 컬럼은 두지 않았다.** 참고 프로젝트(`rag-project-cleanup`)는 그렇게
+하는데, 이쪽은 `embedding_meta` 가 이미 그 값을 들고 있어 같은 값이 두 곳에 앉는다
+(`config.py` 의 `SIZE_CASE` 주석과 같은 이유). 지문이 이미 모델을 접어 넣고 있으므로
+증분 판정에도 불필요하다. 대신 `upsert()` 가 `embedding_meta.model` 을 매번 갱신한다 —
+모델을 바꿔도 `recreate()` 가 안 불리는 경로가 생겼기 때문에, 안 하면
+`check_freshness()` 가 "재색인하세요" 를 영원히 띄운다(재색인해도 안 사라진다).
+
+### 3. 계층
+
+| 파일 | 아는 것 |
+|---|---|
+| `app/adapters/stores/sqlite_store.py` | 어디에 어떤 모양으로 넣는지 (`recreate`/`hashes`/`upsert`/`delete`) |
+| `app/adapters/stores/__init__.py` | `get_store(con)` |
+| `app/features/embedding_sync.py` | **무엇을** 다시 만들지 고르는 법 (`fingerprint`/`sync`) |
+| `pipeline/embed.py` | `chunks` 를 읽어 (id, 텍스트) 로 넘기는 지휘 + `--full` |
+
+`chunk_vectors` 의 키가 복합키 `(purchase_id, chunk_index)` 인데 `VectorStore` 계약은 id 를
+문자열 하나로 받는다. `chunk_id()`/`_split_chunk_id()` 로 `"13:0"` 꼴로 합치고 되돌린다.
+`chunk_id()` 만 공개다 — id 를 **만드는** 것은 `embed.py` 도 하지만 **푸는** 것은 저장소
+내부 일이다.
+
+### 4. 마이그레이션 스크립트가 필요 없었다
+
+`hashes()` 는 벡터 표가 아직 없을 때를 위해 `sqlite3.OperationalError` 를 잡아 `{}` 를
+돌려준다. 이 방어가 "**컬럼이 없는 옛 스키마**"까지 그대로 덮는다.
+
+```
+SELECT ... source_hash FROM chunk_vectors  ->  no such column
+  -> {} 반환 -> known 이 빔 -> recreate() -> 새 스키마 -> 전량 1회
+```
+
+첫 실행이 전량으로 돌고 두 번째부터 증분이 된다. 다만 이 `except` 는 `database is locked`
+도 같이 잡는다 — API 서버가 쓰는 중이면 잠김을 "지문 없음"으로 오해해 전량 재구축한다.
+지금은 "서버 내려두고 돌린다"로 대체.
+
+### 5. `port.py` 검수 — 옮겨온 계약을 줄였다
+
+`app/domain/port.py` 는 첫 줄에 `[아직 검수 안된 코드]` 가 붙어 있었다. 참고 프로젝트에서
+통째로 옮겨온 것이라 메서드가 9개인데, 실제로 부르는 곳은 `embedding_sync.py` 하나이고
+쓰는 것은 `hashes`/`recreate`/`upsert`/`delete` 넷뿐이었다.
+
+**`search()` 는 구현하지 않고 지웠다.** 계약의 모양이 이 프로젝트와 안 맞는다 —
+`search(kind, vector, k, *, only_ids=...)` 는 필터가 **id 목록**으로 들어오는 형태다.
+저쪽 저장소는 파이썬 NumPy 캐시라 SQL 테이블과 조인을 못 하니 그 방법뿐이었지만,
+이쪽은 `vector_db.search()` 가 선필터(`WHERE`)와 `vec_distance_cosine` 랭킹을 **한 쿼리**로
+끝낸다. BLOB + sqlite-vec 을 고른 이유가 그것이고, `DESIGN.md` 의 "hard constraint 는 SQL,
+soft preference 는 벡터" 원칙도 SQL 조건을 표현할 수 있어야 성립한다. id 목록으로는
+표현할 수 없다. `pass` 로 남겨두면 부를 때 예외가 아니라 `None` 이 조용히 돌아오므로 삭제.
+
+같은 이유로 `get_store()` 를 **싱글톤으로 안 만들었다.** 저쪽 싱글톤은 벡터 행렬 캐시
+재적재(6초)를 피하려는 것인데, 이쪽 저장소는 커넥션만 들고 상태가 없다. 아낄 게 없으면
+싱글톤도 없다. 참고 프로젝트에 있다고 그대로 옮기지 않는다.
+
+### 6. 검증 — `tests/incremental_embed.py`
+
+CSV 를 고쳐 `load_csv` 로 확인하는 방법은 못 쓴다. 전체 재적재는 DB 를 통째로 새로 만들어
+"한 건만 바뀌었다"를 격리할 수 없기 때문이다. 대신 회원가입 경로가 쓰는
+`insert_query(table, values)` 로 `user`→`pet`→`purchase`→`review` 를 직접 넣는다
+(`purchase`/`review` 는 전용 함수가 없지만 범용 INSERT 로 충분하다). `setup`/`cleanup`
+두 단계로 나눈 것은 그 사이에 `chunk.py`→`embed.py` 가 끼어야 하기 때문이다.
+
+### 측정
+
+```
+[마이그레이션 1회차 - 옛 스키마에 source_hash 가 없어 recreate]
+대상 1,973 / 새로 1,973 / 그대로     0 / 지움 0
+
+[변화 없이 재실행 - 증분이 도는지]
+대상 1,973 / 새로     0 / 그대로 1,973 / 지움 0
+
+[리뷰 1건 추가 (tests/incremental_embed setup)]
+대상 1,819 / 새로     1 / 그대로 1,818 / 지움 0     <- todo 경로
+
+[그 리뷰 삭제 (cleanup)]
+대상 1,818 / 새로     0 / 그대로 1,818 / 지움 1     <- gone 경로
+
+[정합성 - 위 사이클 후]
+chunks 1,818 / chunk_vectors 1,818 / 고아 0 / 빈 source_hash 0
+벡터 바이트 1536 한 종류 (=384차원 x 4바이트, 차원 혼입 없음)
+embedding_meta 의 model/dim/source 가 현재 chunks 와 전부 일치 (경고 0건)
+```
+
+### 곁가지 발견 — DB 가 CSV 두 버전 뒤에 있었다
+
+테스트 도중 전체 재구축을 돌리니 조각이 1,973 → 1,818 로 줄었다. 버그가 아니라 DB 가
+`9d5f51e` 시점 CSV(2,039행 / holdout 66 → 색인대상 1,973)로 굳어 있었고, `51bc70a` 에서
+CSV 가 2,000행 / holdout 182 → 색인대상 1,818 로 바뀐 뒤 `load_csv` 를 안 돌린 상태였던 것.
+차이 155 = 삭제 39 + 홀드아웃 116 로 정확히 맞는다.
+
+`check_freshness()` 는 이걸 못 잡는다. 보는 범위가 `chunks` ↔ `chunk_vectors` 뿐이라
+둘 다 낡았으면 서로는 완벽히 일관된다. **`review` 테이블이 CSV 보다 낡았는지는 아무도 안 본다.**
+증분 임베딩은 `chunks` 아래만 책임진다.
+
+참고로 `prep_rec.py holdout` 을 지금 데이터에 돌리면 홀드아웃이 182 → 270 이 되어
+색인 대상이 또 1,730 으로 줄어든다(정상 동작).
+
+### 남은 과제
+
+- **죽은 코드**: `pipeline/vector_db.py` 의 `save_vectors()`, `pipeline/prep/storage.py` 의
+  `save_vectors()`. 둘 다 부르는 데가 없다. `vector_db.py` 의 `connect()`/`search()` 는 살아 있다.
+- **`source` 체크섬 은퇴**. `건수:ID합:토큰합` 은 서로 다른 데이터가 같은 값을 낼 수 있고
+  `body` 를 아예 안 본다(이 문서 위쪽에 "엄밀함이 필요해지면 리뷰 본문 해시로 바꿔야 한다"고
+  적어둔 그것). 이제 조각별 지문이 있으므로 `check_freshness()` 를 그 비교로 바꾸면
+  "몇 개가 낡았는지"가 정확히 나오고, `embed.py` 가 `embedding_meta` 에 직접 쓰는 세 줄도 사라진다.
+  판정 기준이 `sync()` 와 하나가 되어 "경고가 떴는데 재색인하면 사라진다"가 구조적으로 보장된다.
+- **`EMBED_NORMALIZE` 가 지문에 없다.** 이 값을 바꾸면 벡터가 달라지는데 텍스트도 모델명도
+  그대로라 전부 "그대로"로 건너뛴다. `f"{model}\n{EMBED_NORMALIZE}\n{text}"` 한 줄이면 닫히지만
+  넣는 순간 `--full` 이 한 번 필요하다. 원칙은 "벡터를 만드는 데 들어간 입력은 전부 지문에".
+  `EMBED_DEVICE` 처럼 결과를 안 바꾸는 값은 넣으면 안 된다(CPU↔GPU 옮길 때마다 전량이 된다).
+- **청킹은 여전히 전량이고, 그게 전제다.** `chunk.py` 가 매번 `chunks` 를 다시 만들기 때문에
+  `body` 는 항상 지금의 `build_review_doc()` 으로 조립된 것이 보장된다. 청킹까지 증분으로
+  바꾸면 옛 리뷰의 `body` 가 옛 조립 형식으로 DB 에 남는데 그 지문은 저장된 것과 일치하므로
+  조용히 건너뛴다 — 한 표에 조립 형식 두 가지가 섞인다. 바꾸려면 `build_review_doc()` 의
+  버전까지 지문에 넣어야 한다. 자르기는 몇 초, 임베딩은 수십 초라 지금 조합이 합리적이다.
+- **`--full` 태스크 없음**. `.vscode/tasks.json` 3번 `detail`("모델 로딩 포함 20초 남짓")도
+  이제 증분 기준으로 고쳐야 한다.

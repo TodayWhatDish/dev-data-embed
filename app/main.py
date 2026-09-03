@@ -1,5 +1,5 @@
-# Last updated: 2026-09-02
-# Last Updated : 2026-09-01
+# Last updated: 2026-09-03
+# Last Updated : 2026-09-03
 
 """API 서버의 진입점. uvicorn이 이 파일의 'app' 객체를 찾아 실행한다.
 
@@ -11,13 +11,15 @@
 
 """
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes.ask import router as ask_router
+from app.api.routes.auth import router as auth_router
 from app.api.routes.health import router as health_router
 from app.api.routes.admin_auth import router as admin_auth_router
 from app.api.routes.products import router as products_router
 from app.api.routes.customers import router as customers_router
+from app.api.routes.background import router as background_router
 from app.app_logger.logger import init_logger
 from app.core.config import ROOT
 
@@ -26,13 +28,24 @@ from app.api.routes.recommend import router as recommend_router
 from app.api.lifespan import lifespan
 
 app = FastAPI(lifespan=lifespan)
+
+# dev-web(Next.js, 별도 저장소)이 다른 오리진에서 API를 부른다 - 배포 도메인 정해지면 추가.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(recommend_router)
 app.include_router(ask_router)
 app.include_router(health_router)
 app.include_router(admin_auth_router)
+app.include_router(auth_router)
 app.include_router(products_router)
 app.include_router(customers_router)
-app.mount("/static/admin",StaticFiles(directory="web"), name="admin_static")
+app.include_router(background_router)
 
 @app.get("/health")
 def health():
