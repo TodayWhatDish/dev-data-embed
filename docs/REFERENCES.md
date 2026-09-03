@@ -69,9 +69,10 @@
 - **경로**: `C:\eval-test`
 - **무엇**: 1번(`cosmetic-admin`)에 **채점기 패키지 `eval/` 과 LangSmith 추적을 붙인** 갈래.
   앱 계층(`app/`)은 1번과 같으므로 구조는 여기서 배우지 않는다.
-- **왜 여기를 보나**: 이 저장소의 `pipeline/eval/eval.py` 는 **검색 지표(recall@k·MRR)까지만**
-  잰다. 여기에는 그 위에 얹을 세 가지 — **골든셋 Q&A**, **LLM 형식 준수율**, **답변 품질(ragas)** —
-  과 그것들을 한 곳에 모으는 **러너·추적** 이 다 있다.
+- **왜 여기를 보나**: 이쪽 채점기(`eval/`)를 여기서 옮겨 왔다. 러너·골든셋·형식 준수율·
+  답변 품질(ragas)·추적의 **모양**이 전부 여기 원본이 있다. 새 채점기를 붙일 때 먼저 본다.
+- **지금 이쪽 상태**: `eval/{__main__,tracing,qa_check,golden,format_check,ragas_check,compare}.py`
+  가 다 있다. 측정값은 `docs/measurements.md`, 실행 기록은 `data/eval/runs.jsonl`.
 
 ### 무엇을 볼 것인가
 
@@ -94,14 +95,23 @@
 
 ### 이 저장소와 다른 점 (그대로 옮기면 안 되는 것)
 
-- **과제가 다르다**: 저쪽은 *고객 → 다음에 살 상품*, 이쪽은 *리뷰 질의 → 사료 추천* 이다.
-  `golden.py` 의 `holdout_answers()` 자리에 이쪽은 이미 `is_holdout=1` 리뷰가 있다
-  (`pipeline/eval/eval.py:33`). 지표 계산을 새로 짜지 말고 그 파일을 옮겨 담는다.
-- **지표 이름**: 저쪽은 `hit@k`, 이쪽은 `recall@k` + `mrr` 을 이미 쓴다. 이름을 바꾸면
-  `data/eval/*.json` 에 쌓아 둔 이전 모델 결과와 비교가 끊긴다. **이쪽 이름을 유지한다.**
-- **추적 도구**: 저쪽은 LangSmith, 이쪽은 `app/core/trace.py` 의 `JsonlTracer`
-  (`logs/query_log.jsonl`). LangSmith 를 붙이더라도 `tracing.py` 처럼 **없으면 그냥 통과**하는
-  모양이라야 한다. 채점기가 추적 때문에 못 도는 일은 없어야 한다.
-- **`eval/` 위치**: 저쪽은 저장소 뿌리의 독립 패키지고 이쪽은 `pipeline/eval/` 안에 있다.
-  채점기는 `app.features` 를 부르는데 `pipeline` 은 색인을 만드는 아래층이라 방향이 거꾸로다.
-  뿌리로 올릴 때 저쪽 배치를 따른다.
+- **골든셋의 정답 모양**: 저쪽은 `product_id` + `section` 하나를 정답으로 못 박는다.
+  거긴 상품 상세가 섹션으로 갈려 있어 정답이 딱 하나다. 이쪽은 상품이 200개인데 같은
+  조건(관절·건식)을 만족하는 게 수십 개라, 하나만 정답으로 삼으면 맞는 답을 틀렸다고
+  세게 된다. 그래서 `qa_golden.json` 은 **정답 집합을 속성(`expect`)으로 적고** DB 로 푼다.
+  자가검증도 "낱말이 원문에 있나"가 아니라 "그 조건을 만족하면서 **색인된 리뷰가 있는**
+  상품이 있나"를 본다 — 리뷰가 없는 상품은 벡터 검색이 애초에 못 돌려준다.
+- **지표 이름**: 저쪽은 `hit@k`, 이쪽 `golden.py` 는 `recall@k` + `mrr` 을 이미 쓴다.
+  이름을 바꾸면 `data/eval/*.json` 에 쌓아 둔 이전 모델 결과와 비교가 끊겨서 그대로 뒀다.
+  `qa_check.py` 만 `hit@5`·`precision@5` 를 쓰는데, 정답이 집합이라 자가 다르기 때문이다.
+- **추적 도구**: 저쪽은 LangSmith 가 있어야 기록이 남는다. 이쪽은 `eval/tracing.py` 가
+  **항상** `data/eval/runs.jsonl` 에 한 줄씩 쌓고 LangSmith 는 켜져 있을 때만 함께 보낸다.
+  가입 없이도 추이를 볼 수 있어야 하기 때문이다.
+- **마스터 캐시**: 저쪽 채점기는 그냥 `app.features` 를 부르면 된다. 이쪽은 `ProductMgr`
+  같은 도메인 싱글턴을 서버 기동 때 `lifespan` 이 채운다(`api/lifespan.py:32`). 채점기는
+  서버를 안 띄우므로 `warm_domain()` 을 직접 불러야 한다 — 안 부르면 검색 결과를 상품으로
+  바꾸는 **마지막 순간에** AttributeError 로 죽는다. 새 채점기를 만들면 이걸 잊지 않는다.
+- **ragas 설치**: `ragas 0.4.3` 이 `langchain_community.chat_models.vertexai` 를 무조건
+  import 하는데 `langchain-community 0.4.x` 에서 그 모듈이 없어졌다. `pyproject.toml` 의
+  `eval` 엑스트라가 `~=0.3.31` 로 묶는 이유다. 이쪽 `app/` 은 `langchain_community` 를
+  한 군데도 안 써서 내려도 서버에 영향이 없다.

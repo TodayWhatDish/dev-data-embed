@@ -13,8 +13,13 @@ import sys
 sys.stdout.reconfigure(errors="replace")
 
 # (모듈명, 설명, 요금이 드나, 기본 인자, --with-llm 일 때 인자)
+# 순서에 뜻이 있다. 자가 성한지 보는 것(qa_check 의 자가검증)이 먼저고, 검색을 통과해야
+# LLM 을 재는 게 의미가 있다. 앞이 빨간데 뒤 숫자를 들여다보면 시간만 버린다.
 STEPS = (
+    ("qa_check", "짧은 질문으로 조건에 맞는 후보를 가져오나 (hit@5 · 안전)", False, [], []),
     ("golden", "검색이 정답 상품을 찾아오나 (recall@k · MRR · 흔들림)", False, [], ["--llm", "5"]),
+    ("format_check", "LLM 이 요청한 형식을 지키나 (조건 3개 비교)", True, ["5"], ["5"]),
+    ("ragas_check", "답변이 근거에 충실한가 (심판도 LLM)", True, ["--limit", "3"], ["--limit", "3"]),
 )
 
 BY_NAME = {step[0]: step for step in STEPS}

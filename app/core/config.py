@@ -146,6 +146,12 @@ else:
     LLM_MODEL = "qwen2.5:3b"
     VERIFY_MODEL = LLM_MODEL  # ponytail: 로컬은 모델 하나뿐이라 분리 안 함 - Ollama에 두 번째 모델 받으면 나눌 것
 
+# 채점(eval/*)을 LangSmith 로도 보낼지. 꺼져 있어도 채점은 그대로 돌고 data/eval/runs.jsonl 에는 남는다.
+# 채점용 프로젝트를 서비스 로그와 가르는 이유: 채점은 같은 질문 수십 개를 몰아 던져서,
+# 실제 요청과 같은 통에 부으면 평균 응답시간 같은 서비스 지표가 채점 때문에 망가진다.
+LANGSMITH_TRACING = env("LANGSMITH_TRACING", "false").lower() == "true"
+LANGSMITH_EVAL_PROJECT = env("LANGSMITH_EVAL_PROJECT", "pet-reco-eval")
+
 # 관리자 로그인 / 서버 세션 토큰 만드는 데 필요한 설정값.
 # 관리자 로그인 전용 JWT 설정. 사용자 인증은 Supabase 로 이관 중이라 구글 로그인과
 # 함께 걷어냈지만, 관리자 인증(features/admin_auth.py)은 공용 비밀번호 + 자체 JWT 라

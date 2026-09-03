@@ -26,6 +26,8 @@ from app.features.recommending import recommend
 from app.core.config import DB_PATH, SIZE_CASE, EVAL_DIR, EMBED_MODEL, EMBED_DIM
 from pipeline.vector_db import search,connect
 
+from eval.tracing import banner, eval_run, require_llm, warm_domain
+
 
 def load_product_map(con: sqlite3.Connection)->dict[int,int]:
     """purchase_id -> product_id 사전을 만든다 검색 결과(purchase_id)를 상품으로 해석할 때 쓴다."""
@@ -227,30 +229,46 @@ def save_run(records: list[dict], metrics: dict) -> None:
     print(f'결과 저장: {path}')
 
 if __name__ == '__main__':
+    banner('추천 품질 (golden)')
+
     con = connect()
-    runs = run_holdout_search(con)
-    records = score_runs(con, runs)
-    metrics = summarize(records)
-    metrics['query_ms'] = measure_query_latency()
+    # save_run() 은 모델별 결과 파일 하나를 매번 덮어쓴다(모델 비교용). eval_run() 은
+    # 실행마다 한 줄씩 쌓는다(시간에 따른 추이용). 묻는 게 달라서 둘 다 남긴다.
+    with eval_run('golden', inputs={'홀드아웃': len(load_holdout(con)), 'top_k': 50}) as run:
+        runs = run_holdout_search(con)
+        records = score_runs(con, runs)
+        metrics = summarize(records)
+        metrics['query_ms'] = measure_query_latency()
 
-    print(f'모델: {EMBED_MODEL} ({EMBED_DIM}차원)')
-    for name, value in metrics.items():
-        print(f'  {name:<12} {value:.3f}' if isinstance(value, float) else f'  {name:<12} {value}')
+        print(f'모델: {EMBED_MODEL} ({EMBED_DIM}차원)')
+        for name, value in metrics.items():
+            print(f'  {name:<12} {value:.3f}' if isinstance(value, float) else f'  {name:<12} {value}')
 
-    low, high = noise_band(records, k=3)
-    print(f'  recall@3 95% 구간 {low:.1%} ~ {high:.1%} - 이 폭 안의 차이는 무시한다')
+        low, high = noise_band(records, k=3)
+        print(f'  recall@3 95% 구간 {low:.1%} ~ {high:.1%} - 이 폭 안의 차이는 무시한다')
 
-    save_run(records, metrics)
-    count_allergy_contamination(con, runs)
-    inspect_misses(con, runs)
+        save_run(records, metrics)
+        count_allergy_contamination(con, runs)
+        inspect_misses(con, runs)
 
-    if '--llm' in sys.argv:
-        at = sys.argv.index('--llm') + 1
-        limit = int(sys.argv[at]) if len(sys.argv) > at and sys.argv[at].isdigit() else None
-        print()
-        print(f'LLM 추천까지: searching.candidates() -> recommending.recommend() (표본 {limit or "전체"}건)')
-        llm_metrics = score_llm(load_holdout(con), limit=limit)
-        for name, value in llm_metrics.items():
-            print(f'  {name:<10} {value:.3f}' if isinstance(value, float) else f'  {name:<10} {value}')
+        run.record(**{k: round(v, 3) if isinstance(v, float) else v for k, v in metrics.items()},
+                   흔들림폭=round((high - low) * 100, 1))
+
+        if '--llm' in sys.argv:
+            at = sys.argv.index('--llm') + 1
+            limit = int(sys.argv[at]) if len(sys.argv) > at and sys.argv[at].isdigit() else None
+            print()
+            print(f'LLM 추천까지: searching.candidates() -> recommending.recommend() (표본 {limit or "전체"}건)')
+
+            # 서버라면 lifespan 이 해 뒀을 마스터 캐시를 여기서 올린다 - 이게 없으면
+            # 검색 결과를 상품으로 바꾸는 순간 ProductMgr 이 비어 있어 터진다.
+            if not require_llm():
+                sys.exit(2)
+            warm_domain()
+
+            llm_metrics = score_llm(load_holdout(con), limit=limit)
+            for name, value in llm_metrics.items():
+                print(f'  {name:<10} {value:.3f}' if isinstance(value, float) else f'  {name:<10} {value}')
+            run.record(**{f'LLM_{k}': v for k, v in llm_metrics.items()})
 
     con.close()
