@@ -1,3 +1,4 @@
+# Last updated: 2026-09-03
 # Last Updated : 2026-09-03
 
 """API 서버의 진입점. uvicorn이 이 파일의 'app' 객체를 찾아 실행한다.
@@ -13,6 +14,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes.ask import router as ask_router
+from app.api.routes.auth import router as auth_router
 from app.api.routes.health import router as health_router
 from app.api.routes.admin_auth import router as admin_auth_router
 from app.api.routes.products import router as products_router
@@ -39,6 +41,7 @@ app.include_router(recommend_router)
 app.include_router(ask_router)
 app.include_router(health_router)
 app.include_router(admin_auth_router)
+app.include_router(auth_router)
 app.include_router(products_router)
 app.include_router(customers_router)
 
