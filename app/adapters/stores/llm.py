@@ -11,19 +11,15 @@
     프롬프트 자체를 조립하는 일은 domain/prompting 이 진행하며, 무엇을 어떤 순서로
     시키는지는 app/features 쪽이 담당한다.
 """
-import httpx
 from langchain.chat_models import init_chat_model
 from app.core.config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, LLM_PROVIDER
 from app.core.trace import tracer
 
-"""
-   connect: 서버에 연결되기까지 최대 시간 설정
-   read: 응답이후 실제 우리가 요구한 답이 완료돼서 반환받을때까지의 시간
-   write: 요청 본문을 보내는 시간
-   pool: 연결풀에서 빈연결을 기다리는 시간
-"""
-TIMEOUT = httpx.Timeout(connect=5.0,read=60.0,write=30.0,pool=5.0) 
-
+# httpx.Timeout(connect=..., read=..., write=..., pool=...)로 세분화하고 싶었지만
+# ChatAnthropic의 timeout 필드가 pydantic으로 float만 받는다 - httpx.Timeout을 넣으면
+# ValidationError. ChatOpenAI 쪽은 Any라 받아주지만 _common을 두 프로바이더가 같이 쓰니
+# 공통분모인 float로 통일한다. connect/read를 진짜 나눠야 하면 프로바이더별 분기가 필요하다.
+TIMEOUT = 60.0
 # base_url은 OpenAI 호환 엔드포인트(Ollama 등)에만 의미가 있다 - None이면 안 넘긴다.
 # callbacks에 tracer를 꽂아 두면 chat/chat_answer 호출마다 logs/query_log.jsonl에 자동으로 남는다.
 _common = {"model": LLM_MODEL, "model_provider": LLM_PROVIDER, "api_key": LLM_API_KEY,
