@@ -11,7 +11,6 @@
 
 """
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
 
 from app.api.routes.ask import router as ask_router
 from app.api.routes.health import router as health_router
@@ -32,7 +31,6 @@ app.include_router(health_router)
 app.include_router(admin_auth_router)
 app.include_router(products_router)
 app.include_router(customers_router)
-app.mount("/static/admin",StaticFiles(directory="web"), name="admin_static")
 
 @app.get("/health")
 def health():
