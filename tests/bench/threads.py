@@ -9,6 +9,9 @@ master_join.py 는 한 호출이 몇 ms 인지를 쟀다. 그건 혼자 쓸 때 
 재는 함수는 master_join 의 C 그룹 그대로다. 새로 짜면 두 파일이 서로 다른 걸 재게 된다.
 결과가 같은지도 master_join 이 이미 대조했다.
 
+A/B 까지 전 그룹을 훑는 건 master_join_workers.py 다. 여기는 C 그룹만 길게(1초) 봐서
+스레드 곡선의 모양을 자세히 보는 자리다.
+
     python -m tests.bench.threads
 
 py(3.14) 는 fastapi 가 없어서 못 돈다. python(3.12) 으로 돌린다.

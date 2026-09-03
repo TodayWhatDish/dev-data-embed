@@ -31,7 +31,6 @@ from app.api.lifespan import load_domain_cache, load_schema_cache
 from app.core.db import fetch, fetch_tuple_one, fetch_tuples
 from app.domain.common import CommonMgr
 from app.features.metric.sqlbench import compare_fn
-from app.repositories import pet as pet_repo
 from app.repositories.general_query import select
 
 PET_COLS = ['pet_id', 'name', 'animal_category_id', 'size', 'inactive_at']
@@ -39,8 +38,16 @@ PET_COLS = ['pet_id', 'name', 'animal_category_id', 'size', 'inactive_at']
 
 # ---------------------------------------------------------------- A. 축종 하나 붙이기
 def a_join(pet_id):
-    """지금 구현. pet 1행에 animal_category 를 조인해 이름을 가져온다"""
-    return pet_repo.find_category_and_size(pet_id)
+    """조인판. pet 1행에 animal_category 를 조인해 이름을 가져온다
+
+    **예전 repositories 구현이다.** 2026-09-03 에 프로덕션은 캐시 쪽(C4 모양)으로 옮겼고,
+    비교 기준선이 사라지면 이 파일이 뭘 재는지 알 수 없어져서 SQL 을 여기로 들고 왔다.
+    """
+    return fetch_tuple_one("""
+        SELECT ac.name_ko, p.size
+          FROM pet AS p
+          JOIN animal_category AS ac ON ac.animal_category_id = p.animal_category_id
+         WHERE p.pet_id = ?""", (pet_id,))
 
 def a_cached(pet_id):
     """id 만 읽고 이름은 메모리에서 찾는다. 조인이 사라진 자리에 dict 조회가 들어간다"""
@@ -61,8 +68,10 @@ def a_cached_raw(pet_id):
 
 # ---------------------------------------------------------------- B. 알레르겐 이름 N 개
 def b_join(pet_id):
-    """지금 구현. pet_allergy 에 allergen 을 조인해 이름을 가져온다"""
-    return sorted(pet_repo.find_allergen_names(pet_id))
+    """조인판. pet_allergy 에 allergen 을 조인해 이름을 가져온다 (a_join 과 같은 사정)"""
+    return sorted(name for (name,) in fetch_tuples(
+        "SELECT al.name_ko FROM pet_allergy AS pa "
+        "JOIN allergen AS al ON al.allergen_id = pa.allergen_id WHERE pa.pet_id = ?", (pet_id,)))
 
 def b_cached(pet_id):
     """관계 테이블에서 id 만 읽고 이름은 전부 메모리에서. 행이 늘수록 조회 횟수도 는다"""
@@ -79,8 +88,20 @@ def b_cached_raw(pet_id):
 
 # ---------------------------------------------------------------- C. 펫 목록 + 알레르기
 def c_join_subquery(user_id):
-    """지금 구현. 축종은 조인, 알레르기는 상관 서브쿼리로 콤마 문자열 한 칸"""
-    return pet_repo.find_pets_by_user(user_id)
+    """조인판. 축종은 조인, 알레르기는 상관 서브쿼리로 이름을 콤마 문자열 한 칸에 (a_join 과 같은 사정).
+
+    **지금 구현은 C4 다** - repositories 가 id 만 주고 domain.pet.attach_names 가 이름을 붙인다.
+    """
+    return fetch("""
+        SELECT p.pet_id, p.name, ac.name_ko AS animal_category, p.size,
+               (SELECT GROUP_CONCAT(al.name_ko)
+                  FROM pet_allergy AS pa
+                  JOIN allergen AS al ON al.allergen_id = pa.allergen_id
+                 WHERE pa.pet_id = p.pet_id) AS allergies
+          FROM pet AS p
+          JOIN animal_category AS ac ON ac.animal_category_id = p.animal_category_id
+         WHERE p.user_id = ? AND p.inactive_at IS NULL
+         ORDER BY p.pet_id""", (user_id,))
 
 def c_join_two_selects(user_id):
     """축종은 그대로 조인. 알레르기만 두 번째 SELECT 로 뺀다 (C1 과의 차이 = 관계 읽는 방식)"""
