@@ -18,7 +18,7 @@ from app.app_logger.logger import init_logger
 init_logger('test_features')
 
 from app.api.lifespan import load_domain_cache, load_schema_cache
-from app.core.db import fetch_tuple_one
+from app.core.db import fetch_tuple_one, execute
 from app.features import products as product_feat
 from app.features import profile, retrieve, searching
 from app.features.metric.sqlbench import elapsed_time
@@ -155,10 +155,13 @@ if __name__ == '__main__':
         assert product_feat.get_product(product_id)['price_krw'] == 2000
 
     finally:
-        # features 의 delete_product 는 아직 주석 처리돼 있어 repositories 로 직접 지운다.
-        # 남기면 다음 실행의 페이지 조회가 한 칸씩 밀린다
+        # 삭제는 행을 지우지 않고 is_active 를 내린다. 끝의 행 수 대조를 맞추려면 실제로
+        # 지워야 해서, 비활성화까지 features 로 확인한 뒤 여기서만 SQL 을 직접 쓴다
         if product_id is not None:
-            assert product_repo.delete(product_id) == 1
+            product_feat.delete_product(product_id)
+            assert product_feat.get_product(product_id)['is_active'] == 0
+            raises('not_found', product_feat.delete_product, -1)
+            execute('DELETE FROM product WHERE product_id = ?', (product_id,), 'product')
             assert product_repo.find_by_id(product_id) is None
     logger.info('#' * 20)
 
