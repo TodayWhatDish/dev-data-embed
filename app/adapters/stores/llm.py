@@ -1,3 +1,4 @@
+# Last updated: 2026-09-03
 # Last Updated : 2026-09-02
 
 """ 모델에 말을 거는 자리로 클라이언트 두 개를 만들어 두는 것이 전부다.
@@ -13,8 +14,9 @@
 import httpx
 from langchain.chat_models import init_chat_model
 from app.core.config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, LLM_PROVIDER
+from app.core.trace import tracer
 
-""" 
+"""
    connect: 서버에 연결되기까지 최대 시간 설정
    read: 응답이후 실제 우리가 요구한 답이 완료돼서 반환받을때까지의 시간
    write: 요청 본문을 보내는 시간
@@ -23,7 +25,9 @@ from app.core.config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, LLM_PROVIDER
 TIMEOUT = httpx.Timeout(connect=5.0,read=60.0,write=30.0,pool=5.0) 
 
 # base_url은 OpenAI 호환 엔드포인트(Ollama 등)에만 의미가 있다 - None이면 안 넘긴다.
-_common = {"model": LLM_MODEL, "model_provider": LLM_PROVIDER, "api_key": LLM_API_KEY, "timeout": TIMEOUT}
+# callbacks에 tracer를 꽂아 두면 chat/chat_answer 호출마다 logs/query_log.jsonl에 자동으로 남는다.
+_common = {"model": LLM_MODEL, "model_provider": LLM_PROVIDER, "api_key": LLM_API_KEY,
+           "timeout": TIMEOUT, "callbacks": [tracer]}
 if LLM_BASE_URL:
     _common["base_url"] = LLM_BASE_URL
 
