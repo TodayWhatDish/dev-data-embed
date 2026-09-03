@@ -1,8 +1,27 @@
+# Last updated: 2026-09-03
 # Last Updated : 2026-09-01
 
 """user 테이블에 연결되는 곳. 관리자 화면용 고객 조회."""
 
 from app.core.db import fetch, fetch_one
+from app.repositories.general_query.insert import insert_query
+
+def find_user_by_email(email: str) -> dict | None:
+    """로그인/가입 시 이메일 중복 확인. email 은 UNIQUE라 최대 한 행."""
+    return fetch_one("SELECT user_id, password_hash FROM user WHERE email = ?", (email,))
+
+
+def create_user(email: str, name: str, password_hash: str,
+                 phone: str | None = None, region: str | None = None) -> int:
+    """local 회원가입. auth_uid는 로컬 계정엔 별도 외부 ID가 없어 email을 그대로 쓴다."""
+    values = {"auth_provider": "local", "auth_uid": email, "email": email,
+              "password_hash": password_hash, "name": name}
+    if phone:
+        values["phone"] = phone
+    if region:
+        values["region"] = region
+    return insert_query("user", values)
+
 
 def list_users() -> list[dict]:
     """관리자 화면 왼쪽 목록용. 고객 전체를 이름순으로.
