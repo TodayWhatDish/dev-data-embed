@@ -12,7 +12,7 @@ features 가 테이블 이름을 알면 스키마가 바뀔 때 고칠 곳이 �
 import logging
 import sqlite3
 
-from app.core.db import fetch, fetch_tuples, fetch_tuple_one
+from app.core.db import fetch, fetch_one, fetch_tuples, fetch_tuple_one, execute
 from app.repositories.general_query import select_all
 from app.repositories.general_query.insert import insert_query
 
@@ -21,14 +21,38 @@ logger = logging.getLogger()
 
 def create_pet(user_id: int, animal_category_id: int, name: str, gender: str = None,
                birth_date: str = None, weight_kg: float = None,
-               size: int = None, body_type: int = None) -> int:
+               size: int = None, body_type: int = None, activity_level: int = None) -> int:
     """반려동물 등록. 값이 없는 선택 컬럼은 뺀다 - insert_query가 남은 컬럼은 NULL로 채운다."""
     values = {"user_id": user_id, "animal_category_id": animal_category_id, "name": name}
     for k, v in (("gender", gender), ("birth_date", birth_date), ("weight_kg", weight_kg),
-                 ("size", size), ("body_type", body_type)):
+                 ("size", size), ("body_type", body_type), ("activity_level", activity_level)):
         if v is not None:
             values[k] = v
     return insert_query("pet", values)
+
+
+def add_pet_allergies(pet_id: int, allergen_ids: list[int]) -> None:
+    """pet_allergy에 알러지원을 등록한다. 이미 하위까지 펼쳐진 id 목록을 받는다 -
+    카테고리 펼치기(하위 알러지 포함)는 CommonMgr.resolve_allergen_ids()가 한다.
+    OR IGNORE인 이유: 카테고리와 그 하위를 같이 넣다 보면 같은 id가 겹칠 수 있어서다."""
+    for allergen_id in allergen_ids:
+        execute("INSERT OR IGNORE INTO pet_allergy (pet_id, allergen_id) VALUES (?, ?)",
+                (pet_id, allergen_id), "pet_allergy")
+
+
+def save_pet_survey(pet_id: int, diet_note: str = None, skin_note: str = None) -> None:
+    """가입 설문 스냅샷 저장. 필터가 아니라 추천 질의문 재료 + 관리자 표시용이다
+    (docs/schema/pet_schema.md#pet_survey). 갱신은 안 한다 - 가입 시 한 번만 부른다."""
+    values = {"pet_id": pet_id}
+    for k, v in (("diet_note", diet_note), ("skin_note", skin_note)):
+        if v is not None:
+            values[k] = v
+    insert_query("pet_survey", values)
+
+
+def get_pet_survey(pet_id: int) -> dict | None:
+    """펫 한 마리의 설문 스냅샷. 없으면 None (설문을 안 받은 펫)."""
+    return fetch_one("SELECT diet_note, skin_note FROM pet_survey WHERE pet_id = ?", (pet_id,))
 
 
 def get_breeds():

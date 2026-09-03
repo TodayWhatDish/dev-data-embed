@@ -8,6 +8,7 @@
 | [`pet`](#pet) | 반려동물 프로필. **유저가 소유한 개체** |
 | [`pet_breed`](#pet_breed) | 반려동물 ↔ 품종 (다대다) |
 | [`pet_allergy`](#pet_allergy) | 반려동물 ↔ 알러지원 (다대다). 추천의 하드 필터 |
+| [`pet_survey`](#pet_survey) | 가입 설문 스냅샷(식성/피부). 필터 아님 — 질의문 재료 + 관리자 표시용 |
 
 축종(`animal_category`)과 알러지원(`allergen`)은 제품 도메인과 공유하므로
 [common_schema.md](common_schema.md) 에 있다. 보호자 계정은 [user_schema.md](user_schema.md).
@@ -102,6 +103,7 @@
 | `weight_kg` | REAL | CHECK `> 0` | 현재 체중. 급여량·칼로리 계산의 기준 |
 | `size` | INTEGER | CHECK `1~5` | 체구(보호자 판단). **`1` 초소형 / `2` 소형 / `3` 중형 / `4` 대형 / `5` 초대형** |
 | `body_type` | INTEGER | CHECK `1~5` | 체형(보호자 관찰). **`1` 여윔 / `2` 저체중 / `3` 이상적 / `4` 과체중 / `5` 비만** |
+| `activity_level` | INTEGER | CHECK `1~3` | 활동량(보호자 판단). **`1` 적음 / `2` 보통 / `3` 많음**. `body_type` 과 같은 성격의 안정적 속성이라 여기 둔다 |
 | `neutered` | INTEGER | CHECK `0`/`1` | 중성화 여부 |
 | `inactive_at` | TEXT | CHECK datetime | 사망·파양 등으로 활동이 끝난 시각. NULL = 활성 |
 | `created_at` | TEXT | NOT NULL, DEFAULT `datetime('now')` | 등록 시각 |
@@ -156,12 +158,17 @@ TEXT 였다면 `'대형' > '소형'` 이 사전순 비교가 되어 무의미해
 | 품종 | [`pet_breed`](#pet_breed) |
 | 알러지 | [`pet_allergy`](#pet_allergy) |
 
-**비정형 입력으로 받는 것** — 프로필에 저장하지 않고 요청 시점 자연어로 받는다.
+**비정형 입력으로 받는 것** — 프로필(`pet`)에 저장하지 않고 요청 시점 자연어로 받는다.
 
 - 급여 형태 (건식/습식)
 - 식성 (식탐많음/식이까다로움)
 - 급여목적 (관절/다이어트/피부) — 제품 쪽만 정형으로 관리한다.
   이유는 [`feeding_purpose`](product_schema.md#feeding_purpose) 참고.
+
+식성/피부 메모는 **가입 시점에 한 번** 받아 [`pet_survey`](#pet_survey)에 스냅샷으로 남긴다 — `pet`
+컬럼이 아니라 별도 테이블이라 이 규칙과 충돌하지 않는다. `pet_allergy` 같은 하드 필터(SQL WHERE)로
+쓰지 않고, 추천 검색의 질의문 재료 + 관리자 화면 표시로만 쓴다. 최신 상태가 필요하면 요청 시점
+자연어로 다시 받는 게 맞다 - 이 스냅샷은 갱신하지 않는다.
 
 ---
 
@@ -256,3 +263,17 @@ SELECT pet_id, :new_id FROM pet_allergy WHERE allergen_id = :parent_id;
 
 **리뷰에서 추론한 알러지를 이 테이블에 넣으면 안 된다.** 추론값이 섞이면 안전한 제품이 잘못
 배제되고, 보호자가 그 값을 사실로 믿는다. 추론 결과는 리뷰 쪽에만 남기고 프로필로 승격시키지 않는다.
+
+---
+
+## pet_survey
+
+가입 설문 스냅샷. **`pet` 컬럼이 아니다** — 식성/피부 메모(위 "비정형 입력으로 받는 것" 참고)를
+가입 시점에 한 번 받아두는 자리로, 하드 필터가 아니라 추천 검색 질의문 재료 + 관리자 요약 표시용이다.
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| `pet_id` | INTEGER | PK, FK → [`pet`](#pet) (CASCADE) | 반려동물. 1:1이라 대리키를 안 둔다 |
+| `diet_note` | TEXT | | 식성 자유서술 (예: "식탐많음") |
+| `skin_note` | TEXT | | 피부 상태 자유서술 |
+| `created_at` | TEXT | NOT NULL, DEFAULT `datetime('now')` | 설문 받은 시각 |

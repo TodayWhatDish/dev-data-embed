@@ -29,6 +29,15 @@ dev = [
     "httpx",
 ]
 
+# 자체검증 모아 돌리기. 수집 대상은 tests/test_selfchecks.py 하나뿐이다 -
+# 나머지 tests/*.py 는 test_ 로 시작하지 않아 pytest 가 안 줍는다(단독 실행 스크립트라서)
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# no:cacheprovider - .pytest_cache 를 만들 때 Windows 가 WinError 5 로 막는 환경이 있다.
+# 12개 6초짜리라 --lf 를 쓸 일이 없어 캐시를 아예 끈다
+addopts = "-m 'not slow' -p no:cacheprovider"
+markers = ["slow: 임베딩 모델을 올리거나 DB 에 쓴다. 기본 실행에서 빠진다"]
+
 
 [tool.setuptools.packages.find]
 include = ["app*","pipeline*"]

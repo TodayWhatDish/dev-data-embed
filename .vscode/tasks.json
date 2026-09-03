@@ -172,6 +172,21 @@
             "presentation": {
                 "clear": true
             }
+        },
+        {
+            "label": "🧪 자체검증 (pytest)",
+            "detail": "tests/test_selfchecks.py 가 자체검증 스크립트를 모아 돌린다. 느린 것(smoke)은 빠진다.",
+            "type": "shell",
+            "command": "${command:python.interpreterPath}",
+            "args": [
+                "-m",
+                "pytest"
+            ],
+            "group": "test",
+            "problemMatcher": [],
+            "presentation": {
+                "clear": true
+            }
         }
     ],
     // 모델 목록은 app/core/config.py 의 EMBED_PROFILES 와 같아야 한다.

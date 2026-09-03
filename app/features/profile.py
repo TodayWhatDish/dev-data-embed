@@ -89,3 +89,11 @@ def pet_profile(pet_id: int) -> dict[str, Any]:
 
     logger.debug(f"pet_id={pet_id} 프로필: {profile}")
     return profile
+
+
+def survey_query_text(pet_id: int) -> str:
+    """가입 때 받은 식성/피부 메모(pet_survey)를 검색 질의문으로 합친다.
+    설문이 없거나 둘 다 비어 있으면 일반적인 추천 문구로 대체한다."""
+    survey = pet_repo.get_pet_survey(pet_id)
+    parts = [survey[k] for k in ("diet_note", "skin_note") if survey and survey.get(k)]
+    return " ".join(parts) if parts else "사료나 간식 추천해줘"

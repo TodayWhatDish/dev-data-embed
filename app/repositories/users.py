@@ -59,10 +59,19 @@ def get_user_detail(user_id: int) -> dict | None:
     if not user:
         return None
 
+    # allergies/diet_note/skin_note는 관리자 화면 설문 요약용 - allergies는 이름을 콤마로 합친 문자열이다
+    # (list_users()의 species와 같은 방식). pet_survey는 가입 때 한 번 없을 수 있어 LEFT JOIN.
     user["pets"] = fetch("""
-        SELECT pe.pet_id, pe.name, ac.name_ko AS animal_category, pe.gender, pe.birth_date, pe.weight_kg, pe.neutered
+        SELECT pe.pet_id, pe.name, ac.name_ko AS animal_category, pe.gender, pe.birth_date,
+               pe.weight_kg, pe.neutered, pe.size, pe.activity_level,
+               ps.diet_note, ps.skin_note,
+               (SELECT GROUP_CONCAT(al.name_ko)
+                  FROM pet_allergy AS pa
+                  JOIN allergen AS al ON al.allergen_id = pa.allergen_id
+                 WHERE pa.pet_id = pe.pet_id) AS allergies
         FROM pet AS pe
         JOIN animal_category AS ac ON ac.animal_category_id = pe.animal_category_id
+        LEFT JOIN pet_survey AS ps ON ps.pet_id = pe.pet_id
         WHERE pe.user_id = ?
     """, (user_id,))
 

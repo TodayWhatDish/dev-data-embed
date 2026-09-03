@@ -10,6 +10,7 @@ import logging
 from typing import Any
 
 from app.core.config import PASSAGE_PREFIX
+from app.domain.products import root_category_name
 from app.features.retrieve import build_where
 from app.features.profile import pet_profile
 from pipeline.vector_db import search,connect
@@ -58,6 +59,7 @@ def candidates(profiles: dict[str, Any],user_query: str, limit: int=20) -> list[
             "name": product["name"],
             "brand": product["brand"],
             "price_krw": product["price_krw"],
+            "product_type": root_category_name(product["product_category_id"]),  # 사료/간식
             "score": score,
             "review": review.removeprefix(PASSAGE_PREFIX),
         })
