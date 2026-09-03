@@ -15,7 +15,7 @@ import logging
 import sqlite3
 
 from app.core.config import EMBED_MODEL, EMBED_DIM, SIZE_CASE
-from app.repositories import embedding as embedding_repo
+# from app.repositories import embedding as embedding_repo
 
 logger = logging.getLogger()
 
