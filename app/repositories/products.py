@@ -2,12 +2,11 @@ from app.core.db import fetch, fetch_one, fetch_tuples, con, execute, QueryError
 from app.repositories.general_query import (select, select_all, select_range,
                                             insert_query, update_query)
 import logging
-import sqlite3
 
 # 단일 테이블 + = 조건인 쿼리는 general_query 로 간다. SQL 을 손으로 쓰지 않는 것보다,
 # 컬럼 이름이 틀렸을 때 QueryError('unknown_column') 로 통일되는 게 크다 —
 # features/products.py 의 CLIENT_FAULT 표가 reason 을 보고 HTTP 상태를 정하기 때문이다.
-# 조인·집계·DELETE 는 general_query 가 못 만들어서 아래에도 SQL 이 그대로 남아 있다.
+# 조인·집계는 general_query 가 못 만들어서 아래에도 SQL 이 그대로 남아 있다.
 
 # def get_product_detail_info():
 #     fetch_tuples("""
@@ -120,19 +119,13 @@ def update(product_id: int, values: dict) -> int:
                   (*values.values(), product_id), 'product')
     return cur.rowcount
 
-def delete(product_id: int) -> int:
-    """상품 한 건을 삭제하고 지운 행 수를 돌려준다. 없는 id 면 예외가 아니라 0 이다."""
-    try:
-        cur = execute("DELETE FROM product WHERE product_id = ?", (product_id,), 'product')
-    except QueryError as e:
-        # 구매 이력이 참조 중이면 constraint_fk 로 걸린다 (foreign_keys 가 켜져 있을 때).
-        # 지워진 줄 알고 넘어가면 안 되니 삼키지 않는다
-        logging.getLogger().warning(
-            f"Reject delete product: reason={e.reason}, product_id={product_id}, detail={e.detail}")
-        raise
+def inactive_product(product_id: int) -> int:
+    """상품 한 건을 비활성화(is_active=0)하고 고친 행 수를 돌려준다. 없는 id 면 예외가 아니라 0 이다.
 
-    logging.getLogger().debug(f"Delete product, product_id: {product_id}, deleted_row: {cur.rowcount}")
-    return cur.rowcount
-    
+    행을 지우지 않는다 — 구매 이력이 product_id 를 참조하고 있어서 DELETE 는 constraint_fk 로
+    막히거나 이력을 끊는다. 조회 쪽은 get_products / v_safe_products 가 is_active = 1 로 거른다.
+    """
+    return update_product(product_id, {'is_active': 0})
+
 def get_ingredient_allergen_ids():
-    return fetch_tuples("SELECT ingredient_id, allergen_id FROM ingredient_allergen")
+    return select_all("ingredient_allergen", None, ["ingredient_id", "allergen_id"])
