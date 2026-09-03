@@ -1,4 +1,4 @@
-from app.repositories.common import get_allgens, get_animal_categories
+from app.repositories.common import get_allergens, get_animal_categories
 from app.repositories.pet import get_breeds
 from app.repositories.products import get_product_categories, get_feeding_purposes, get_ingredients, get_ingredient_allergen_ids
 from app.domain.products import ProductMgr
@@ -25,7 +25,7 @@ def init_from_db():
     # 마스터 테이블은 기동 시 통째로 캐시한다 (docs/docu.md §1)
     # 도메인별로 나눠 담는다 — common: 축종/알러지(양쪽이 쓴다), pet: 품종, product: 카테고리/급여목적/원료
     common_mgr = CommonMgr.get_inst()
-    common_mgr.set_allergen_info(get_allgens())
+    common_mgr.set_allergen_info(get_allergens())
     common_mgr.set_animal_category(get_animal_categories())
 
     pet_mgr = PetMgr.get_inst()
