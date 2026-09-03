@@ -3,9 +3,29 @@
 
 import sqlite3
 import json
+import threading
 from app.core.config import DB_PATH, INDEX_FILTER
 
-con = sqlite3.connect(DB_PATH, check_same_thread=False)
+# 스레드마다 자기 커넥션을 쓴다. 전에는 모듈 전역 커넥션 하나를 check_same_thread=False 로 열어
+# 다 같이 썼는데, 라우트가 전부 def(= async 아님)라 FastAPI 가 스레드풀에서 돌린다.
+# 같은 커넥션을 여러 스레드가 동시에 execute 하면 sqlite 가 아니라 파이썬 sqlite3 모듈 쪽
+# 커넥션 내부 상태가 깨져서 InterfaceError('bad parameter or other API misuse') 가 난다
+# (4스레드 동시 SELECT 12,000회 중 1,121회 실패 — 실측은 docs/WORK.md 2026-09-03 §5).
+# 스레드당 하나면 그 공유 자체가 없어진다. 커넥션은 닫지 않는다 — 스레드풀 스레드는 프로세스가
+# 살아있는 동안 재사용되므로 스레드 수(기본 40)만큼만 열리고, 그게 상한이다.
+_local = threading.local()
+
+
+def get_con() -> sqlite3.Connection:
+    """이 스레드 전용 커넥션. 없으면 만들어서 들고 있는다.
+
+    DB 에 닿는 모든 함수가 여기를 거친다. 모듈 전역 con 을 두지 않는 이유는 위 주석에 있다.
+    check_same_thread 는 껐던 걸 되돌렸다 — 이제 스레드를 넘어 쓰는 건 버그라서, 막아주는 게 맞다.
+    """
+    con = getattr(_local, "con", None)
+    if con is None:
+        con = _local.con = sqlite3.connect(DB_PATH)
+    return con
 
 
 class QueryError(Exception):
@@ -46,10 +66,11 @@ def execute(sql, params=(), table=None) -> sqlite3.Cursor:
     """쓰기 쿼리를 돌리고 커밋한다. 커서를 주니 rowcount / lastrowid 는 부르는 쪽이 골라 쓴다.
 
     제약 위반(IntegrityError)만 QueryError 로 갈아끼운다. 여기가 sqlite3 예외의 마지막 자리다 —
-    con.execute 를 직접 부르면 이 변환을 건너뛰니 쓰기는 전부 이걸 통한다.
+    get_con().execute 를 직접 부르면 이 변환을 건너뛰니 쓰기는 전부 이걸 통한다.
     잠김·디스크·손상(OperationalError 등)은 안 잡는다. 클라가 어쩔 수 있는 게 아니라 500 이 맞다.
     """
     try:
+        con = get_con()
         cur = con.execute(sql, params)
         con.commit()
         return cur
@@ -64,7 +85,7 @@ def fetch(sql, params=()) -> list[dict]:
     이름에 모양을 안 적은 게 기본이라는 뜻이다 — repositories 가 도메인에 list[dict] 로 넘기기로
     한 그 모양이다. 규약을 어기는 fetch_tuples 쪽이 이름값을 치른다.
     """
-    cur = con.execute(sql, params)
+    cur = get_con().execute(sql, params)
     columns = [c[0] for c in cur.description]
     return [dict(zip(columns, row)) for row in cur.fetchall()]
 
@@ -85,7 +106,7 @@ def fetch_tuples(sql, params=()) -> list[tuple]:
     자리로 꺼내는 거라 SELECT 목록이 바뀌면 조용히 어긋난다. 그래서 기본이 아니고,
     for a, b in ... 처럼 컬럼 두엇을 바로 푸는 자리에서만 쓴다.
     """
-    return con.execute(sql, params).fetchall()
+    return get_con().execute(sql, params).fetchall()
 
 
 def fetch_tuple_one(sql, params=()) -> tuple | None:
@@ -93,14 +114,14 @@ def fetch_tuple_one(sql, params=()) -> tuple | None:
 
     fetch_tuples 와 철자가 겹치지 않게 _one 을 붙였다. tuple / tuples 한 글자 차이는 못 본다.
     """
-    return con.execute(sql, params).fetchone()
+    return get_con().execute(sql, params).fetchone()
 
 def load_vectors(table, key, connection=None):
     """문자로 넣어둔 백터정보를 Numpy 행렬로 숫자화해서 되살리는 함수"""
     import numpy as np
 
     # 만약 해당 함수를 호출하는 파일에 con접속객체가 있으면 그걸 재활용하고 없으면 새로 만들어서 전달
-    active_con = connection if connection is not None else con
+    active_con = connection if connection is not None else get_con()
 
     # DB에 가지고온 id값과 벡터 좌표값을 담을 빈 리스트 2개 생성
     ids, rows = [], []

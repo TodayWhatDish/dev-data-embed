@@ -9,7 +9,7 @@
 from fastapi import APIRouter
 
 from app.adapters.stores.llm import chat
-from app.core.db import con
+from app.core.db import get_con
 
 router = APIRouter()
 
@@ -25,7 +25,7 @@ def ready() -> dict:
     llm_ok = False
 
     try:
-        con.execute("SELECT 1").fetchone()
+        get_con().execute("SELECT 1").fetchone()
         db_ok = True
     except Exception:
         db_ok = False
