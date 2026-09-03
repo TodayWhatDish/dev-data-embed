@@ -231,3 +231,5 @@ query_log.jsonl
 local/
 
 .headroom_wrap_marker.json
+
+깃 규약.md
