@@ -13,7 +13,7 @@ import logging
 import sqlite3
 
 from app.app_logger.logger import init_logger
-from app.core.db import QueryError, con, fetch_tuples, fetch_tuple_one
+from app.core.db import QueryError, get_con, fetch_tuples, fetch_tuple_one
 from app.repositories.general_query import update_query, update_query_all
 
 
@@ -90,7 +90,7 @@ if __name__ == '__main__':
     rejects('constraint_unique', update_query, 'product', {'product_id': other}, {'product_id': pid})
 
     # FK 는 sqlite 가 기본으로 안 본다. 켜져 있을 때만 검사한다 - E-4 참고
-    fk_on, = con.execute('PRAGMA foreign_keys').fetchone()
+    fk_on, = get_con().execute('PRAGMA foreign_keys').fetchone()
     if fk_on:
         rejects('constraint_fk', update_query, 'product',
                 {'product_category_id': 999999}, {'product_id': pid})

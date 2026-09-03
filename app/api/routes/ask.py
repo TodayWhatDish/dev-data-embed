@@ -28,6 +28,7 @@ from app.features.profile import build_profile, pet_profile
 from app.features.searching import candidates
 from app.repositories import users as users_repo
 from app.repositories.pet import find_pets_by_user
+from app.features.customers import customer_detail
 
 router = APIRouter()
 
@@ -42,7 +43,7 @@ def _stream_answer(user_query: str, pet_id: int | None, user_id: int | None,
     matches = candidates(profile, user_query)
     detail = users_repo.get_user_detail(user_id) if user_id else None
     customer_context = build_customer_context(detail)
-
+    
     def generate():
         if not matches:
             yield json.dumps({"type": "error", "message": "조건에 맞는 후보를 찾지 못했습니다."}, ensure_ascii=False) + "\n"

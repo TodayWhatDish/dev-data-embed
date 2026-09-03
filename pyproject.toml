@@ -20,6 +20,14 @@ dependencies = [
     "transformers",
 ]
 
+# 테스트에서만 쓰는 것들. 배포에 pytest 가 끼면 안 되니 dependencies 와 갈라 둔다.
+# httpx 는 tests/bench/http.py 가 쓴다 - 지금까지 langchain 이 딸려 오는 것에 얹혀 있었다
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "httpx",
+]
+
 
 [tool.setuptools.packages.find]
 include = ["app*","pipeline*"]

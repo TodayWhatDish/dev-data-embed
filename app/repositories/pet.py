@@ -36,55 +36,40 @@ def get_breeds():
     return select_all("breed")
 
 def find_pets_by_user(user_id: int) -> list[dict]:
-    """한 사용자의 (비활성 아닌) 펫 목록. 알레르기는 이름을 콤마로 이어 한 칸에 담아 준다.
+    """한 사용자의 (비활성 아닌) 펫 목록. **마스터 이름은 안 붙인다** - id 로만 준다.
 
-    알레르기를 상관 서브쿼리로 뽑는 이유는 pet_allergy 가 다대다여서다. 조인으로 펼치면
+    축종/알레르겐은 기동 때 메모리에 올라간 마스터라 조인할 이유가 없다. 이름 붙이기는
+    domain.pet.attach_names() 가 캐시로 한다 (docs/WORK.md 2026-09-03 §10).
+    쿼리는 그래도 한 방이다 - 관계를 두 번 나눠 읽으면 문장 수가 늘어 그게 더 비싸다.
+
+    알레르겐을 상관 서브쿼리로 뽑는 이유는 pet_allergy 가 다대다여서다. 조인으로 펼치면
     알레르기 수만큼 펫이 중복되고, 부르는 쪽이 다시 묶어야 한다.
     """
-    try:
-        return fetch("""
-            SELECT p.pet_id, p.name, ac.name_ko AS animal_category, p.size,
-                   (SELECT GROUP_CONCAT(al.name_ko)
-                      FROM pet_allergy AS pa
-                      JOIN allergen AS al ON al.allergen_id = pa.allergen_id
-                     WHERE pa.pet_id = p.pet_id) AS allergies
-              FROM pet AS p
-              JOIN animal_category AS ac ON ac.animal_category_id = p.animal_category_id
-             WHERE p.user_id = ? AND p.inactive_at IS NULL
-             ORDER BY p.pet_id
-        """, (user_id,))
-    except sqlite3.Error:
-        # SQL 에 글자로 박힌 오타나 스키마 변경은 우리 버그다. 어느 쿼리였는지만 남기고 그대로 올린다
-        logger.exception(f"pet 목록 조회 실패: user_id={user_id}")
-        raise
+    return _fetch_pets('p.user_id = ? AND p.inactive_at IS NULL', (user_id,),
+                       f'user_id={user_id}')
 
-def find_category_and_size(pet_id: int) -> tuple | None:
-    """펫 한 마리의 (축종 이름, 체급 코드). 없으면 None.
+def find_pet(pet_id: int) -> dict | None:
+    """펫 한 마리. 없으면 None ('없는 id 는 예외가 아니라 None' 이 이 프로젝트의 조회 규약).
 
-    '없는 id 는 예외가 아니라 None' 이 이 프로젝트의 조회 규약이라 여기서도 그대로 따른다.
+    find_pets_by_user 와 **같은 모양**을 준다. 그래야 attach_names() 하나가 둘 다 받는다.
+    여기는 inactive_at 을 안 본다 - 비활성 펫도 상세는 열려야 한다.
     """
+    rows = _fetch_pets('p.pet_id = ?', (pet_id,), f'pet_id={pet_id}')
+    return rows[0] if rows else None
+
+def _fetch_pets(where: str, params: tuple, what: str) -> list[dict]:
+    """펫 조회 한 모양. where 는 **코드에 글자로 박힌 것만** 넘긴다 - 사용자 입력은 params 로만 간다"""
     try:
-        return fetch_tuple_one("""
-            SELECT ac.name_ko AS animal_category, p.size
+        return fetch(f"""
+            SELECT p.pet_id, p.name, p.animal_category_id, p.size,
+                   (SELECT GROUP_CONCAT(pa.allergen_id)
+                      FROM pet_allergy AS pa
+                     WHERE pa.pet_id = p.pet_id) AS allergen_ids
               FROM pet AS p
-              JOIN animal_category AS ac ON ac.animal_category_id = p.animal_category_id
-             WHERE p.pet_id = ?
-        """, (pet_id,))
+             WHERE {where}
+             ORDER BY p.pet_id
+        """, params)
     except sqlite3.Error:
-        logger.exception(f"pet 조회 실패: pet_id={pet_id}")
+        # SQL 에 글자로 박힌 오타나 스키마 변경은 우리 버그다. 어느 조회였는지만 남기고 그대로 올린다
+        logger.exception(f"pet 조회 실패: {what}")
         raise
-
-def find_allergen_names(pet_id: int) -> list[str]:
-    """그 펫에게 등록된 알레르겐 이름들. 없으면 빈 목록."""
-    try:
-        rows = fetch_tuples(
-            "SELECT al.name_ko FROM pet_allergy AS pa "
-            "JOIN allergen AS al ON al.allergen_id = pa.allergen_id WHERE pa.pet_id = ?",
-            (pet_id,),
-        )
-    except sqlite3.Error:
-        logger.exception(f"pet 알레르기 조회 실패: pet_id={pet_id}")
-        raise
-
-    # 튜플을 벗겨서 준다. 부르는 쪽마다 [name for (name,) in ...] 을 반복하지 않게
-    return [name for (name,) in rows]

@@ -15,7 +15,7 @@ from app.features.profile import pet_profile
 from pipeline.vector_db import search,connect
 from app.repositories import products as product_repo
 from app.repositories import purchases as purchase_repo
-from app.repositories import users as users_repo
+from app.features.customers import customer_detail
 logger = logging.getLogger()
 
 
@@ -73,7 +73,7 @@ def similar_reviews_for(user_id: int, limit: int = 5) -> dict[str, Any]:
     admin이 임의로 친 질문이 아니라 이 고객의 구매 이력 자체가 근거다.
     이미 산 그 상품은 결과에서 뺀다 - 방금 산 걸 또 추천하면 의미가 없다.
     """
-    detail = users_repo.get_user_detail(user_id)
+    detail = customer_detail(user_id)
     if detail is None:
         return {"query": "", "product_name": "", "found": []}
 
