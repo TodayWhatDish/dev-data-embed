@@ -1,6 +1,7 @@
 # Last Updated : 2026-09-02
 
 import jwt
+import secrets
 from fastapi import HTTPException, Header, status
 
 from app.core.config import JWT_SECRET, JWT_ALGORITHM

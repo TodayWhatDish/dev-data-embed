@@ -59,7 +59,7 @@ def build_review_doc(row: sqlite3.Row) -> str:
     purpose = f"{row['target_feeding_purpose']} 목적" if row['target_feeding_purpose'] else "목적 미기재"
     category = f"{row['category']}/{row['sub_category']}" if row['category'] else row['sub_category']
     ingredients = f"주원료: {row['ingredients']} " if row['ingredients'] else ""
-    return (
+    return (                                                                           
         PASSAGE_PREFIX+  # 모델 프로파일이 정한다 (e5는 'passage: ', bge는 빈 문자열)
         f"{category} {row['product_name']} "
         f"({purpose}, {row['target_food_form']}) "

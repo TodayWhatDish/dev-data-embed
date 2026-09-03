@@ -13,7 +13,7 @@
 
 ## 1. rag-project-cleanup (주 참고 대상)
 
-- **경로**: `C:\rag-project-cleanup\rag-project-cleanup`
+- **경로**: `/Users/jaeseong/rag-project-cleanup`
 - **무엇**: 화장품 관리자 대시보드 RAG 서비스. 2번을 계층 분리 기준으로 리팩터링한 버전.
 - **왜 여기를 보나**: 이 저장소와 **계층 구성이 같고**(`app/{domain,core,repositories,adapters,features,api}` + `pipeline/`),
   이 저장소에 아직 없는 API 계층이 완성돼 있다.
