@@ -100,6 +100,7 @@ def init_logger(file_name = 'pet_rec', level = logging.DEBUG, console = True):
         logger.addHandler(console_handler)
 
     logger.info('Start Logger!!!')
+    logger.info('http://127.0.0.1:8000/static/admin/admin.html')
 
     # logger.debug('Log level Test')
     # logger.info('Log level Test')

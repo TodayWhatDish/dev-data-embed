@@ -1,4 +1,4 @@
-LastUpdated : 2026-08-13
+LastUpdated : 2026-09-02
 
 # DESIGN.md — DB 스키마 설계
 
@@ -184,3 +184,22 @@ LLM은 확률적으로 실패하지만 `NOT EXISTS`는 반드시 배제한다.
 
 `INTEGER PRIMARY KEY`는 `BIGINT GENERATED ALWAYS AS IDENTITY`로, `TEXT` 날짜는 `DATE`/`TIMESTAMPTZ`로,
 `BLOB` 벡터는 `vector(384)`로 대응된다.
+
+---
+
+## 7. 관리자 대시보드 — 기능정의 (2026-09-02 요청)
+
+| # | 요구사항 | 상태 | 구현 위치 |
+|---|---|---|---|
+| 1 | 좌측 사이드메뉴 = 고객 리스트 | 구현됨 | `GET /api/customers` → `users_repo.list_users()` |
+| 2 | 최상단 고객이름 검색창 | 미구현 | `list_users()`가 이름순 전체 조회만 함. 검색어 파라미터 없음 |
+| 3 | 고객 선택 시 상세정보·구매이력 출력 | 구현됨 | `GET /api/customers/{user_id}` → `users_repo.get_user_detail()` (프로필+반려동물+구매이력) |
+| 4 | 좌측 상단 AI분석 버튼: 카테고리 선택 없이 직접 검색 | 구현됨 | `POST /ask` — `pet_id` 없이 요청에 필터를 직접 실어 보내면 그 프로필로 검색 (`app/api/routes/ask.py`) |
+| 5 | 고객별 판매 전략 / 마케팅 아이디어 / CS 응대전략 | 미구현 | 신규. 구매이력을 근거로 LLM이 생성 — `answering.py`처럼 `features` 계층에 새 함수 필요 |
+| 6 | LLM 응답의 근거 검증("반증") | 미구현 | 5번 결과가 실제 구매이력/리뷰에 근거하는지 확인하는 절차. 아직 없음 |
+
+### 남은 일 (2, 5, 6)
+
+- **2 — 이름 검색**: `list_users()`에 `WHERE name LIKE ?` 조건만 추가하면 됨. 인덱스는 §1 "인덱스 원칙"대로 관측 후 판단(현재 규모에서 불필요).
+- **5 — 전략/CS 응대안 생성**: `get_user_detail()`이 이미 모아주는 구매이력+리뷰를 컨텍스트로 LLM 호출. `app/features/answering.py`의 스트리밍 패턴 재사용 가능.
+- **6 — 반증(팩트체크)**: 5번이 생성한 문장이 실제 구매이력·리뷰에 있는 내용인지 검증하는 절차. 알러지 판정(§3)처럼 반드시 맞아야 하는 하드 제약은 아니지만, 없는 구매를 근거로 대는 건 막아야 함. 가장 싼 방법은 5번 출력에 인용한 `purchase_id`/`review`를 같이 반환시켜서, 그 ID가 실제로 그 고객 것인지 SQL로 대조하는 것 — 별도 LLM 판정 호출 없이 됨.

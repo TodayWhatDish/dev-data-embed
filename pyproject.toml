@@ -12,7 +12,10 @@ dependencies = [
     "sentence-transformers",
     "pyjwt",
     "requests",
+    "langchain",
+    "langchain-core",
     "langchain-openai",
+    "langchain-anthropic",
     "langchain-text-splitters",
     "transformers",
 ]

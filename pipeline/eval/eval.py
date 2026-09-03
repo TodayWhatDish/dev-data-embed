@@ -1,4 +1,4 @@
-# Last updated: 2026-08-30
+# Last updated: 2026-09-03
 
 """홀드아웃(is_holdout=1) 리뷰를 질의처럼 넣어, 프로필 필터 + 벡터검색(코사인 유사도)이
 원래 구매한 상품을 top-k 안에 다시 찾아내는지 재는 스크립트.
@@ -9,11 +9,16 @@
 실행 전/후 상대 변화를 보는 용도에 가깝다.
 
 검색 로직 자체는 pipeline/vector_db.py 의 search() 를 그대로 재사용한다.
-"""
 
+`--llm [N]` 을 붙이면 벡터 검색에서 한 단계 더 나가, 실제 배포 경로
+(searching.candidates -> recommending.recommend)로 LLM이 고른 추천에 정답이
+있는지와 재시도/실패 횟수를 추가로 잰다. N을 생략하면 홀드아웃 전체를 돈다.
+"""
+import time
 import json
 import random
 import sqlite3
+import sys
 
 from app.features.retrieve import build_where  # 프로필 딕셔너리 -> SQL where절 변환
 from app.core.config import DB_PATH, SIZE_CASE, EVAL_DIR, EMBED_MODEL, EMBED_DIM
@@ -162,6 +167,47 @@ def noise_band(records: list[dict], k: int = 3, trials: int = 2000, seed: int = 
     rates = sorted(sum(rng.choice(hits) for _ in range(n)) / n for _ in range(trials))
     return rates[int(trials * 0.025)], rates[int(trials * 0.975)]
 
+def measure_query_latency(n: int = 30) -> float:
+    """질의 1건을 벡터로 만드는 평균 시간(ms).
+
+    색인은 배포 때 한 번이지만 질의 인코딩은 요청마다 일어난다 - 사용자가 체감하는
+    비용은 이쪽이고, 품질이 노이즈 안에서 뭉칠 때 결정을 가르는 축이 된다.
+    """
+    from app.core.embedder import embed_query
+    embed_query('워밍업')  # 첫 호출엔 모델 로딩이 섞여서 지표로 못 쓴다
+    start = time.perf_counter()
+    for i in range(n):
+        embed_query(f'피부가 예민한 아이에게 줄 사료를 찾고 있어요 {i}')
+    return (time.perf_counter() - start) / n * 1000
+
+def score_llm(holdout: list[tuple], n_pick: int = 5, limit: int | None = None) -> dict:
+    """holdout 표본에 실제 배포 경로(searching.candidates -> recommending.recommend)를 그대로 태워
+    LLM이 고른 추천에 정답(product_id)이 있는지, 재시도/실패가 얼마나 나는지 잰다.
+
+    위 지표들은 pipeline.vector_db.search()를 직접 부르지만, 여기는 서버가 실제로 타는
+    함수를 그대로 불러야 배포된 것과 같은 걸 재는 의미가 있다.
+    """
+    from app.features.searching import candidates as search_candidates
+    from app.features.recommending import recommend
+
+    sample = holdout[:limit] if limit else holdout
+    hits = n_retry = n_fail = 0
+    started = time.perf_counter()
+    for i, (purchase_id, product_id, animal_category, size_category, allergy, review) in enumerate(sample, start=1):
+        profile = {"animal_category": animal_category, "size_category": size_category, "allergy": allergy}
+        cands = search_candidates(profile, review)
+        picks, retries, error = recommend(cands, profile, n_pick)
+        n_retry += retries
+        if error:
+            n_fail += 1
+        elif product_id in {p["product_id"] for p in picks}:
+            hits += 1
+        print(f'  {i}/{len(sample)} 처리중 ({time.perf_counter() - started:.0f}초 경과)', end='\r')
+
+    print(' ' * 40, end='\r')
+    n = len(sample)
+    return {'n': n, f'hit@{n_pick}': hits / n if n else 0.0, 'n_retry': n_retry, 'n_fail': n_fail}
+
 
 def save_run(records: list[dict], metrics: dict) -> None:
     """모델 이름으로 결과 파일을 남긴다.
@@ -183,6 +229,7 @@ if __name__ == '__main__':
     runs = run_holdout_search(con)
     records = score_runs(con, runs)
     metrics = summarize(records)
+    metrics['query_ms'] = measure_query_latency()
 
     print(f'모델: {EMBED_MODEL} ({EMBED_DIM}차원)')
     for name, value in metrics.items():
@@ -194,4 +241,14 @@ if __name__ == '__main__':
     save_run(records, metrics)
     count_allergy_contamination(con, runs)
     inspect_misses(con, runs)
+
+    if '--llm' in sys.argv:
+        at = sys.argv.index('--llm') + 1
+        limit = int(sys.argv[at]) if len(sys.argv) > at and sys.argv[at].isdigit() else None
+        print()
+        print(f'LLM 추천까지: searching.candidates() -> recommending.recommend() (표본 {limit or "전체"}건)')
+        llm_metrics = score_llm(load_holdout(con), limit=limit)
+        for name, value in llm_metrics.items():
+            print(f'  {name:<10} {value:.3f}' if isinstance(value, float) else f'  {name:<10} {value}')
+
     con.close()

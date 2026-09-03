@@ -40,7 +40,13 @@ def env(name: str, default: str) -> str:
     value = os.environ.get(name,"").strip()
     return default if value == "" else value
 
-# 모델마다 다른 값을 한 표에 모은다. 접두사를 코드 여러 곳에 적으면 반드시 어긋난다.
+
+# 아래 설정값이 전부 env() 를 거치므로 .env 는 그것들보다 먼저 올라와야 한다.
+# 정의만 해두고 부르지 않으면 .env 전체가 조용히 무시된다 - 값이 안 읽혀도
+# 에러가 안 나고 기본값으로 굴러가기 때문에 알아채기 어렵다.
+
+load_env()
+
 # query_prefix/passage_prefix: e5 계열은 필수, bge 계열은 붙이면 오히려 성능이 떨어진다.
 # 모델을 비교할 때 이 표만 늘리고 코드는 건드리지 않는 것이 목표다.
 EMBED_PROFILES = {
@@ -122,16 +128,23 @@ def env(name: str, default: str) -> str:
 load_env()
 USE_API = env("USE_API",0) == "1"
 
+# LLM_PROVIDER는 langchain init_chat_model()의 provider 인자로 그대로 들어간다 (adapters/stores/llm.py).
+# 상용 API를 바꾸고 싶으면 .env의 LLM_PROVIDER/LLM_API_KEY/API_MODEL 세 값만 바꾸면 된다 - 코드 수정 불필요.
 if USE_API:
-    LLM_BASE_URL = "https://api.openai.com/v1"
-    LLM_API_KEY = env("OPENAI_API_KEY", "")
-    LLM_MODEL = env("API_MODEL", "gpt-4o-mini")
+    LLM_PROVIDER = env("LLM_PROVIDER", "anthropic")
+    LLM_BASE_URL = None  # provider 네이티브 클라이언트는 base_url이 필요 없다 (OpenAI 호환 프록시를 쓸 때만 .env로 지정)
+    LLM_API_KEY = env("LLM_API_KEY", "")
+    LLM_MODEL = env("API_MODEL", "claude-sonnet-5")
 else:
+    LLM_PROVIDER = "openai"  # Ollama가 OpenAI 호환 엔드포인트를 흉내내므로 provider는 openai로 두고 base_url만 로컬로 돌린다
     LLM_BASE_URL = "http://localhost:11434/v1"
     LLM_API_KEY = "ollama"
     LLM_MODEL = "qwen2.5:3b"
 
-# 관리자 로그인용 - 계정 없이 비밀번호 하나로만 검증한다
+# 관리자 로그인 / 서버 세션 토큰 만드는 데 필요한 설정값.
+# 관리자 로그인 전용 JWT 설정. 사용자 인증은 Supabase 로 이관 중이라 구글 로그인과
+# 함께 걷어냈지만, 관리자 인증(features/admin_auth.py)은 공용 비밀번호 + 자체 JWT 라
+# 그 이관과 무관하다. core/auth.py 와 features/admin_auth.py 가 이 세 값을 import 한다.
 JWT_SECRET = env("JWT_SECRET", "")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = 60 * 24 * 7  # 7일
