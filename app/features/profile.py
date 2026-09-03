@@ -12,6 +12,7 @@ import logging
 
 from typing import Any
 from app.domain.common import CommonMgr
+from app.domain import pet as pet_domain
 from app.repositories import pet as pet_repo
 from app.core.config import SIZE_LABELS
 
@@ -50,7 +51,8 @@ def build_profile(raw: dict[str, Any]) -> dict[str, Any]:
 
 def list_pets(user_id: int) -> list[dict]:
     """한 사용자의 (비활성 아닌) 펫 목록. 선택지를 보여줄 때 쓴다."""
-    pets = pet_repo.find_pets_by_user(user_id)
+    # repo 가 id 를 주고 domain 이 캐시로 이름을 붙인다. features 는 둘을 엮기만 한다
+    pets = pet_domain.attach_names(pet_repo.find_pets_by_user(user_id))
 
     # 펫이 없는 것은 에러가 아니다. 다만 '선택지가 왜 비었나' 를 물어볼 때 근거가 있어야 한다
     if not pets:
@@ -65,15 +67,15 @@ def pet_profile(pet_id: int) -> dict[str, Any]:
     사람이 종/체급/알레르기를 다시 타이핑하면 DB에 이미 있는 값을 틀리게 적을 수 있다
     (체급 한 칸을 잘못 고르면 정답이 후보에서 통째로 빠진다). DB 를 단일 출처로 삼는다.
     """
-    row = pet_repo.find_category_and_size(pet_id)
-    if row is None:
+    pet = pet_domain.attach_names_one(pet_repo.find_pet(pet_id))
+    if pet is None:
         # 없는 펫은 예외가 아니라 빈 프로필이다 (필터를 안 거는 것과 같아진다).
         # 조용히 넘어가면 '왜 아무 필터도 안 걸렸지' 를 못 찾으니 흔적은 남긴다
         logger.info(f"pet_id={pet_id} 가 없다 - 빈 프로필 반환")
         return {}
 
-    animal_category, size = row
-    profile = {"animal_category": animal_category}
+    profile = {"animal_category": pet["animal_category"]}
+    size = pet["size"]
     if size in SIZE_LABELS:
         # FILTERS["size_category"] 가 SIZE_CASE 로 라벨 비교를 하므로 라벨로 넘긴다.
         # 정수 2 를 그대로 넘기면 '소형' 과 비교돼 아무것도 안 걸린다
@@ -82,9 +84,8 @@ def pet_profile(pet_id: int) -> dict[str, Any]:
         # 라벨이 없는 코드가 들어오면 체급 필터만 조용히 빠진다. 검색 결과가 넓어지는 쪽이라 안 터진다
         logger.warning(f"pet_id={pet_id} 의 size={size!r} 가 SIZE_LABELS 에 없다 - 체급 필터 미적용")
 
-    allergens = pet_repo.find_allergen_names(pet_id)
-    if allergens:
-        profile["allergy"] = allergens
+    if pet["allergies"]:
+        profile["allergy"] = pet["allergies"]
 
     logger.debug(f"pet_id={pet_id} 프로필: {profile}")
     return profile

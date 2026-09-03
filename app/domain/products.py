@@ -1,3 +1,41 @@
+"""product 도메인 마스터 캐시 + 그 캐시로 하는 가공.
+
+분류 트리를 아는 건 여기(캐시)뿐이라, 트리를 걸어야 하는 판정도 여기서 한다.
+"""
+
+# 최상위 분류 id -> 화면·프롬프트가 쓰는 이름. 여기 없는 루트가 생기면 그 루트 이름을 그대로 쓴다
+ROOT_TYPES = {1: '사료', 2: '간식'}
+
+
+def root_category_name(product_category_id: int) -> str | None:
+    """
+    # Summary
+    * 상품분류를 최상위까지 올려 사료/간식 중 하나로 접는다. 모르는 분류면 None
+    * 트리가 '간식 > 덴탈껌' 처럼 더 나뉘어도 화면은 둘로만 보기 때문
+    # params
+    * product_category_id: product.product_category_id
+    """
+    # 예전엔 SQL 의 COALESCE(parent_id, product_category_id) = 1 이 이 일을 했다.
+    # 한 단계만 올라가므로 트리가 3단계가 되면 조용히 틀린 값을 준다 - 그래서 끝까지 올린다
+    mgr = ProductMgr.get_inst()
+    node = mgr.get_product_category(product_category_id)
+    seen = set()
+    while node and node.get('parent_id') is not None:
+        if node['product_category_id'] in seen:
+            # 부모가 순환하면 여기서 영영 못 나온다. DB 가 못 막는 규칙이라 앱이 본다 (docs/docu.md)
+            return None
+        seen.add(node['product_category_id'])
+        node = mgr.get_product_category(node['parent_id'])
+    if not node:
+        return None
+    return ROOT_TYPES.get(node['product_category_id'], node['name_ko'])
+
+
+def attach_product_type(rows: list[dict]) -> list[dict]:
+    """구매이력 행에 product_type(사료/간식)을 붙인다. 원본은 안 고친다"""
+    return [{**row, 'product_type': root_category_name(row['product_category_id'])}
+            for row in rows]
+
 
 class ProductMgr:
     _instance = None
