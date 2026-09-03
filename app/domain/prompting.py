@@ -1,4 +1,4 @@
-# Last updated: 2026-09-02
+# Last updated: 2026-09-03
 
 """ searching.py가 넘겨준 후보를 LLM에게 보여줄 프롬프트로 조립하고, LLM 응답이 반드시 이 모양으로만 나오도록 강제하는 스키마를 정의한다.
     프롬프트 조립과 응답 스키마는 한 쌍이라 이곳에 둔다. 
@@ -75,10 +75,11 @@ def build_strategy_prompt(detail: dict[str, Any]) -> str:
 
 class FactCheck(BaseModel):
     accuracy: float = Field(description="0~1 사이 숫자. 답변이 [고객 정보]의 사실과 일치하는 정도")
-    note: str = Field(description="이 점수를 매긴 근거. 답변의 어느 부분이 [고객 정보]의 어느 내용과 일치/불일치하는지 구체적으로 짚어서 설명한다. 100%가 아니면 무엇 때문에 깎였는지 반드시 밝힌다. 완전히 일치해도 어떤 근거로 그렇게 판단했는지 한두 문장으로 적는다 - '일치'처럼 한 단어로 끝내지 않는다")
+    note: str = Field(description="이 점수를 매긴 근거. 답변의 어느 부분이 [고객 정보]의 어느 내용과 일치/불일치하는지 구체적으로 짚어서 설명한다")
 
 def build_factcheck_prompt(customer_context: str, answer: str) -> str:
-    """답변을 만든 모델과 별도 호출로 [고객 정보]와 대조한다 - 반증(팩트체크) 단계라 자기 자신을 채점하게 두지 않는다."""
+    """답변을 만든 모델과 별도 호출로 [고객 정보]와 대조한다 - 문자열 대조가 못 잡는 '재구매/평점 같은
+    과거 사실 주장'이 의심될 때만 answering._looks_suspicious()가 이 프롬프트를 태운다."""
     return (
         f"[고객 정보]\n{customer_context}\n\n"
         f"[답변]\n{answer}\n\n"

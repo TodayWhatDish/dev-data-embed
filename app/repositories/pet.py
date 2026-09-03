@@ -1,3 +1,4 @@
+# Last updated: 2026-09-03
 # Last Updated : 2026-09-02
 
 """pet 테이블과 그 주변(animal_category, pet_allergy)에 닿는 자리.
@@ -13,8 +14,21 @@ import sqlite3
 
 from app.core.db import fetch, fetch_tuples, fetch_tuple_one
 from app.repositories.general_query import select_all
+from app.repositories.general_query.insert import insert_query
 
 logger = logging.getLogger()
+
+
+def create_pet(user_id: int, animal_category_id: int, name: str, gender: str = None,
+               birth_date: str = None, weight_kg: float = None,
+               size: int = None, body_type: int = None) -> int:
+    """반려동물 등록. 값이 없는 선택 컬럼은 뺀다 - insert_query가 남은 컬럼은 NULL로 채운다."""
+    values = {"user_id": user_id, "animal_category_id": animal_category_id, "name": name}
+    for k, v in (("gender", gender), ("birth_date", birth_date), ("weight_kg", weight_kg),
+                 ("size", size), ("body_type", body_type)):
+        if v is not None:
+            values[k] = v
+    return insert_query("pet", values)
 
 
 def get_breeds():

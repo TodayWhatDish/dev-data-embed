@@ -147,8 +147,18 @@
             }
         },
         {
+            "label": "🛑 포트 8000 죽이기",
+            "detail": "--reload 프로세스가 창을 닫아도 안 죽고 남아 포트를 잡고 있을 때 쓴다.",
+            "type": "shell",
+            "command": "lsof -ti:8000 | xargs kill -9",
+            "problemMatcher": [],
+            "presentation": {
+                "clear": true
+            }
+        },
+        {
             "label": "의존성 설치 (requirements)",
-            "detail": "pyproject.toml의 dependencies를 그대로 설치한다. 한 번만 실행하면 됨.",
+            "detail": "pyproject.toml 의 dependencies + optional-dependencies.dev (pytest, httpx) 를 설치한다. 한 번만 실행하면 됨.",
             "type": "shell",
             "command": "${command:python.interpreterPath}",
             "args": [
@@ -156,7 +166,7 @@
                 "pip",
                 "install",
                 "-e",
-                "."
+                ".[dev]"
             ],
             "problemMatcher": [],
             "presentation": {

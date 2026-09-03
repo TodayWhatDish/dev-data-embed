@@ -233,3 +233,5 @@ local/
 .headroom_wrap_marker.json
 .headroom_wrap_owners.json
 .headroom_wrap_settings.lock
+
+깃 규약.md
