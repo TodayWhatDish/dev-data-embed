@@ -7,7 +7,7 @@
 '전체를 고친다' 는 뜻이 함수 이름과 인자에 드러나 있어야 실수로 도달하지 않는다.
 """
 from app.core.db import execute, QueryError
-from app.repositories.general_query.columns import ColumnMgr
+from app.repositories.general_query.columns import ColumnMgr, where_clause
 
 
 def update_query_all(table : str, update_val : dict, is_verified : bool | None = False):
@@ -60,6 +60,7 @@ def update_query(table : str, update_val : dict, where : dict):
         * dict 형태로 k = v, k = v ...
     * where: WHERE 절 조건문
         * dict형태로 k = v, k = v ...
+        * 값이 list/tuple/set 이면 k IN (?, ?, ...) 가 된다. 빈 목록은 거절한다
 
     # return value
     * 0 < : 업데이트 된 행의 갯수
@@ -81,13 +82,13 @@ def update_query(table : str, update_val : dict, where : dict):
     if not cols:
         raise QueryError("unknown_table", table)
 
-    unknown = (update_val.keys() | where.keys()) - cols
+    unknown = update_val.keys() - cols
     if unknown:
         raise QueryError("unknown_column", table, sorted(unknown))
 
     sets = ", ".join(f"{k} = ?" for k in update_val)
-    # 조건은 콤마가 아니라 AND 로 잇는다. 콤마로 이으면 조건이 하나일 때만 우연히 돌아간다
-    wheres = " AND ".join(f"{k} = ?" for k in where)
+    # WHERE 쪽 컬럼 검사도 여기서 같이 된다
+    clause, params = where_clause(table, cols, where)
     # SET 값이 먼저, WHERE 값이 나중 - ? 자리 순서와 같아야 한다
-    return execute(f"UPDATE {table} SET {sets} WHERE {wheres}",
-                   (*update_val.values(), *where.values()), table).rowcount
+    return execute(f"UPDATE {table} SET {sets}{clause}",
+                   (*update_val.values(), *params), table).rowcount
