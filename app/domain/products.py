@@ -95,7 +95,7 @@ class ProductMgr:
 
         return self._ingredient.get(ingredient_id)
 
-    def set_ingredient_allergen(self, pairs: list[tuple]):
+    def set_ingredient_allergen(self, pairs: list[dict]):
         """
         # Summary
         * ingredient_allergen 테이블을 SELECT한 결과를 메모리에 저장
@@ -106,8 +106,8 @@ class ProductMgr:
         * v: [allergen_id, ...]
         """
         mapping = {}
-        for ingredient_id, allergen_id in pairs:
-            mapping.setdefault(ingredient_id, []).append(allergen_id)
+        for row in pairs:
+            mapping.setdefault(row['ingredient_id'], []).append(row['allergen_id'])
 
         self._ingredient_allergen = mapping
 

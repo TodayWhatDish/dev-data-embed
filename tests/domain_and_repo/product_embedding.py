@@ -55,7 +55,7 @@ if __name__ == '__main__':
     # get_products() 가 is_active = 1 만 가져오므로, 비교 대상도 활성 상품의 원료로 좁힌다.
     active_ids = {r["product_id"] for r in rows}
     ing_cnt = sum(len(r["ingredients"].split(", ")) for r in rows if r["ingredients"])
-    want = sum(1 for product_id, _ in get_product_ingredient_ids() if product_id in active_ids)
+    want = sum(1 for row in get_product_ingredient_ids() if row["product_id"] in active_ids)
     logger.info(f"원료 항목 합 {ing_cnt} / 활성 상품의 product_ingredient {want}행 "
           f"(전체 {len(get_product_ingredient_ids())}행 - 비활성 상품 제외)")
     assert ing_cnt == want
