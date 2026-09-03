@@ -30,6 +30,11 @@ class AskRequest(BaseModel):
     size_category: str | None = None
     allergy: str | None = None
 
+class AskMeRequest(BaseModel):
+    """routes/ask 의 /ask/me 요청 바디 - 일반 회원용. user_id/pet_id를 안 받는다 -
+    토큰(get_current_user)에서만 가져와야 다른 회원 구매 이력을 못 들여다본다."""
+    user_query: str
+
 class Pick(BaseModel):
     product_id: int
     reason: str

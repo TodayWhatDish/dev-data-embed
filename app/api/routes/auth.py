@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.api.schemas import AuthResponse, LoginRequest, SignupRequest
 from app.core.auth import get_current_user
 from app.features.auth import login, signup
+from app.repositories.pet import find_pets_by_user
 
 router = APIRouter()
 
@@ -43,3 +44,10 @@ def login_route(payload: LoginRequest) -> AuthResponse:
 def me() -> dict:
     """토큰이 유효한지 화면에서 확인할 때."""
     return {"role": "user"}
+
+
+@router.get("/me/pets")
+def my_pets(user_id: int = Depends(get_current_user)) -> list[dict]:
+    """로그인한 회원 본인의 펫 목록. user_id를 바디/쿼리로 안 받고 토큰에서만 가져온다 -
+    /ask/me와 같은 이유(다른 회원 펫을 user_id만 바꿔서 못 보게)."""
+    return find_pets_by_user(user_id)
