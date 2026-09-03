@@ -22,6 +22,7 @@ from fastapi.responses import StreamingResponse
 
 from app.api.schemas import AskMeRequest, AskRequest
 from app.core.auth import get_current_admin, get_current_user
+from app.core.trace import log_customer_question
 from app.domain.prompting import build_customer_context
 from app.features import answering
 from app.features.profile import build_profile, pet_profile
@@ -46,6 +47,8 @@ def _stream_answer(user_query: str, pet_id: int | None, user_id: int | None,
     
     def generate():
         if not matches:
+            log_customer_question(user_id=user_id, pet_id=pet_id, user_query=user_query,
+                                   matches=[], answer="", ok=False, error="후보 없음")
             yield json.dumps({"type": "error", "message": "조건에 맞는 후보를 찾지 못했습니다."}, ensure_ascii=False) + "\n"
             return
         # 답변이 나오기 전에 실제 근거(고객 정보)를 먼저 보여준다 - 답변을
@@ -58,8 +61,13 @@ def _stream_answer(user_query: str, pet_id: int | None, user_id: int | None,
                 answer_parts.append(piece)
                 yield json.dumps({"type": "delta", "text": piece}, ensure_ascii=False) + "\n"
         except Exception as e:
+            log_customer_question(user_id=user_id, pet_id=pet_id, user_query=user_query,
+                                   matches=matches, answer="".join(answer_parts), ok=False, error=str(e))
             yield json.dumps({"type": "error", "message": f"LLM 응답 실패: {e}"}, ensure_ascii=False) + "\n"
             return
+        # 관리자 대시보드 '질문' 탭용 기록 - 반증 성패와 무관하게 답변이 나왔으면 성공으로 남긴다.
+        log_customer_question(user_id=user_id, pet_id=pet_id, user_query=user_query,
+                               matches=matches, answer="".join(answer_parts), ok=True)
         # 답변을 만든 모델이 아니라 별도 호출로 [고객 정보]와 대조해 정확도를 매긴다 - 반증(팩트체크).
         try:
             verification = answering.verify(detail, "".join(answer_parts))
