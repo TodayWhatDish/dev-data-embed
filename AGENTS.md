@@ -42,6 +42,19 @@ DB가 두 갈래로 나뉜다: pet_reco.db (실제 데이터가 적재되고 파
 
 데이터 정합성을 검사하며, 사용자 쿼리에 따른 응답의 질을 높히는 것을 목표로한다.
 청킹과 임베드 품질 향상에 중점을 두어 테스트를 통해 개선한다.
+
+1.테스트 확인 구문
+
+```
+pytest   : 검사기가 잘 동작하는지 테스트용 (에러반환이 없으면 정상 사용 가능)
+python -m eval all : eval폴더 안에 있는 모든 검사 항목 체크
+python -m eval all --with-llm  : eval 폴더 안에 사용 api를 통한 검사 항목까지 모두 실행
+```
+
+2.상용 llm이 필요한 검사 항목
+golden
+ragas_check
+format_check
 <!-- 테스트가 있다면 실행 방법과 통과 기준. -->
 
 ## Security considerations

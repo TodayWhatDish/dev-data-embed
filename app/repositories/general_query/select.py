@@ -4,7 +4,7 @@
 전부 'SQL 을 만들기 전에 거절' 쪽이다. 식별자를 화이트리스트로 거르는 이유는 columns 참고.
 """
 from app.core.db import fetch, QueryError
-from app.repositories.general_query.columns import ColumnMgr
+from app.repositories.general_query.columns import ColumnMgr, where_clause
 
 
 def _select_clause(table, table_cols, want) -> str:
@@ -128,6 +128,7 @@ def select(table : str, where : dict, order_by : list[tuple] | None = None,
     * table: table name
     * where: WHERE 절 조건문
         * dict 형태로 k = v, k = v ... (AND 로 이어진다)
+        * 값이 list/tuple/set 이면 k IN (?, ?, ...) 가 된다. 빈 목록은 거절한다
     * order_by: 정렬 (선택)
         * [(컬럼, 'ASC' | 'DESC'), ...] 형태. 적은 순서가 곧 정렬 우선순위다
     * cols: 받을 컬럼 (선택)
@@ -139,7 +140,7 @@ def select(table : str, where : dict, order_by : list[tuple] | None = None,
     * []         : 조건에 맞는 행이 없음 (에러가 아니다 — 부른 쪽이 404 를 정한다)
 
     # info
-    * 조건은 = 만 된다. IN, LIKE, 범위 비교가 필요하면 그 테이블 전용 함수를 따로 판다
+    * 조건은 = 와 IN 만 된다. LIKE, 범위 비교가 필요하면 그 테이블 전용 함수를 따로 판다
     * where 가 비면 거절한다. SQL 은 안 깨지지만 그건 select_all 이고,
       빈 dict 가 넘어온 건 부른 쪽이 조건을 못 만든 것에 가깝다
 
@@ -154,15 +155,9 @@ def select(table : str, where : dict, order_by : list[tuple] | None = None,
         raise QueryError("unknown_table", table)
 
     picked = _select_clause(table, table_cols, cols)
-
-    unknown = where.keys() - table_cols
-    if unknown:
-        raise QueryError("unknown_column", table, sorted(unknown))
-
-    # 조건은 콤마가 아니라 AND 로 잇는다. 콤마로 이으면 조건이 하나일 때만 우연히 돌아간다
-    wheres = " AND ".join(f"{k} = ?" for k in where)
+    clause, params = where_clause(table, table_cols, where)
     orders = _order_clause(table, table_cols, order_by)
-    return fetch(f"SELECT {picked} FROM {table} WHERE {wheres}{orders}", tuple(where.values()))
+    return fetch(f"SELECT {picked} FROM {table}{clause}{orders}", params)
 
 def select_range(table: str, where : dict, size : int, start_offset : int | None = 0,
                  order_by : list[tuple] | None = None,
@@ -175,6 +170,7 @@ def select_range(table: str, where : dict, size : int, start_offset : int | None
     * table: table name
     * where: WHERE 절 조건문
         * dict 형태로 k = v, k = v ... (AND 로 이어진다)
+        * 값이 list/tuple/set 이면 k IN (?, ?, ...) 가 된다. 빈 목록은 거절한다
         * 비어 있어도 된다. 그때는 조건 없이 size 만큼만 끊어 읽는다
     * size: 한 번에 가져올 행 수. 1 이상이어야 한다
     * start_offset: 건너뛸 행 수. None 이면 0
@@ -216,18 +212,12 @@ def select_range(table: str, where : dict, size : int, start_offset : int | None
         raise QueryError("unknown_table", table)
 
     picked = _select_clause(table, table_cols, cols)
-
-    unknown = where.keys() - table_cols
-    if unknown:
-        raise QueryError("unknown_column", table, sorted(unknown))
-
-    # WHERE 는 없을 수 있다. 없으면 절 자체를 빼야 'WHERE' 만 남은 깨진 SQL 이 안 된다
-    wheres = " AND ".join(f"{k} = ?" for k in where)
-    clause = f" WHERE {wheres}" if where else ""
+    # WHERE 는 없을 수 있다. where_clause 가 빈 dict 면 절을 통째로 빼준다
+    clause, params = where_clause(table, table_cols, where)
     # ORDER BY 는 LIMIT 보다 앞이다. 순서를 바꾸면 문법 오류다
     orders = _order_clause(table, table_cols, order_by)
 
     # WHERE 값이 먼저, size / offset 이 나중 - ? 자리 순서와 같아야 한다.
     # 정렬은 글자로 박혀 있어 ? 자리를 차지하지 않는다
     return fetch(f"SELECT {picked} FROM {table}{clause}{orders} LIMIT ? OFFSET ?",
-                 (*where.values(), size, offset))
+                 (*params, size, offset))

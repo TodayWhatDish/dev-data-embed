@@ -10,6 +10,7 @@ from fastapi import APIRouter
 
 from app.adapters.stores.llm import chat
 from app.core.db import con
+from app.core.config import LLM_API_KEY
 
 router = APIRouter()
 
@@ -30,11 +31,7 @@ def ready() -> dict:
     except Exception:
         db_ok = False
 
-    try:
-       chat.invoke("ping")
-       llm_ok = True
-    except Exception:
-        llm_ok = False
+    llm_ok = bool(LLM_API_KEY)
 
     return {
         "db": db_ok,
