@@ -42,7 +42,10 @@ def product_create(draft: ProductCreate):
 @router.patch("/{product_id}", response_model=Product)
 def product_update(product_id: int, patch: ProductUpdate):
     try:
-        return products.update_product(product_id, patch.model_dump(exclude_unset=True))
+        # 고친 행 수가 아니라 고친 뒤의 상품을 돌려줘야 한다 (response_model=Product)
+        _, product = products.update_after_select_product(
+            product_id, patch.model_dump(exclude_unset=True))
+        return product
     except products.ProductError as exc:
         raise _http(exc) from exc
 
@@ -53,25 +56,3 @@ def product_delete(product_id: int):
         products.delete_product(product_id)
     except products.ProductError as exc:
         raise _http(exc) from exc
-
-    
-"""관리자 화면 상품 조회/등록. GET /api/products, POST /api/products."""
-
-from fastapi import APIRouter, Depends
-
-from app.api.schemas import ProductCreate
-from app.core.auth import get_current_admin
-from app.repositories import products as products_repo
-
-router = APIRouter(dependencies=[Depends(get_current_admin)])
-
-
-@router.get("/api/products")
-def list_products():
-    return products_repo.get_products()
-
-
-@router.post("/api/products")
-def create_product(payload: ProductCreate):
-    product_id = products_repo.create_product(payload.model_dump())
-    return {"product_id": product_id}
