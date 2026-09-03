@@ -23,7 +23,7 @@ from app.domain.prompting import build_customer_context
 from app.features import answering
 from app.features.profile import build_profile, pet_profile
 from app.features.searching import candidates
-from app.repositories import users as users_repo
+from app.features.customers import customer_detail
 
 router = APIRouter(dependencies=[Depends(get_current_admin)])
 
@@ -36,7 +36,7 @@ def ask(req: AskRequest):
     """
     profile = pet_profile(req.pet_id) if req.pet_id else build_profile(req.model_dump())
     matches = candidates(profile, req.user_query)
-    customer_context = build_customer_context(users_repo.get_user_detail(req.user_id) if req.user_id else None)
+    customer_context = build_customer_context(customer_detail(req.user_id) if req.user_id else None)
 
     def generate():
         if not matches:

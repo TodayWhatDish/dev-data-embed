@@ -47,16 +47,15 @@ def get_user_detail(user_id: int) -> dict | None:
         WHERE pe.user_id = ?
     """, (user_id,))
 
-    # product_type: product_category는 "간식" 아래 덴탈껌/트릿/수제간식처럼 한 단계 더 나뉠 수 있어
-    # parent_id가 있으면 그 부모(=최상위 카테고리)로 올려서 사료(1)/간식(2) 둘로만 구분한다.
+    # product_category_id 를 그대로 준다. 사료/간식으로 접는 건 분류 트리를 걸어야 하는 일이고,
+    # 트리를 들고 있는 건 ProductMgr 캐시다 - domain.products.attach_product_type 이 붙인다
     user["purchases"] = fetch("""
         SELECT pu.purchase_id, pu.purchased_at, pu.unit_price_krw, pu.quantity,
                p.product_id, p.name AS product_name, r.rating, r.body AS review_body,
-               CASE WHEN COALESCE(pc.parent_id, pc.product_category_id) = 1 THEN '사료' ELSE '간식' END AS product_type
+               p.product_category_id
         FROM purchase AS pu
         JOIN pet AS pe ON pe.pet_id = pu.pet_id
         JOIN product AS p ON p.product_id = pu.product_id
-        JOIN product_category AS pc ON pc.product_category_id = p.product_category_id
         LEFT JOIN review AS r ON r.purchase_id = pu.purchase_id
         WHERE pe.user_id = ?
         ORDER BY pu.purchased_at DESC
