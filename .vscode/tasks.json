@@ -148,7 +148,7 @@
         },
         {
             "label": "의존성 설치 (requirements)",
-            "detail": "pyproject.toml의 dependencies를 그대로 설치한다. 한 번만 실행하면 됨.",
+            "detail": "pyproject.toml 의 dependencies + optional-dependencies.dev (pytest, httpx) 를 설치한다. 한 번만 실행하면 됨.",
             "type": "shell",
             "command": "${command:python.interpreterPath}",
             "args": [
@@ -156,7 +156,7 @@
                 "pip",
                 "install",
                 "-e",
-                "."
+                ".[dev]"
             ],
             "problemMatcher": [],
             "presentation": {
