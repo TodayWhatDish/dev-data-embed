@@ -7,18 +7,22 @@
     한 파일에 두면 자른 결과만 확인하고 싶을 때도 임베딩을 통째로 다시 만들게 된다.
 
     이 파일은 지휘만 한다.
-    어떻게 벡터로 바꾸는지는 prep/embedding.py 가 알고,
-    어디에 어떤 모양으로 넣는지는 prep/storage.py 가 안다.
-    여기는 그 둘을 순서대로 부르고, 둘 다 모르는 값(색인 대상의 지문)만 계산해 넘긴다.
+    무엇을 다시 만들지 고르는 일은 features/embedding_sync.py 가 알고,
+    어디에 어떤 모양으로 넣는지는 adapters/stores/sqlite_store.py 가 안다.
+    여기는 chunks 를 읽어 (id, 텍스트) 목록으로 만들어 넘길 뿐이다.
 
+    기본은 증분이다. 바뀐 조각만 다시 임베딩한다.
+    py -m pipeline.embed --full  로 전량 재구축한다.
     검색은 query.py 를 쓴다.
 """
 
 import sqlite3
-from app.core.embedder import get_embeddings
-from app.core.config import DB_PATH, EMBED_MODEL, EMBED_BATCH_SIZE,EMBED_NORMALIZE
-# from pipeline.prep import storage
-from pipeline import vector_db
+import sys
+
+from app.adapters.stores.sqlite_store import chunk_id
+from app.core.config import DB_PATH, EMBED_MODEL
+from app.features.embedding_sync import sync
+
 
 def fetch_chunks(cur: sqlite3.Cursor) -> list[sqlite3.Row]:
     """색인 대상 조각을 chunks 테이블에서 읽어온다.
@@ -33,29 +37,32 @@ def fetch_chunks(cur: sqlite3.Cursor) -> list[sqlite3.Row]:
 
 
 def main():
+    full = "--full" in sys.argv
     con = sqlite3.connect(DB_PATH)
     chunks = fetch_chunks(con.cursor())
     if not chunks:
         raise SystemExit("색인할 리뷰가 없습니다. 먼저 chunk.py 를 실행하세요.")
 
-    # 1. prep.embedding으로 문장을 조립 'body'는 이미 잘린 텍스트이므로 조립필요없음
-    docs = [chunk['body'] for chunk in chunks]
+    # ids[i] 와 texts[i] 가 같은 조각을 가리켜야 한다. 같은 목록을 두 번 훑어 만든다.
+    ids = [chunk_id(c["purchase_id"], c["chunk_index"]) for c in chunks]
+    texts = [c["body"] for c in chunks]
 
-    # 2. 모델로 벡터화 (+) 벡터 정규화
-    model = get_embeddings()
-    vectors = model.encode(
-        docs, batch_size=EMBED_BATCH_SIZE, normalize_embeddings=EMBED_NORMALIZE,
-        show_progress_bar=True
-    )
-    # 3. 저장
+    result = sync(con, "chunk", ids, texts, full=full)
+
+    # 조각 '전체'의 지문은 여기서 남긴다 - retrieve.py 의 check_freshness() 가 이 값을 본다.
+    # 저장소는 조각 하나하나의 지문만 알지, chunks 테이블 전체의 지문은 모른다.
     source = f"{len(chunks)}:{sum(c['purchase_id'] for c in chunks)}:{sum(c['n_tokens'] for c in chunks)}"
-    vector_db.save_vectors(
-        con, chunks, vectors, vectors.shape[1], source
-    )
-    print(f"\n임베딩 {len(chunks)}개, 차원 {vectors.shape[1]}, 모델 : {EMBED_MODEL}")
+    con.executemany("INSERT OR REPLACE INTO embedding_meta VALUES (?, ?)",
+                    [("count", str(len(chunks))), ("source", source)])
+    con.commit()
+
+    print(f"\n{'전량' if full else '증분'} 색인 - 모델 {EMBED_MODEL}")
+    print(f"  대상 {len(ids):,}개 / 새로 {result['embedded']:,} "
+          f"/ 그대로 {result['skipped']:,} / 지움 {result['deleted']:,}")
     print("검색은 query.py 를 실행하세요.")
 
     con.close()
+
 
 
 if __name__ == "__main__":

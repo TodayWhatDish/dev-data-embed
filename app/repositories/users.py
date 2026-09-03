@@ -5,7 +5,7 @@
 from app.core.db import fetch, fetch_one
 
 def list_users() -> list[dict]:
-    """관리자 화면 왼쪽 목록용. 고객 전체를 이름순으로."""
+    """관리자 화면 왼쪽 목록용. 고객 전체를 이름순으로.
 
     # return fetch("""
     #     SELECT user_id, name, email, region, created_at
@@ -41,13 +41,14 @@ def get_user_detail(user_id: int) -> dict | None:
         return None
 
     user["pets"] = fetch("""
-        SELECT pe.pet_id, pe.name, ac.name_ko AS animal_category, pe.weight_kg, pe.neutered
+        SELECT pe.pet_id, pe.name, ac.name_ko AS animal_category, pe.gender, pe.birth_date, pe.weight_kg, pe.neutered
         FROM pet AS pe
         JOIN animal_category AS ac ON ac.animal_category_id = pe.animal_category_id
         WHERE pe.user_id = ?
     """, (user_id,))
 
-
+    # product_type: product_category는 "간식" 아래 덴탈껌/트릿/수제간식처럼 한 단계 더 나뉠 수 있어
+    # parent_id가 있으면 그 부모(=최상위 카테고리)로 올려서 사료(1)/간식(2) 둘로만 구분한다.
     user["purchases"] = fetch("""
         SELECT pu.purchase_id, pu.purchased_at, pu.unit_price_krw, pu.quantity,
                p.product_id, p.name AS product_name, r.rating, r.body AS review_body,

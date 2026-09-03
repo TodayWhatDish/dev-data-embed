@@ -11,13 +11,11 @@ from typing import Any
 
 from app.core.config import PASSAGE_PREFIX
 from app.features.retrieve import build_where
+from app.features.profile import pet_profile
+from pipeline.vector_db import search,connect
 from app.repositories import products as product_repo
 from app.repositories import purchases as purchase_repo
-from pipeline.vector_db import search, connect
-
-from app.features.profile import pet_profile
 from app.repositories import users as users_repo
-from pipeline.vector_db import search,connect
 logger = logging.getLogger()
 
 
