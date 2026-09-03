@@ -38,6 +38,9 @@ CREATE TABLE pet (
     weight_kg          REAL    CHECK (weight_kg > 0),
     size               INTEGER CHECK (size BETWEEN 1 AND 5),
     body_type          INTEGER CHECK (body_type BETWEEN 1 AND 5),
+    -- body_type 과 같은 성격(보호자 판단, 오래 안 변함)이라 pet 에 둔다.
+    -- 1 적음 / 2 보통 / 3 많음
+    activity_level     INTEGER CHECK (activity_level BETWEEN 1 AND 3),
     neutered           INTEGER CHECK (neutered IN (0, 1)),
     inactive_at        TEXT    CHECK (inactive_at IS NULL OR datetime(inactive_at) IS NOT NULL),
     created_at         TEXT    NOT NULL DEFAULT (datetime('now')),
@@ -65,6 +68,18 @@ CREATE TABLE pet_allergy (
         REFERENCES allergen(allergen_id) ON DELETE RESTRICT,
     PRIMARY KEY (pet_id, allergen_id)
 ) STRICT, WITHOUT ROWID
+''',
+
+# pet_survey — 가입 설문 스냅샷(식성/피부). pet 컬럼이 아니다 - 필터로 안 쓰고
+# 추천 검색 질의문 재료 + 관리자 요약 표시로만 쓴다. 컬럼 설명은 docu/schema/pet_schema.md#pet_survey
+'''
+CREATE TABLE pet_survey (
+    pet_id     INTEGER NOT NULL PRIMARY KEY
+        REFERENCES pet(pet_id) ON DELETE CASCADE,
+    diet_note  TEXT,
+    skin_note  TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+) STRICT
 ''',
 
 ]

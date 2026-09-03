@@ -9,7 +9,7 @@
     JS가 그거 받아서 화면에 검색결과 뿌림
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 class RecommendRequest(BaseModel):
     """routes/recommend 요청 바디. profile.build_profile()의 raw 인자 + candidates()/recommend()가 쓰는 값."""
@@ -54,21 +54,38 @@ class AdminLoginRequest(BaseModel):
     password: str
 
 class SignupRequest(BaseModel):
-    """일반 회원가입 - 계정 정보 + 반려동물(강아지) 프로필을 한 번에 받는다.
-    gender는 pet 테이블 CHECK 제약과 같은 값('M'/'F')만 받는다."""
+    """일반 회원가입 - 계정 정보 + 반려동물(강아지) 프로필 + 설문(알러지/식성/피부/활동량)을 한 번에 받는다.
+    gender는 pet 테이블 CHECK 제약과 같은 값('M'/'F')만 받는다.
+    pet_allergies는 GET /allergens가 준 이름(name_ko) 그대로 - id는 서버가 CommonMgr로 알아서 바꾼다."""
     email: str
     password: str
     name: str
     phone: str | None = None
     region: str | None = None
     pet_name: str
+    pet_species: str | None = None
     pet_gender: str | None = None
     pet_birth_date: str | None = None
     pet_weight_kg: float | None = None
+    pet_size: int | None = None
+    pet_activity_level: int | None = None
+    pet_allergies: list[str] | None = None
+    diet_note: str | None = None
+    skin_note: str | None = None
 
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+class ReviewRequest(BaseModel):
+    """POST /me/purchases/{id}/review 요청 바디. review 테이블 CHECK 제약과 같은 범위만 받는다."""
+    rating: int = Field(ge=1, le=5)
+    body: str = Field(min_length=1)
+
+class BuyRequest(BaseModel):
+    """POST /me/purchases 요청 바디 - 추천 카드의 '구매하기'가 보낸다."""
+    product_id: int
+    quantity: int = Field(default=1, ge=1)
 
 class ProductCreate(BaseModel):
     """상품 등록 요청 바디. product 테이블 컬럼 중 서버가 채우는 값(product_id, created_at, updated_at)만 뺐다."""

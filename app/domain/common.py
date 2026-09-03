@@ -65,6 +65,28 @@ class CommonMgr:
         """
         return [node['name_ko'] for node in self._allergen_hierarchy.values()]
 
+    def resolve_allergen_ids(self, names: list[str]) -> list[int]:
+        """
+        # Summary
+        * 체크박스로 고른 알러지원 이름들을 id로 바꾸고, 카테고리를 골랐으면 하위까지 펼친다
+        * pet_allergy 설계 노트(docs/schema/pet_schema.md) - 카테고리를 고르면 하위 전부 +
+          고른 카테고리 행도 같이 남긴다
+        """
+        ids = set()
+        for node in self._allergen_hierarchy.values():
+            if node['name_ko'] in names:
+                ids.add(node['allergen_id'])
+                ids |= self._descendant_ids(node)
+        return list(ids)
+
+    def _descendant_ids(self, node: dict) -> set[int]:
+        """node의 하위 알러지 id를 전부 모은다 (재귀)."""
+        out = set()
+        for child in node['children']:
+            out.add(child['allergen_id'])
+            out |= self._descendant_ids(child)
+        return out
+
     def set_animal_category(self, rows: list[dict]):
         """
         # Summary
@@ -85,6 +107,17 @@ class CommonMgr:
             return self._animal_category
 
         return self._animal_category.get(animal_category_id)
+
+    def resolve_animal_category_id(self, name_ko: str) -> int | None:
+        """
+        # Summary
+        * "개"/"고양이" 같은 이름으로 animal_category_id를 찾는다 (회원가입 축종 선택용)
+        * 못 찾으면 None
+        """
+        for category_id, row in self._animal_category.items():
+            if row['name_ko'] == name_ko:
+                return category_id
+        return None
 
     @classmethod
     def get_inst(cls): #싱글턴 패턴을 위한

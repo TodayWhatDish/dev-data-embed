@@ -20,6 +20,7 @@ from app.api.routes.admin_auth import router as admin_auth_router
 from app.api.routes.products import router as products_router
 from app.api.routes.customers import router as customers_router
 from app.api.routes.background import router as background_router
+from app.api.routes.purchases import router as purchases_router
 from app.app_logger.logger import init_logger
 from app.core.config import ROOT
 
@@ -46,6 +47,7 @@ app.include_router(auth_router)
 app.include_router(products_router)
 app.include_router(customers_router)
 app.include_router(background_router)
+app.include_router(purchases_router)
 
 @app.get("/health")
 def health():

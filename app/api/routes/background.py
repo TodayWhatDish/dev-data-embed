@@ -14,10 +14,13 @@ from app.core.config import UNSPLASH_ACCESS_KEY
 
 router = APIRouter()
 
+# 배경 사진을 이 한 장으로 고정한다 (요청받은 사진: unsplash.com/photos/ouo1hbizWwo)
+FIXED_PHOTO_ID = "ouo1hbizWwo"
+
 
 @router.get("/background")
-def background(query: str = "dog,cat") -> dict:
-    """랜덤 배경 이미지 URL + 저작자 정보를 돌려준다.
+def background() -> dict:
+    """고정된 배경 이미지 URL + 저작자 정보를 돌려준다.
 
     저작자 크레딧은 Unsplash API 가이드라인상 필수라 photographer 이름/링크를 같이 내려준다.
     """
@@ -26,8 +29,7 @@ def background(query: str = "dog,cat") -> dict:
 
     try:
         res = requests.get(
-            "https://api.unsplash.com/photos/random",
-            params={"query": query, "orientation": "landscape"},
+            f"https://api.unsplash.com/photos/{FIXED_PHOTO_ID}",
             headers={"Authorization": f"Client-ID {UNSPLASH_ACCESS_KEY}"},
             timeout=5,
         )
