@@ -84,7 +84,10 @@ def build_where(profile):
 
 def chunk_fingerprint(con: sqlite3.Connection) -> str:
     """지금 chunks 테이블의 지문. embed.py:50 이 색인 때 남기는 것과 같은 식으로 계산한다."""
-    n, id_sum, token_sum = embedding_repo.get_chunk_stats(con)
+    n, id_sum, token_sum = con.execute(
+        "SELECT COUNT(*), COALESCE(SUM(purchase_id), 0), COALESCE(SUM(n_tokens), 0) FROM chunks"
+    ).fetchone()
+    # n, id_sum, token_sum = embedding_repo.get_chunk_stats(con)
     return f"{n}:{id_sum}:{token_sum}"
 
 def check_freshness(con: sqlite3.Connection):
@@ -93,7 +96,8 @@ def check_freshness(con: sqlite3.Connection):
     load_csv.py 재실행 후 재색인을 잊으면 chunk_vectors 만 옛 데이터를 가리키는데,
     조인이 purchase_id 로 조용히 성립해 에러 없이 엉뚱한 리뷰가 나온다. 알리기만 하고 막지는 않는다.
     """
-    meta = embedding_repo.get_embedding_meta(con)
+    meta = dict(con.execute("SELECT key, value FROM embedding_meta").fetchall())
+    # meta = embedding_repo.get_embedding_meta(con)
     problems = []
 
     if meta.get("model") != EMBED_MODEL:
