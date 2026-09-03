@@ -351,50 +351,47 @@ li::marker { color:var(--muted); }
 const S = [
  {
   "layout": "cover",
-  "eyebrow": "면접 대비 · 전체 지도",
+  "eyebrow": "해커톤 발표 · 우리아이의 소중한 한입",
   "num": "01",
   "title": "오늘뭐멍냥 — RAG 파이프라인 + 관리자 대시보드",
-  "lead": "반려동물 상품을 추천하는 RAG 서비스입니다. CSV가 SQLite → 벡터 → 추천 문장이 되는 파이프라인 위에, 관리자가 그 결과를 실시간으로 두들겨보고 반증하는 대시보드(질문 스트리밍 · 팩트체크 · 판매전략 · PII 마스킹)가 얹혀 있습니다."
+  "lead": "반려동물 상품을 추천하는 RAG 서비스입니다. CSV가 SQLite → 벡터 → 추천 문장이 되는 파이프라인 위에, 관리자가 그 결과를 실시간으로 두들겨보고 반증하는 대시보드(질문 스트리밍 · 팩트체크 · 판매전략 · PII 마스킹)가 얹혀 있습니다. 팀원: 허재성 · 박승호 · 최우진 · 한인혁 · 최종명"
  },
  {
-  "eyebrow": "이 자료의 목표",
-  "title": "다 보고 나면 이렇게 됩니다",
+  "eyebrow": "목차",
+  "title": "6가지 핵심 구현을 보여드립니다",
   "blocks": [
    {
     "goals": [
      {
       "n": "01",
-      "t": "CSV 한 장이 추천 문장이 되기까지 몇 단계를 거치는지 순서대로 말합니다"
+      "t": "비즈니스 모델 — 왜 반려동물, 왜 개·고양이, 왜 구독인가"
      },
      {
       "n": "02",
-      "t": "domain / adapters·repositories / features / api, 화살표가 어느 방향으로만 도는지 설명합니다"
+      "t": "데이터 구조와 스키마 — 파이프라인 두 시간대, N:M 테이블 설계"
      },
      {
       "n": "03",
-      "t": "이 프로젝트가 &quot;LLM이 지어낸 근거&quot;를 잡아내는 패턴 세 곳(추천 · 답변 · 전략)의 공통점과 차이를 설명합니다"
+      "t": "RAG 검색 파이프라인 — 7단계 적재부터 SQL 선필터·안전판정까지"
      },
      {
       "n": "04",
-      "t": "실제로 쓰인 SQL 패턴(윈도우 함수, NOT EXISTS, GROUP_CONCAT)을 읽고 설명합니다"
+      "t": "계층형 구조와 라우팅 — api/features/domain/repositories 다섯 갈래"
      },
      {
       "n": "05",
-      "t": "&quot;왜 이렇게 설계했나&quot;뿐 아니라 &quot;지금 뭐가 비어있나&quot;도 file:line 근거로 답합니다"
+      "t": "관리자 대시보드 — NDJSON 스트리밍, 지어낸 근거를 잡는 패턴"
+     },
+     {
+      "n": "06",
+      "t": "마스킹과 품질 평가 — PII 마스킹, pytest·recall@k로 잰 지표"
      }
     ]
    }
   ]
  },
  {
-  "layout": "cover",
-  "eyebrow": "PART",
-  "num": "1/6",
-  "title": "서비스 선정 이유",
-  "lead": "왜 반려동물이고, 왜 개·고양이로 좁혔고, 왜 B2C 구독인지 — 나머지 다섯 파트가 딛고 서는 전제부터 본다."
- },
- {
-  "eyebrow": "먼저 이것부터",
+  "eyebrow": "목차 1 · 비즈니스 모델",
   "title": "왜 반려동물, 왜 개·고양이, 왜 구독인가",
   "lead": "도메인을 고른 이유와 돈이 되는 방식을 먼저 밝힌다. 나머지 슬라이드는 전부 이 위에서 돈다.",
   "blocks": [
@@ -453,7 +450,7 @@ const S = [
   ]
  },
  {
-  "eyebrow": "먼저 이것부터",
+  "eyebrow": "목차 1 · 비즈니스 모델",
   "title": "무엇을 만든 것인가",
   "lead": "반려동물 프로필(축종·체급·알러지)과 자연어 질문을 받아, 실제 구매 후기 중 의미가 비슷한 것을 찾아 상품을 추천합니다. 관리자 화면에서는 고객별로 이 흐름을 직접 두들겨보고 결과를 반증합니다.",
   "blocks": [
@@ -484,7 +481,56 @@ const S = [
   ]
  },
  {
-  "eyebrow": "PART 2 · 데이터 구조와 스키마",
+  "eyebrow": "목차 2 · 핵심 구분",
+  "title": "두 시간대가 있습니다",
+  "lead": "이 저장소를 이해하는 열쇠는 '언제 도는 코드인가' 입니다.",
+  "blocks": [
+   {
+    "flow": [
+     {
+      "t": "CSV"
+     },
+     {
+      "t": "pipeline/",
+      "on": true
+     },
+     {
+      "t": "pet_reco.db"
+     },
+     {
+      "t": "chunk_vectors",
+      "on": true
+     }
+    ]
+   },
+   {
+    "p": "위쪽은 <b class=\"t\">준비 시간대</b> — 데이터가 바뀔 때만 손으로 돌립니다 (<code>python -m pipeline.load_csv</code> 등)."
+   },
+   {
+    "flow": [
+     {
+      "t": "브라우저"
+     },
+     {
+      "t": "app/ (FastAPI)",
+      "on": true
+     },
+     {
+      "t": "pet_reco.db"
+     },
+     {
+      "t": "LLM",
+      "on": true
+     }
+    ]
+   },
+   {
+    "p": "아래쪽은 <b class=\"t\">요청 시간대</b> — 사람이 질문할 때마다 돕니다. 여기서는 새 벡터를 만들지 않고, 이미 만들어진 것만 읽습니다. <code>/ask</code>는 이 시간대 안에서 &quot;답변 생성&quot;과 &quot;답변 반증&quot; 두 번의 LLM 호출을 NDJSON으로 순서대로 흘려보냅니다."
+   }
+  ]
+ },
+ {
+  "eyebrow": "목차 2 · 데이터 구조와 스키마",
   "title": "다중값 속성을 왜 별도 테이블로 쪼갰나",
   "lead": "견종·알러지·급여목적·원료는 전부 상품/펫 하나에 여러 개 붙는 N:M 관계다. 컬럼을 늘리거나 콤마 문자열·JSON 한 컬럼으로 접지 않고 관계 테이블로 쪼갰다.",
   "blocks": [
@@ -531,7 +577,77 @@ const S = [
   ]
  },
  {
-  "eyebrow": "PART 3 · RAG 검색 파이프라인",
+  "eyebrow": "목차 3 · 준비 시간대",
+  "title": "7단계, 순서가 있습니다",
+  "blocks": [
+   {
+    "flow": [
+     {
+      "t": "gen_seed"
+     },
+     {
+      "t": "load_csv"
+     },
+     {
+      "t": "chunk"
+     },
+     {
+      "t": "embed"
+     },
+     {
+      "t": "prep_rec"
+     },
+     {
+      "t": "eval"
+     },
+     {
+      "t": "verify",
+      "on": true
+     }
+    ]
+   },
+   {
+    "table": {
+     "head": [
+      "명령",
+      "무엇을 하나"
+     ],
+     "rows": [
+      [
+       "python -m pipeline.make_data.gen_seed",
+       "마스터 CSV로 유저 / 펫 / 구매 / 리뷰를 시드 고정으로 합성"
+      ],
+      [
+       "python -m pipeline.load_csv",
+       "FK 위상정렬로 순서를 계산해 pet_reco.db에 적재"
+      ],
+      [
+       "python -m pipeline.chunk",
+       "리뷰를 펫·상품 정보와 합쳐 문서로 조립, 토큰 한도로 자름"
+      ],
+      [
+       "python -m pipeline.embed",
+       "조각을 문장 임베딩 벡터로 바꿔 chunk_vectors에 저장"
+      ],
+      [
+       "python -m pipeline.prep_rec",
+       "평가용 홀드아웃 지정 + product / customer 벡터 생성"
+      ],
+      [
+       "python -m pipeline.eval.eval",
+       "홀드아웃 리뷰로 recall@1/3/5, MRR 측정"
+      ],
+      [
+       "python -m pipeline.verify",
+       "개수·FK, 벡터 차원/모델명, 토큰 초과, recall, 샘플 질의까지 한 번에 점검 — 아무것도 만들지 않는다"
+      ]
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "eyebrow": "목차 3 · RAG 검색 파이프라인",
   "title": "SQL이 먼저 거르고, LLM은 그 위에서만 고른다",
   "blocks": [
    {
@@ -566,7 +682,25 @@ const S = [
   ]
  },
  {
-  "eyebrow": "PART 4 · 계층형 구조와 라우팅",
+  "eyebrow": "목차 3 · app/domain/safty.py",
+  "title": "judge() — 모르는 건 안전이 아니다",
+  "lead": "판정은 3분법입니다: SAFE(안전) / WARN(위험) / UNKNOWN(판정불가). 원료표를 사람이 확인 안 했으면 그건 안전이 아니라 &quot;모른다&quot;입니다.",
+  "blocks": [
+   {
+    "code": "def judge(product_ingredient_ids, pet_allergen_ids, ingredients_verified):\n    if not product_ingredient_ids:\n        return UNKNOWN, '원료표가 존재하지 않을 수 없습니다.'\n    hits = _hit_allergens(product_ingredient_ids, pet_allergen_ids)\n    if hits:\n        names = ', '.join(sorted(common.get_allergen(aid)['name_ko'] for aid in hits))\n        return WARN, f'{names} 알러지원이 들어 있습니다'\n    if not ingredients_verified:\n        return UNKNOWN, '원료표를 사람이 확인한 적이 없습니다'\n    return SAFE, ''",
+    "cap": "app/domain/safty.py:45-75 (요약)"
+   },
+   {
+    "acc": "같은 규칙이 세 군데",
+    "body": "DB 뷰 v_product_safety, 검색 선필터 retrieve.FILTERS['allergy'], 그리고 이 judge(). 하나를 고치면 셋 다 고쳐야 합니다 — 뷰는 pet × product 전량을 걸러 후보를 만들고, 여기는 이미 뽑힌 후보에 '왜'라는 근거 문장을 붙입니다."
+   },
+   {
+    "p": "<code>_hit_allergens()</code>는 DB에 안 가고 <code>ProductMgr</code> 싱글턴 캐시만 읽습니다 — 다음 슬라이드에서 이 캐시가 뭔지, 그리고 지금 실제로 채워지고 있는지를 다룹니다."
+   }
+  ]
+ },
+ {
+  "eyebrow": "목차 4 · 계층형 구조와 라우팅",
   "title": "계층은 다섯 갈래, 화살표는 한 방향으로만",
   "lead": "처음엔 api → features → repositories 3계층으로 설명했지만, 지금은 domain과 adapters가 따로 떨어져 나와 있습니다.",
   "blocks": [
@@ -612,7 +746,58 @@ const S = [
   ]
  },
  {
-  "eyebrow": "PART 5 · 관리자 대시보드",
+  "eyebrow": "목차 5 · app/api/routes/ask.py",
+  "title": "/ask — NDJSON으로 답 앞뒤를 다 보여준다",
+  "lead": "관리자가 답만 보고 믿지 않게, 답이 나오기 전에 실제 근거(구매 이력)부터, 답이 나온 뒤엔 채점 결과까지 순서대로 흘려보냅니다.",
+  "blocks": [
+   {
+    "table": {
+     "head": [
+      "type",
+      "언제 나가나",
+      "왜"
+     ],
+     "rows": [
+      [
+       "customer_facts",
+       "가장 먼저",
+       "이 고객의 실제 구매 이력. 답변보다 먼저 보여줘야 사람이 눈으로 대조할 수 있다"
+      ],
+      [
+       "sources",
+       "그다음",
+       "검색으로 찾은 후보 리뷰(다른 고객 것일 수 있음) — customer_facts와 섞이면 안 됨"
+      ],
+      [
+       "delta",
+       "여러 번",
+       "답변 글자 조각. LLM 스트림을 그대로 다시 흘려보낸다"
+      ],
+      [
+       "verification",
+       "답변이 다 끝난 뒤",
+       "별도 LLM 호출로 매긴 accuracy(0~1)와 근거 note"
+      ],
+      [
+       "error",
+       "실패 시",
+       "후보 없음 / LLM 실패 / 반증 실패를 구분해서 담는다"
+      ],
+      [
+       "done",
+       "마지막",
+       "스트림 종료 신호"
+      ]
+     ]
+    }
+   },
+   {
+    "p": "<code>app/api/routes/ask.py:41-63</code>의 <code>generate()</code>가 이 순서를 강제합니다. 답변 생성과 반증(verify)이 각각 <code>try/except</code>로 따로 감싸여 있어, 반증이 실패해도 이미 스트리밍된 답변은 안 사라집니다."
+   }
+  ]
+ },
+ {
+  "eyebrow": "목차 5 · 관리자 대시보드",
   "title": "지어낸 근거를 잡는 패턴, 세 곳에서 다르게",
   "lead": "&quot;LLM이 말한 근거를 LLM이 아닌 방법으로 대조한다&quot;는 원칙은 같지만, 결과가 구조화됐는지 자유 문장인지에 따라 잡는 방법이 갈립니다.",
   "blocks": [
@@ -648,7 +833,7 @@ const S = [
   ]
  },
  {
-  "eyebrow": "PART 6 · 마스킹과 품질 평가",
+  "eyebrow": "목차 6 · 마스킹과 품질 평가",
   "title": "mask() — &quot;새는 쪽을 택한다&quot;",
   "lead": "관리자 화면에 리뷰 원문을 그대로 보여주기 전에, 전화번호·이메일·카톡·이름·주소처럼 개인정보로 이어질 수 있는 자리만 마크로 바꿉니다.",
   "blocks": [
@@ -680,77 +865,71 @@ const S = [
   ]
  },
  {
-  "eyebrow": "면접 예상 질문",
-  "title": "설계 이유를 묻는 질문들 (1)",
+  "eyebrow": "목차 6 · 마스킹과 품질 평가",
+  "title": "두 가지 자로 잰다 — pytest 자체진단, recall@k 정확도",
+  "lead": "코드가 안 깨졌는지는 pytest로, 검색이 얼마나 잘 맞는지는 recall@k로 잰다. 성격이 다른 두 검증이라 도구도 나뉘어 있다.",
   "blocks": [
    {
-    "qa": "왜 적재 순서를 SOURCES 딕셔너리에 직접 안 적고 위상 정렬로 계산하나요?",
-    "a": "사람이 순서를 적으면 스키마가 바뀔 때(테이블 하나 추가) 어긋날 수 있고, 어긋난 채로 운 좋게 돌다가 나중에 IntegrityError로 원인 모르게 터집니다. PRAGMA foreign_key_list가 이미 정답을 갖고 있으니 그걸 위상 정렬하면 됩니다.",
-    "src": "pipeline/load_csv.py:14-18"
+    "table": {
+     "head": [
+      "명령",
+      "무엇을 재나",
+      "결과"
+     ],
+     "rows": [
+      [
+       "pytest",
+       "자체진단 모듈(assert 스크립트)이 안 깨졌는지",
+       "29 passed, 2 deselected (2026-09-04 실측)"
+      ],
+      [
+       "python -m pipeline.eval.eval",
+       "홀드아웃 리뷰로 recall@1/3/10",
+       "채택 모델(e5-small) recall@10 34.9%"
+      ]
+     ]
+    }
    },
    {
-    "qa": "chunk.py와 embed.py를 왜 파일로 나눴나요?",
-    "a": "자르기는 몇 초, 임베딩은 모델 로딩 포함 수십 초로 비용이 다릅니다. 한 파일이면 자른 결과만 다시 보고 싶을 때도 매번 임베딩을 통째로 다시 돌리게 됩니다.",
-    "src": "pipeline/chunk.py:6, pipeline/embed.py:6-7"
-   }
-  ]
- },
- {
-  "eyebrow": "면접 예상 질문",
-  "title": "설계 이유를 묻는 질문들 (2)",
-  "blocks": [
-   {
-    "qa": "검색 결과에서 왜 같은 상품 리뷰가 여러 개 나오면 안 되나요?",
-    "a": "top_k(예: 5개) 후보가 같은 상품의 리뷰로 채워지면 사실상 추천 후보가 1~2개로 줄어드는 셈입니다. search()는 구매건 단위로 먼저 최고점만 남기고, 그다음 상품 단위로 또 한 번 최고점만 남깁니다.",
-    "src": "pipeline/vector_db.py:111-122"
+    "table": {
+     "head": [
+      "임베딩 모델",
+      "dim",
+      "recall@1",
+      "recall@3",
+      "recall@10",
+      "query_ms"
+     ],
+     "rows": [
+      [
+       "e5-small (채택)",
+       "384",
+       "8.7%",
+       "18.9%",
+       "34.9%",
+       "14.2"
+      ],
+      [
+       "e5-base",
+       "768",
+       "10.2%",
+       "17.8%",
+       "30.5%",
+       "41.3"
+      ],
+      [
+       "bge-m3",
+       "1024",
+       "6.9%",
+       "18.9%",
+       "36.4%",
+       "131.6"
+      ]
+     ]
+    }
    },
    {
-    "qa": "LLM이 추천 이유를 지어내는 걸 어떻게 막나요?",
-    "a": "완전히 막지는 못하지만 '후보 밖 상품을 답했는지'는 검증합니다. candidates()가 만든 valid_ids 집합에 없는 product_id가 나오면 같은 프롬프트로 최대 2번 재시도하고, 그래도 안 되면 빈 결과를 돌려줍니다.",
-    "src": "app/features/recommending.py:13, 29-32",
-    "tail": "근거 문장 자체의 사실 여부까지는 검증하지 않는다는 한계는 남아 있습니다"
-   }
-  ]
- },
- {
-  "eyebrow": "면접 예상 질문",
-  "title": "설계 이유를 묻는 질문들 (3)",
-  "blocks": [
-   {
-    "qa": "반증(팩트체크)은 왜 답변을 만든 모델이 다시 채점하게 하지 않나요?",
-    "a": "같은 호출/같은 모델이 스스로 채점하면 자기가 만든 답을 정당화하는 편향이 생깁니다. answering.verify()는 별도의 chat.with_structured_output(FactCheck) 호출로 [고객 정보]라는 사실 자료와만 대조합니다.",
-    "src": "app/features/answering.py:22-26"
-   },
-   {
-    "qa": "PII 마스킹에서 이름 정규식이 놓치는 경우가 있다고 들었는데, 왜 그대로 두나요?",
-    "a": "성씨 목록 기반 휴리스틱이라 성씨가 없거나 외국식 이름은 못 잡습니다. 다만 규칙을 더 조이면 평범한 후기 오탐이 늘어나는 트레이드오프가 있어서, 재현율이 정말 필요해지면 정규식이 아니라 NER로 갈아타는 쪽이 맞다고 코드에 남겨뒀습니다.",
-    "src": "app/domain/masking.py:73",
-    "tail": "&quot;완벽히 막는다&quot;가 아니라 &quot;형식이 뚜렷한 것부터 확실히 막는다&quot;가 이 모듈의 설계 목표입니다"
-   }
-  ]
- },
- {
-  "eyebrow": "정직하게",
-  "title": "아직 안 된 것 / 지금 비어 있는 것",
-  "blocks": [
-   {
-    "acc": "app/api/routes/products.py — 라우터가 두 개, 살아있는 건 하나",
-    "body": "이 파일 안에 router = APIRouter(...)가 두 번 나옵니다(11행, 66행). 두 번째가 첫 번째를 덮어써서, main.py가 import하는 건 66-77행의 얇은 /api/products GET·POST뿐입니다. 11-56행의 진짜 CRUD(페이지네이션·404/409 처리 포함)는 정의는 됐지만 어떤 요청도 못 받습니다 — web/admin.js도 아직 이 엔드포인트를 안 부르니 화면에서 증상이 안 보일 뿐입니다."
-   },
-   {
-    "acc": "features/products.py:67-75 — delete_product()가 통째로 주석 처리",
-    "body": "위 죽은 라우터가 언젠가 살아나면, 그 DELETE 핸들러(routes/products.py:51-56)는 존재하지 않는 products.delete_product를 불러 AttributeError로 죽습니다. 구매 이력이 있으면 삭제를 막는다던 규칙이 지금은 코드 자체가 꺼져 있습니다."
-   },
-   {
-    "acc": "domain 마스터 캐시가 실제 서버에서 안 채워질 수 있다",
-    "body": "CommonMgr/ProductMgr는 domain_init.init_from_db()로 한 번 채워야 하는데, 실제 진입점 app/main.py가 쓰는 app/api/lifespan.py:9-14는 이걸 안 부릅니다. init_from_db()는 지금 app/fake_main.py와 테스트 코드에서만 호출됩니다. 자유텍스트 allergy로 /ask나 /recommend를 부르면 features/profile.py:17의 resolve_allergy()가 빈 캐시를 건드려 터질 수 있습니다 (pet_id로 부르는 경로는 SQL을 직접 쓰므로 영향 없음)."
-   },
-   {
-    "acc": "user.db",
-    "body": "AGENTS.md에 적혀 있듯, src/make_db/create_db_schema.py가 스키마만 짜둔 설계 단계입니다. 실제 데이터가 도는 건 pet_reco.db 쪽입니다. 둘을 헷갈리면 안 됩니다."
-   },
-   {
-    "p": "면접에서 &quot;다 됐다&quot;고 하기보다, <b class=\"t\">어디까지 됐고 어디부터 스텁·죽은 코드인지</b>를 file:line으로 정확히 말하는 편이 신뢰를 더 얻습니다."
+    "p": "데이터: data/eval/*.json, 홀드아웃 275건. e5-small을 채택한 이유는 recall@10이 bge-m3보다 조금 낮지만(34.9% vs 36.4%) query_ms가 9배 이상 빨라(14.2ms vs 131.6ms), 실시간 요청 시간대에서 이 트레이드오프가 더 맞기 때문이다."
    }
   ]
  },

@@ -15,6 +15,19 @@
 - [x] `pipeline/prep/chunking.py` — `langchain_text_splitters` import 순서 문제(먼저
       `sentence_transformers`를 import해야 죽지 않음) 원인 찾아서 수정
 
+- [x] `python -m eval all --with-llm` (AGENTS.md 2번 항목: golden/ragas_check/format_check) —
+      최상위 `eval/` 패키지 신규 작성.
+      - `eval/golden.py` + `eval/golden_qa.json` — `answering.verify()`의 LLM 채점(chat_verify)이
+        맞는 답/틀린 답을 제대로 가르는지 골든 셋(참/거짓 케이스 각 1개)으로 확인
+      - `eval/format_check.py` — `recommending.recommend()`/`Strategy` 구조화 출력이 라이브
+        모델 응답에서도 후보 밖 id를 안 지어내는지 확인 (DB 없이 값만 넣음)
+      - `eval/ragas_check.py` — faithfulness만 채점(answer_relevancy는 OpenAI 임베딩을 요구해서
+        뺌). ragas==0.4.3이 `langchain_community.chat_models.vertexai`(langchain-community
+        0.4.2에서 삭제됨)를 무조건 import해서 죽는 것과, claude-sonnet-5가 temperature
+        파라미터를 거부해서 죽는 것 둘 다 원인 찾아서 고침(vertexai는 빈 클래스 shim,
+        temperature는 `LangchainLLMWrapper(bypass_temperature=True)`) - 실행 결과: 통과 3 / 건너뜀 0 / 실패 0
+      - `.vscode/tasks.json`에 "🤖 LLM 품질 검사" 태스크로 등록. 상용 API라 토큰 비용 발생함
+
 남은 일:
 - [ ] `tests.pipeline.chunking`을 기본 `pytest` 목록으로 옮기기. numpy 2.4.6 / pandas 3.0.3 /
       pyarrow 24.0.0 조합이 의심스러움 - 버전을 낮춰 고정했을 때도 재현되는지 먼저 확인할 것

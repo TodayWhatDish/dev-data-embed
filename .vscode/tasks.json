@@ -189,6 +189,22 @@
             }
         },
         {
+            "label": "🤖 LLM 품질 검사 (golden/format_check/ragas_check)",
+            "detail": "상용 LLM을 호출해 채점한다 (토큰 비용 발생). ragas_check는 이 PC에서 ragas 의존성이 깨져 있어 자동으로 건너뛴다.",
+            "type": "shell",
+            "command": "${command:python.interpreterPath}",
+            "args": [
+                "-m",
+                "eval",
+                "all",
+                "--with-llm"
+            ],
+            "problemMatcher": [],
+            "presentation": {
+                "clear": true
+            }
+        },
+        {
             "label": "🧪 청킹 자체검증 (단독 실행)",
             "detail": "AutoTokenizer.from_pretrained 가 pytest 프로세스 안에서만 죽는 환경이 있어 SLOW_SELFCHECKS 에서 뺐다. 이걸로 단독 실행해서 확인한다.",
             "type": "shell",

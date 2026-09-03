@@ -40,5 +40,5 @@ markers = ["slow: 임베딩 모델을 올리거나 DB 에 쓴다. 기본 실행�
 
 
 [tool.setuptools.packages.find]
-include = ["app*","pipeline*"]
+include = ["app*","pipeline*","eval*"]
 namespaces= true
