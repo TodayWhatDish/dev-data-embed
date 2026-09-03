@@ -12,7 +12,7 @@
     시키는지는 app/features 쪽이 담당한다.
 """
 from langchain.chat_models import init_chat_model
-from app.core.config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, LLM_PROVIDER
+from app.core.config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, LLM_PROVIDER, VERIFY_MODEL
 from app.core.trace import tracer
 
 # httpx.Timeout(connect=..., read=..., write=..., pool=...)로 세분화하고 싶었지만
@@ -36,3 +36,7 @@ _answer_temps = {} if LLM_PROVIDER == "anthropic" else {"temperature": 0.3}  # �
 chat_answer = init_chat_model(**_answer_temps,
                               stream_usage=True,       # 스트리밍 중 토큰 집계
                               **_common)
+
+# 반증(answering.verify)용 - chat_answer가 만든 답을 같은 모델(chat)로 채점하면 자기 답을
+# 관대하게 채점하는 self-evaluation bias가 생긴다. model만 다르게, 나머지 설정은 그대로 재사용한다.
+chat_verify = init_chat_model(**_temps, **{**_common, "model": VERIFY_MODEL})

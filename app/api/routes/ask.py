@@ -1,3 +1,4 @@
+# Last updated: 2026-09-03
 # Last Updated : 2026-09-01
 
 """ 관리자/운영자가 사용자 질문을 바로 테스트할 수 있게 하는 API.
@@ -36,7 +37,8 @@ def ask(req: AskRequest):
     """
     profile = pet_profile(req.pet_id) if req.pet_id else build_profile(req.model_dump())
     matches = candidates(profile, req.user_query)
-    customer_context = build_customer_context(users_repo.get_user_detail(req.user_id) if req.user_id else None)
+    detail = users_repo.get_user_detail(req.user_id) if req.user_id else None
+    customer_context = build_customer_context(detail)
 
     def generate():
         if not matches:
@@ -56,7 +58,7 @@ def ask(req: AskRequest):
             return
         # 답변을 만든 모델이 아니라 별도 호출로 [고객 정보]와 대조해 정확도를 매긴다 - 반증(팩트체크).
         try:
-            verification = answering.verify(customer_context, "".join(answer_parts))
+            verification = answering.verify(detail, "".join(answer_parts))
             yield json.dumps({"type": "verification", **verification}, ensure_ascii=False) + "\n"
         except Exception as e:
             yield json.dumps({"type": "error", "message": f"반증 실패: {e}"}, ensure_ascii=False) + "\n"
