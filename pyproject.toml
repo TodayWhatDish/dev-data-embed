@@ -29,6 +29,24 @@ dev = [
     "httpx",
 ]
 
+# 채점기(eval/*)에만 필요하다. 서버를 돌리는 데는 하나도 안 쓴다 - ragas 가 pandas 와
+# datasets 를 끌고 와서 100개 넘는 패키지가 딸려 오므로 dependencies 에 넣으면 안 된다.
+#
+# langchain-community 를 0.3.x 로 묶는 이유: ragas 0.4.3 의 ragas/llms/base.py 가
+# langchain_community.chat_models.vertexai 를 무조건 import 하는데, 0.4.x 에서 그 모듈이
+# 없어져 `import ragas` 자체가 ModuleNotFoundError 로 죽는다. 이 저장소의 app/ 은
+# langchain_community 를 한 군데도 안 쓰므로 내려도 서버에 영향이 없다.
+eval = [
+    "ragas~=0.4.3",
+    "langchain-community~=0.3.31",
+]
+
+# 채점을 LangSmith 로도 보고 싶을 때만. 없으면 eval/tracing.py 가 조용히 통과하고
+# data/eval/runs.jsonl 에는 그대로 남는다.
+trace = [
+    "langsmith",
+]
+
 # 자체검증 모아 돌리기. 수집 대상은 tests/test_selfchecks.py 하나뿐이다 -
 # 나머지 tests/*.py 는 test_ 로 시작하지 않아 pytest 가 안 줍는다(단독 실행 스크립트라서)
 [tool.pytest.ini_options]

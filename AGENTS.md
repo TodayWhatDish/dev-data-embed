@@ -25,7 +25,8 @@ DB가 두 갈래로 나뉜다: pet_reco.db (실제 데이터가 적재되고 파
 > python -m pipeline.chunk               # 리뷰를 임베딩용 문서로 조립 + 토큰 한도로 자르기 -> chunks 테이블
 > python -m pipeline.embed               # chunks -> 문장 임베딩 벡터 -> chunk_vectors 테이블
 > python -m pipeline.prep_rec            # 홀드아웃 지정 + product_vectors/customer_vectors 생성 (평가용)
-> python -m pipeline.eval.eval           # 홀드아웃 리뷰로 recall@1/3/5 측정
+> python -m eval all                     # 채점기 전부 (요금 드는 것 제외)
+> python -m eval golden                  # 홀드아웃 리뷰로 recall@1/3/10 · MRR 측정
 > python -m pipeline.verify              # 데이터 개수·FK, 벡터 차원·모델명, 토큰 초과, recall, 샘플 질의까지 한 번에 점검
 > python -m app.query                    # 프로필+질문 받아 유사 리뷰 찾는 대화형 CLI (검색 로직 자체는 app/features/retrieve.py, pipeline/vector_db.py)
 > uvicorn app.main:app --reload          # FastAPI 서버 기동

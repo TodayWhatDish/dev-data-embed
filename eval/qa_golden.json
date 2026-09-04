@@ -1,0 +1,95 @@
+{
+  "설명": "짧은 자연어 질문으로 검색 후보의 품질과 안전을 재는 골든셋. golden.py 가 홀드아웃 리뷰 '전문'을 질의로 쓰는 것과 달리, 여기는 실제 사용자가 칠 법한 한 문장을 쓴다.",
+  "만든 법": "정답을 특정 product_id 하나로 못 박지 않는다. 상품이 200개인데 같은 조건을 만족하는 것이 수십 개라, 그중 하나만 정답으로 삼으면 맞는 답을 틀렸다고 세게 된다. 대신 '후보가 만족해야 할 속성'(expect)을 적고, DB 로 검증한다.",
+  "채점": "qa_check.py 가 세 가지를 잰다. (1) expect 를 만족하는 상품이 DB 에 정말 있나 - 자가검증. (2) candidates(profile, question) 상위 k 후보 중 expect 만족 비율 = precision@k, 하나라도 있으면 hit@k. (3) profile.allergy 를 준 문항에서 그 알레르겐이 든 상품이 후보에 섞였나 = 안전 위반.",
+  "expect 가 쓰는 키": "feeding_purpose(급여목적) · food_form(제형) · ingredient(주원료). 축종은 profile.animal_category 로 주고, 후보 상품이 그 축종용으로 등록돼 있는지는 모든 문항에서 자동으로 함께 잰다.",
+  "items": [
+    {"id": 1, "question": "관절이 약한 아이한테 줄 동결건조 사료 있을까요?",
+     "profile": {"animal_category": "개"},
+     "expect": {"feeding_purpose": "관절", "food_form": "동결건조"}},
+
+    {"id": 2, "question": "다리 절뚝이는 강아지용 건사료 추천해주세요",
+     "profile": {"animal_category": "개"},
+     "expect": {"feeding_purpose": "관절", "food_form": "건식"}},
+
+    {"id": 3, "question": "살이 너무 쪄서 체중 관리되는 건식 사료 찾아요",
+     "profile": {"animal_category": "개"},
+     "expect": {"feeding_purpose": "다이어트", "food_form": "건식"}},
+
+    {"id": 4, "question": "속이 자주 안 좋은데 소화 잘 되는 생식 있나요",
+     "profile": {"animal_category": "개"},
+     "expect": {"feeding_purpose": "소화", "food_form": "생식"}},
+
+    {"id": 5, "question": "신장 수치가 높다고 해서 신장 관리 사료를 찾습니다",
+     "profile": {"animal_category": "개"},
+     "expect": {"feeding_purpose": "신장", "food_form": "건식"}},
+
+    {"id": 6, "question": "치석 관리 되는 간식 뭐가 좋아요?",
+     "profile": {"animal_category": "개"},
+     "expect": {"feeding_purpose": "치아"}},
+
+    {"id": 7, "question": "피부가 예민해서 자꾸 긁는데 습식으로 줄 만한 거 있나요",
+     "profile": {"animal_category": "개"},
+     "expect": {"feeding_purpose": "피부", "food_form": "습식"}},
+
+    {"id": 8, "question": "알러지 피부에 좋은 동결건조 제품 알려주세요",
+     "profile": {"animal_category": "개"},
+     "expect": {"feeding_purpose": "피부", "food_form": "동결건조"}},
+
+    {"id": 9, "question": "나이 든 고양이 관절에 좋은 건식 사료 있을까요",
+     "profile": {"animal_category": "고양이"},
+     "expect": {"feeding_purpose": "관절", "food_form": "건식"}},
+
+    {"id": 10, "question": "고양이가 비만인데 다이어트 사료 추천 부탁드려요",
+     "profile": {"animal_category": "고양이"},
+     "expect": {"feeding_purpose": "다이어트", "food_form": "건식"}},
+
+    {"id": 11, "question": "토를 자주 해서 소화 잘 되는 습식 캔 찾고 있어요",
+     "profile": {"animal_category": "고양이"},
+     "expect": {"feeding_purpose": "소화", "food_form": "습식"}},
+
+    {"id": 12, "question": "신부전 진단 받은 고양이 사료 뭘 줘야 하나요",
+     "profile": {"animal_category": "고양이"},
+     "expect": {"feeding_purpose": "신장"}},
+
+    {"id": 13, "question": "고양이 치아 관리용 간식 있나요",
+     "profile": {"animal_category": "고양이"},
+     "expect": {"feeding_purpose": "치아"}},
+
+    {"id": 14, "question": "털이 푸석하고 피부가 안 좋은 고양이한테 생식 어때요",
+     "profile": {"animal_category": "고양이"},
+     "expect": {"feeding_purpose": "피부", "food_form": "생식"}},
+
+    {"id": 15, "question": "연어 들어간 사료 찾고 있어요",
+     "profile": {"animal_category": "개"},
+     "expect": {"ingredient": "연어"}},
+
+    {"id": 16, "question": "오리고기 베이스 제품 추천해주세요",
+     "profile": {"animal_category": "개"},
+     "expect": {"ingredient": "오리고기"}},
+
+    {"id": 17, "question": "참치 들어간 고양이 사료 있나요",
+     "profile": {"animal_category": "고양이"},
+     "expect": {"ingredient": "참치"}},
+
+    {"id": 18, "question": "양고기 주원료인 걸로 골라주세요",
+     "profile": {"animal_category": "개"},
+     "expect": {"ingredient": "양고기"}},
+
+    {"id": 19, "question": "닭고기 알레르기가 있는데 피부에 좋은 사료 추천해주세요",
+     "profile": {"animal_category": "개", "allergy": "닭고기"},
+     "expect": {"feeding_purpose": "피부"}},
+
+    {"id": 20, "question": "우유 알레르기 있는 고양이가 먹을 만한 거 있나요",
+     "profile": {"animal_category": "고양이", "allergy": "우유"},
+     "expect": {}},
+
+    {"id": 21, "question": "소고기 알레르기 있는 강아지 다이어트 사료 찾아요",
+     "profile": {"animal_category": "개", "allergy": "소고기"},
+     "expect": {"feeding_purpose": "다이어트"}},
+
+    {"id": 22, "question": "새우 알레르기 있는데 치아 관리 간식 줘도 될까요",
+     "profile": {"animal_category": "고양이", "allergy": "새우"},
+     "expect": {"feeding_purpose": "치아"}}
+  ]
+}

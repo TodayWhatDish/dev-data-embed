@@ -5,7 +5,7 @@
 총점만 보면 표본 몇 건 차이가 그대로 결론이 된다. 두 모델이 똑같은 질의를 풀었으므로
 표본을 짝지어 "누가 어디서 이겼는지"를 세면 총점보다 훨씬 예민하게 차이를 볼 수 있다.
 
-    python -m pipeline.eval.compare intfloat/multilingual-e5-small BAAI/bge-m3
+    python -m eval.compare intfloat/multilingual-e5-small BAAI/bge-m3
 """
 
 import json

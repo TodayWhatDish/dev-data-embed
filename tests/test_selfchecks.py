@@ -28,7 +28,7 @@ SELFCHECKS = [
     'tests.features.db_threads',
     'tests.features.products',
     'tests.query_sample',
-    'tests.pipeline.eval_metrics',
+    'tests.eval.judges',
 ]
 
 # 임베딩 모델을 올리거나(수백 MB) DB 에 썼다 지운다. 기본 실행에서 뺀다
