@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.schemas import AuthResponse, LoginRequest, SignupRequest
 from app.core.auth import get_current_user
+from app.domain.common import CommonMgr
 from app.features.auth import login, signup
 from app.repositories.pet import find_pets_by_user
 
@@ -21,7 +22,8 @@ def signup_route(payload: SignupRequest) -> AuthResponse:
             payload.email, payload.password, payload.name, payload.pet_name,
             phone=payload.phone, region=payload.region,
             pet_gender=payload.pet_gender, pet_birth_date=payload.pet_birth_date,
-            pet_weight_kg=payload.pet_weight_kg,
+            pet_weight_kg=payload.pet_weight_kg, pet_size=payload.pet_size,
+            pet_allergies=payload.pet_allergies,
         )
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
@@ -51,3 +53,10 @@ def my_pets(user_id: int = Depends(get_current_user)) -> list[dict]:
     """로그인한 회원 본인의 펫 목록. user_id를 바디/쿼리로 안 받고 토큰에서만 가져온다 -
     /ask/me와 같은 이유(다른 회원 펫을 user_id만 바꿔서 못 보게)."""
     return find_pets_by_user(user_id)
+
+
+@router.get("/allergens")
+def allergens() -> list[str]:
+    """회원가입 폼의 알레르기 체크박스 목록. 기동 시 캐시된 마스터를 그대로 돌려준다 -
+    DB를 또 안 친다(app/api/lifespan.py의 load_domain_cache)."""
+    return CommonMgr.get_inst().get_allergen_names()

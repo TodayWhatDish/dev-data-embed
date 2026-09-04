@@ -65,6 +65,8 @@ class SignupRequest(BaseModel):
     pet_gender: str | None = None
     pet_birth_date: str | None = None
     pet_weight_kg: float | None = None
+    pet_size: int | None = None  # pet.size CHECK(1~5) 그대로 - SIZE_LABELS 코드값
+    pet_allergies: list[str] | None = None  # allergen.name_ko 목록
 
 class LoginRequest(BaseModel):
     email: str

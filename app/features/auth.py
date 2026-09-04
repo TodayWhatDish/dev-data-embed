@@ -14,7 +14,7 @@ from datetime import datetime, timedelta, timezone
 
 from app.core.config import JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRE_MINUTES
 from app.repositories.users import find_user_by_email, create_user
-from app.repositories.pet import create_pet
+from app.repositories.pet import create_pet, resolve_allergen_ids, add_pet_allergies
 
 # animal_category_id 1 = '개'(common_schema.py 시드값). 회원가입 시점엔 강아지 프로필만 받는다.
 DOG_CATEGORY_ID = 1
@@ -33,15 +33,22 @@ def _issue_token(user_id: int) -> str:
 def signup(email: str, password: str, name: str, pet_name: str,
            phone: str | None = None, region: str | None = None,
            pet_gender: str | None = None, pet_birth_date: str | None = None,
-           pet_weight_kg: float | None = None) -> str:
-    """이메일 중복이면 ValueError. 통과하면 계정 + 강아지 펫 프로필을 만들고 바로 JWT를 발급한다."""
+           pet_weight_kg: float | None = None, pet_size: int | None = None,
+           pet_allergies: list[str] | None = None) -> str:
+    """이메일 중복이면 ValueError. 통과하면 계정 + 강아지 펫 프로필(+ 알레르기)을 만들고 바로 JWT를 발급한다.
+
+    알레르기를 여기서 받아두는 이유 - pet_profile()이 /ask, /ask/me 질문마다 pet_allergy를
+    다시 읽어 필터를 건다. 가입 시점에 한 번만 등록해두면 질문할 때마다 다시 안 물어봐도 된다.
+    """
     if find_user_by_email(email):
         raise ValueError("이미 가입된 이메일입니다.")
 
     password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
     user_id = create_user(email, name, password_hash, phone, region)
-    create_pet(user_id, DOG_CATEGORY_ID, pet_name,
-               gender=pet_gender, birth_date=pet_birth_date, weight_kg=pet_weight_kg)
+    pet_id = create_pet(user_id, DOG_CATEGORY_ID, pet_name, gender=pet_gender,
+                         birth_date=pet_birth_date, weight_kg=pet_weight_kg, size=pet_size)
+    allergen_ids = resolve_allergen_ids(pet_allergies or [])
+    add_pet_allergies(pet_id, allergen_ids)
     return _issue_token(user_id)
 
 

@@ -74,6 +74,22 @@ def find_category_and_size(pet_id: int) -> tuple | None:
         logger.exception(f"pet 조회 실패: pet_id={pet_id}")
         raise
 
+def resolve_allergen_ids(names: list[str]) -> list[int]:
+    """알레르겐 이름 목록을 allergen_id 목록으로 바꾼다. DB에 없는 이름은 조용히 빠진다
+    (오타로 필터가 통째로 안 걸리는 것보단, 아는 것만이라도 걸리는 게 낫다)."""
+    if not names:
+        return []
+    marks = ", ".join("?" for _ in names)
+    rows = fetch_tuples(f"SELECT allergen_id FROM allergen WHERE name_ko IN ({marks})", tuple(names))
+    return [row[0] for row in rows]
+
+
+def add_pet_allergies(pet_id: int, allergen_ids: list[int]) -> None:
+    """pet_allergy에 (pet_id, allergen_id) 행을 하나씩 넣는다. 다대다라 여러 행이 나온다."""
+    for allergen_id in allergen_ids:
+        insert_query("pet_allergy", {"pet_id": pet_id, "allergen_id": allergen_id})
+
+
 def find_allergen_names(pet_id: int) -> list[str]:
     """그 펫에게 등록된 알레르겐 이름들. 없으면 빈 목록."""
     try:

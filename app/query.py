@@ -1,4 +1,4 @@
-# Last updated: 2026-08-27
+# Last updated: 2026-09-03
 # 프로필 + 질문을 받아 유사 리뷰를 찾아주는 대화형 확인용 CLI
 #
 # 검색 로직 자체는 search.py 에 있다. 여기서는 입력을 받고 결과를 찍고 로그를 남기는 일만 한다.
@@ -42,8 +42,9 @@ def choose_pet():
     print('\n누구의 상품을 추천받을까요?')
     for pet in pets:
         allergies = pet['allergies'] or '없음'
+        size_label = SIZE_LABELS.get(pet['size'], '체급 미등록')
         print(f"  [{pet['pet_id']}] {pet['name']} "
-              f"({pet['animal_category']}, {SIZE_LABELS[pet['size']]}, 알레르기: {allergies})")
+              f"({pet['animal_category']}, {size_label}, 알레르기: {allergies})")
 
     picked = input('pet_id: ').strip()
     if not any(str(pet['pet_id']) == picked for pet in pets):
