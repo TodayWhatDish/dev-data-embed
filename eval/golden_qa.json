@@ -1,0 +1,24 @@
+[
+    {
+        "id": "true_case_연어사료",
+        "detail": {
+            "pets": [{"pet_id": 1, "name": "보리"}],
+            "purchases": [
+                {"purchase_id": 1, "product_name": "연어 사료", "rating": 5, "review_body": "보리가 잘 먹었어요"}
+            ]
+        },
+        "answer": "보리가 연어 사료를 먹고 잘 먹었다는 후기를 남기셨고, 평점도 5점을 주셨네요.",
+        "expect_high": true
+    },
+    {
+        "id": "false_case_구매이력_날조",
+        "detail": {
+            "pets": [{"pet_id": 1, "name": "보리"}],
+            "purchases": [
+                {"purchase_id": 1, "product_name": "연어 사료", "rating": 5, "review_body": "보리가 잘 먹었어요"}
+            ]
+        },
+        "answer": "이 고객은 연어 사료를 구매한 적이 없고, 닭고기 사료만 세 번 구매했습니다.",
+        "expect_high": false
+    }
+]
