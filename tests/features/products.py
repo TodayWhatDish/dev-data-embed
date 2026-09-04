@@ -2,8 +2,9 @@ import logging
 
 from app.app_logger.logger import init_logger
 from app.repositories import products as product_repo
-from app.core.db import QueryError
-from app.repositories.general_query import update_query, update_query_all
+from app.core.db import QueryError, execute
+from app.repositories.general_query import (select, select_all, select_range,
+                                            update_query, update_query_all)
 
 
 def rejects(reason, fn, *args):
@@ -95,11 +96,36 @@ if __name__ == '__main__':
         # 위 여섯 개 중 하나라도 돌았으면 값이 1 로 바뀌어 있다
         assert product_repo.find_by_id(product_id)['price_krw'] == 2000
 
+        # 12. cols 를 주면 그 컬럼만, 안 주면 지금까지처럼 전 컬럼이다.
+        #     컬럼 이름도 SQL 에 글자로 들어가는 자리라 없는 이름은 만들기 전에 막는다
+        assert set(select('product', {'product_id': product_id}, cols=['name', 'price_krw'])[0])                == {'name', 'price_krw'}
+        assert len(select('product', {'product_id': product_id})[0]) > 2
+        rejects('unknown_column', select, 'product', {'product_id': product_id}, None, ['no_such_col'])
+        rejects('unknown_column', select_all, 'product', None, ['no_such_col'])
+        rejects('unknown_column', select_range, 'product', {}, 2, 0, None, ['no_such_col'])
+
+        # 13. where 값이 목록이면 = 가 아니라 IN 이다. 'id 하나'와 'id 여럿'은 같은 조건이라
+        #     부르는 쪽이 연산자를 안 고른다 (관계 테이블을 부모 id 여럿으로 한 번에 읽는 자리)
+        ids = [p['product_id'] for p in first]
+        got = select('product', {'product_id': ids}, cols=['product_id'])
+        assert {row['product_id'] for row in got} == set(ids), got
+        # 하나짜리 목록도 IN 이고 결과는 = 와 같아야 한다
+        assert select('product', {'product_id': [product_id]}) == select('product', {'product_id': product_id})
+        # 빈 목록은 'IN ()' 이라는 깨진 SQL 이다. 0행으로 덮으면 목록을 못 만든 걸 결과 없음으로 읽는다
+        rejects('empty_in', select, 'product', {'product_id': []})
+        rejects('empty_in', select_range, 'product', {'product_id': []}, 2)
+        rejects('empty_in', update_query, 'product', {'price_krw': 2000}, {'product_id': []})
+        # UPDATE 도 목록을 받는다. 없는 id 만 넣었으니 0행이고, 값은 그대로여야 한다
+        assert update_query('product', {'price_krw': 2000}, {'product_id': [-1, -2]}) == 0
     finally:
-        # 11. 테스트가 만든 행은 반드시 지운다 - 남으면 다음 실행의 페이지 조회가 밀린다
+        # 11. 비활성화는 행을 남기므로 조회로 확인한 뒤, 테스트가 만든 행은 SQL 로 지운다
+        #     - 남으면 다음 실행의 페이지 조회가 밀린다
         if product_id is not None:
-            assert product_repo.delete(product_id) == 1
-            assert product_repo.delete(product_id) == 0   # 두 번째는 지울 게 없어 0
+            assert product_repo.inactive_product(product_id) == 1
+            assert product_repo.find_by_id(product_id)['is_active'] == 0
+            assert product_repo.inactive_product(-1) == 0        # 없는 id 는 0행
+            execute('DELETE FROM product WHERE product_id = ?', (product_id,), 'product')
             assert product_repo.find_by_id(product_id) is None
 
     logger.info('ok')
+ 

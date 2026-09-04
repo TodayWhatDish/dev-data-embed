@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.core.auth import get_current_admin
 from app.features.searching import similar_reviews_for
 from app.features.strategy import generate_strategy
+from app.features.customers import customer_detail
 from app.repositories import users as users_repo
 
 router = APIRouter(dependencies=[Depends(get_current_admin)])
@@ -18,8 +19,8 @@ def list_customers():
 
 
 @router.get("/api/customers/{user_id}")
-def customer_detail(user_id: int):
-    detail = users_repo.get_user_detail(user_id)
+def get_customer(user_id: int):
+    detail = customer_detail(user_id)
     if detail is None:
         raise HTTPException(status_code=404, detail="고객을 찾을 수 없습니다.")
     return detail

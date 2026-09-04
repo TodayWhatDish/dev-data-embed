@@ -1,4 +1,4 @@
-# Last Updated : 2026-09-02
+# Last Updated : 2026-09-03
 
 """ 운영 상태 체크용 API으로 관리자 대시보드와 운영 모니터링이 서버가 실제로 준비됐는지 빠르게 확인할 수 있도록
     /health /ready 엔드포인트를 제공한다.
@@ -7,10 +7,8 @@
 """
 
 from fastapi import APIRouter
-
-from app.adapters.stores.llm import chat
-from app.core.db import con
 from app.core.config import LLM_API_KEY
+from app.core.db import get_con
 
 router = APIRouter()
 
@@ -26,7 +24,7 @@ def ready() -> dict:
     llm_ok = False
 
     try:
-        con.execute("SELECT 1").fetchone()
+        get_con().execute("SELECT 1").fetchone()
         db_ok = True
     except Exception:
         db_ok = False

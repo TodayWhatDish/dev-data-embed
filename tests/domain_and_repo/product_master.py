@@ -69,3 +69,19 @@ if __name__ == '__main__':
     logger.info("#"*20)
 
     logger.info('ok')
+
+    # 사료/간식 접기 - 예전 SQL 의 COALESCE(parent_id, product_category_id) = 1 과 답이 같아야 한다.
+    # 그 CASE 가 web/admin.js 의 필터 값이라 '사료'/'간식' 글자가 바뀌면 화면이 빈다
+    from app.domain.products import attach_product_type, root_category_name
+    from app.repositories.general_query import select_all
+    for row in select_all('product_category'):
+        cid, parent = row['product_category_id'], row['parent_id']
+        before = '사료' if (parent or cid) == 1 else '간식'
+        assert root_category_name(cid) == before, f"{row['name_ko']}({cid}) != {before}"
+    assert root_category_name(-1) is None, '모르는 분류는 None 이다'
+
+    # 행에 붙이는 쪽. 원본을 안 고쳐야 한다 (부르는 쪽이 또 쓸 수 있어서)
+    rows = [{'product_category_id': 3}, {'product_category_id': 1}]
+    assert [r['product_type'] for r in attach_product_type(rows)] == ['간식', '사료']
+    assert 'product_type' not in rows[0], '원본이 오염됐다'
+    logger.info('상품분류 트리 접기 ok')
