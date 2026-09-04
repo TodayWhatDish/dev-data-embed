@@ -230,7 +230,8 @@
             "options": [
                 "intfloat/multilingual-e5-small",
                 "intfloat/multilingual-e5-base",
-                "BAAI/bge-m3"
+                "BAAI/bge-m3",
+                "text-embedding-3-small"
             ],
             "default": "intfloat/multilingual-e5-small"
         },
@@ -241,7 +242,8 @@
             "options": [
                 "intfloat/multilingual-e5-small",
                 "intfloat/multilingual-e5-base",
-                "BAAI/bge-m3"
+                "BAAI/bge-m3",
+                "text-embedding-3-small"
             ],
             "default": "intfloat/multilingual-e5-small"
         },
@@ -252,7 +254,8 @@
             "options": [
                 "intfloat/multilingual-e5-small",
                 "intfloat/multilingual-e5-base",
-                "BAAI/bge-m3"
+                "BAAI/bge-m3",
+                "text-embedding-3-small"
             ],
             "default": "intfloat/multilingual-e5-base"
         }

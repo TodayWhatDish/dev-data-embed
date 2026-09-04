@@ -2,8 +2,8 @@ import sqlite3
 
 import sqlite_vec
 
-from app.core.config import DB_PATH, EMBED_MODEL, EMBED_NORMALIZE, QUERY_PREFIX
-from app.core.embedder import get_embeddings
+from app.core.config import DB_PATH, EMBED_MODEL
+from app.core.embedder import embed_query
 from app.features.retrieve import check_freshness
 
 def connect(): # DB연결하고 VEC 확장을 추가해서 벡터거리계산하는 함수를 쓸수있는 커넥션을 만들었음
@@ -83,11 +83,8 @@ def search(con, query, where = "1=1", params: tuple = (), top_k: int = 3):
     for line in check_freshness(con):
         print(f"[경고] {line}")
 
-    model = get_embeddings()
-    q_vec = sqlite_vec.serialize_float32(
-    model.encode([f"{QUERY_PREFIX}{query}"], normalize_embeddings=EMBED_NORMALIZE,
-                     show_progress_bar=False)[0]
-    )
+    # embed_query()가 QUERY_PREFIX와 정규화를 다 챙긴다 - 모델이 로컬이든 API든 여기는 안 바뀐다.
+    q_vec = sqlite_vec.serialize_float32(embed_query(query))
 
     # 1 con : 사용자검색하면 FastAPI 엔드포인트가 요청받고 엔드포인트 함수 동작함. 
     # 2 con이 DB에 SQL날려서 정보를 가지고 con통로로 다시 보내줌
