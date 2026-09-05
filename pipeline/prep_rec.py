@@ -10,7 +10,7 @@ import numpy as np
 import sqlite_vec
 
 from app.core.config import DB_PATH
-from app.core.embedder import get_embeddings
+from app.core.embedder import embed_documents
 from app.domain.embedding_text import product_text
 
 
@@ -38,7 +38,6 @@ def mark_holdout(con: sqlite3.Connection):
 
 def build_product_vectors(con: sqlite3.Connection):
     """product를 문장으로 임베딩해 product_vectors에 저장한다."""
-    model = get_embeddings()
     cur = con.execute("""
         SELECT
             p.product_id,
@@ -60,9 +59,7 @@ def build_product_vectors(con: sqlite3.Connection):
     """)
     cols = [d[0] for d in cur.description]
     products = [dict(zip(cols, row)) for row in cur.fetchall()]
-    vectors = model.encode(
-        [product_text(p) for p in products], normalize_embeddings=True, show_progress_bar=False
-    )
+    vectors = embed_documents([product_text(p) for p in products])
 
     con.execute("DROP TABLE IF EXISTS product_vectors")
     con.execute("CREATE TABLE product_vectors (product_id INTEGER PRIMARY KEY, vector BLOB)")

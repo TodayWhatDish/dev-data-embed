@@ -49,17 +49,34 @@ load_env()
 
 # query_prefix/passage_prefix: e5 계열은 필수, bge 계열은 붙이면 오히려 성능이 떨어진다.
 # 모델을 비교할 때 이 표만 늘리고 코드는 건드리지 않는 것이 목표다.
+#
+# provider: 벡터를 누가 만드는지. 'st' 는 로컬 sentence-transformers, 'openai' 는 API 호출이다.
+#   OpenAI 모델은 가중치를 내려받을 수 없어 SentenceTransformer/AutoTokenizer 로는 못 올린다.
+#   그래서 '표에 못 넣는' 게 아니라, 표에 provider 칸을 하나 늘려서 embedder/chunking 이
+#   그 칸만 보고 갈라지게 했다 - 모델을 늘리는 자리는 여전히 이 표 하나뿐이다.
+# tokenizer: 토큰을 세는 쪽. HF 모델은 자기 이름(모델=토크나이저)이고,
+#   OpenAI 모델은 tiktoken 인코딩 이름을 적는다.
 EMBED_PROFILES = {
     'intfloat/multilingual-e5-small': {
+        'provider': 'st', 'tokenizer': 'intfloat/multilingual-e5-small',
         'dim': 384, 'max_tokens': 512, 'batch_size': 32,
         'query_prefix': 'query: ', 'passage_prefix': 'passage: ',
     },
     'intfloat/multilingual-e5-base': {
+        'provider': 'st', 'tokenizer': 'intfloat/multilingual-e5-base',
         'dim': 768, 'max_tokens': 512, 'batch_size': 16,
         'query_prefix': 'query: ', 'passage_prefix': 'passage: ',
     },
     'BAAI/bge-m3': {
+        'provider': 'st', 'tokenizer': 'BAAI/bge-m3',
         'dim': 1024, 'max_tokens': 8192, 'batch_size': 8,
+        'query_prefix': '', 'passage_prefix': '',
+    },
+    # batch_size 는 GPU 메모리가 아니라 한 번의 HTTP 요청에 몇 개를 실을지다.
+    # API 한도는 요청당 입력 2048개지만, 하나 실패하면 그 묶음을 통째로 다시 보내야 하므로 128로 둔다.
+    'text-embedding-3-small': {
+        'provider': 'openai', 'tokenizer': 'cl100k_base',
+        'dim': 1536, 'max_tokens': 8191, 'batch_size': 128,
         'query_prefix': '', 'passage_prefix': '',
     },
 }
@@ -73,15 +90,22 @@ if EMBED_MODEL not in EMBED_PROFILES:
 
 _profile = EMBED_PROFILES[EMBED_MODEL]
 
-# 토큰화는 임베딩과 반드시 같은 모델이어야 한다 - 따로 적을 이유가 없어 파생값으로 둔다.
-EMBED_TOKENIZER = EMBED_MODEL
+# 토큰화는 임베딩과 반드시 같은 모델이어야 한다 - HF 모델은 모델 이름이 그대로 토크나이저 이름이고,
+# OpenAI 모델만 tiktoken 인코딩 이름이 따로 있어 프로파일에서 읽는다.
+EMBED_PROVIDER = _profile['provider']
+EMBED_TOKENIZER = _profile['tokenizer']
 EMBED_DIM = _profile['dim']
 EMBED_MAX_TOKENS = _profile['max_tokens']
 EMBED_BATCH_SIZE = _profile['batch_size']
 QUERY_PREFIX = _profile['query_prefix']
 PASSAGE_PREFIX = _profile['passage_prefix']
 
+# provider='st' 일 때만 쓴다. API 모델은 남의 서버에서 도니 올릴 장치가 없다.
 EMBED_DEVICE = "cpu"
+
+# provider='openai' 인 프로파일에서만 필요하다. LLM 키(LLM_API_KEY)와 갈라 둔 이유:
+# 채팅 모델은 Anthropic 을 쓰면서 임베딩만 OpenAI 로 돌리는 조합이 흔하다.
+EMBED_API_KEY = env("EMBED_API_KEY", env("OPENAI_API_KEY", ""))
 
 # 코사인 유사도용
 EMBED_NORMALIZE = True
@@ -107,26 +131,6 @@ if not Path(DB_PATH).exists():
     print(f"알림: DB 가 아직 없다 -> {DB_PATH}")
 
 
-# .env 를 환경변수로 올린다.
-def load_env(path=ROOT / ".env"):
-    """.env를 환경변수로 올린다."""
-    if not Path(path).exists():
-        return
-    for line in Path(path).read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        k,v = line.split("=", 1)
-        k = k.strip()
-        v = v.strip().strip('"').strip("'")
-        os.environ.setdefault(k,v)
-
-def env(name: str, default: str) -> str:
-    """환경변수를 읽되, 빈 문자열은 기본값으로 친다."""
-    value = os.environ.get(name,"").strip()
-    return default if value == "" else value
-
-load_env()
 USE_API = env("USE_API",0) == "1"
 
 # LLM_PROVIDER는 langchain init_chat_model()의 provider 인자로 그대로 들어간다 (adapters/stores/llm.py).

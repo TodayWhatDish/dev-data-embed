@@ -11,7 +11,7 @@ import time
 
 import sqlite_vec
 
-from app.core.embedder import get_embeddings
+from app.core.embedder import embed_query
 
 _TABLE = {
     "chunk": "chunk_vectors",
@@ -71,12 +71,11 @@ def inspect(con: sqlite3.Connection, kind: str, questions: list[str], top_k: int
     except sqlite3.OperationalError:
         pass  # 커넥션에 이미 로드돼 있으면 여기서 에러가 나므로 무시한다.
 
-    model = get_embeddings()
     for question in questions:
         started = time.time()
-        q_vec = sqlite_vec.serialize_float32(
-            model.encode([question], normalize_embeddings=True, show_progress_bar=False)[0]
-        )
+        # 실제 검색(vector_db.search)과 같은 embed_query를 쓴다 - 여기만 접두사를 빼면
+        # e5 계열에서 이 화면과 진짜 검색 결과가 달라져서, 눈으로 확인하는 의미가 없어진다.
+        q_vec = sqlite_vec.serialize_float32(embed_query(question))
         rows = _rows_for(con, kind, q_vec)[: top_k * 5]
 
         best = {}

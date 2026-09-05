@@ -25,7 +25,7 @@ import sentence_transformers  # noqa: F401
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from transformers import AutoTokenizer
 
-from app.core.config import EMBED_TOKENIZER, PASSAGE_PREFIX
+from app.core.config import EMBED_PROVIDER, EMBED_TOKENIZER, PASSAGE_PREFIX
 from pipeline.prep.options import CHUNK_OVERLAP, CHUNK_SIZE, SEPARATORS
 
 _tokenizer = None
@@ -33,10 +33,18 @@ _splitter = None
 
 
 def get_tokenizer():
-    """토큰 카운터. 무거우니 한 번만 올리고 계속 쓴다."""
+    """토큰 카운터. 무거우니 한 번만 올리고 계속 쓴다.
+
+    OpenAI 모델은 가중치를 못 받으니 AutoTokenizer 가 안 통한다 - tiktoken 인코딩을 쓴다.
+    둘 다 .encode(text) -> 토큰 id 목록이라 count_tokens 는 갈라질 필요가 없다.
+    """
     global _tokenizer
     if _tokenizer is None:
-        _tokenizer = AutoTokenizer.from_pretrained(EMBED_TOKENIZER)
+        if EMBED_PROVIDER == "openai":
+            import tiktoken
+            _tokenizer = tiktoken.get_encoding(EMBED_TOKENIZER)
+        else:
+            _tokenizer = AutoTokenizer.from_pretrained(EMBED_TOKENIZER)
     return _tokenizer
 
 
@@ -44,10 +52,16 @@ def get_splitter():
     """한도를 넘는 문서만 문장/구두점 경계에서 자르는 분할기."""
     global _splitter
     if _splitter is None:
-        _splitter = RecursiveCharacterTextSplitter.from_huggingface_tokenizer(
-            get_tokenizer(), chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP,
-            # separators는 많이 늘릴수록 유지보수 부담이 늘어나기도 하고 효과 체감이 크지않다. (트레이드오프 발생)
-            separators=SEPARATORS, keep_separator="end")
+        # separators는 많이 늘릴수록 유지보수 부담이 늘어나기도 하고 효과 체감이 크지않다. (트레이드오프 발생)
+        common = dict(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP,
+                      separators=SEPARATORS, keep_separator="end")
+        if EMBED_PROVIDER == "openai":
+            # from_tiktoken_encoder 는 토크나이저 객체가 아니라 인코딩 '이름'을 받는다.
+            _splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
+                encoding_name=EMBED_TOKENIZER, **common)
+        else:
+            _splitter = RecursiveCharacterTextSplitter.from_huggingface_tokenizer(
+                get_tokenizer(), **common)
     return _splitter
 
 
