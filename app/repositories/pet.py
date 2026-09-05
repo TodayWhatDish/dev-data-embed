@@ -97,3 +97,34 @@ def _fetch_pets(where: str, params: tuple, what: str) -> list[dict]:
         # SQL 에 글자로 박힌 오타나 스키마 변경은 우리 버그다. 어느 조회였는지만 남기고 그대로 올린다
         logger.exception(f"pet 조회 실패: {what}")
         raise
+
+def resolve_allergen_ids(names: list[str]) -> list[int]:
+    """알레르겐 이름 목록을 allergen_id 목록으로 바꾼다. DB에 없는 이름은 조용히 빠진다
+    (오타로 필터가 통째로 안 걸리는 것보단, 아는 것만이라도 걸리는 게 낫다)."""
+    if not names:
+        return []
+    marks = ", ".join("?" for _ in names)
+    rows = fetch_tuples(f"SELECT allergen_id FROM allergen WHERE name_ko IN ({marks})", tuple(names))
+    return [row[0] for row in rows]
+
+
+def add_pet_allergies(pet_id: int, allergen_ids: list[int]) -> None:
+    """pet_allergy에 (pet_id, allergen_id) 행을 하나씩 넣는다. 다대다라 여러 행이 나온다."""
+    for allergen_id in allergen_ids:
+        insert_query("pet_allergy", {"pet_id": pet_id, "allergen_id": allergen_id})
+
+
+def find_allergen_names(pet_id: int) -> list[str]:
+    """그 펫에게 등록된 알레르겐 이름들. 없으면 빈 목록."""
+    try:
+        rows = fetch_tuples(
+            "SELECT al.name_ko FROM pet_allergy AS pa "
+            "JOIN allergen AS al ON al.allergen_id = pa.allergen_id WHERE pa.pet_id = ?",
+            (pet_id,),
+        )
+    except sqlite3.Error:
+        logger.exception(f"pet 알레르기 조회 실패: pet_id={pet_id}")
+        raise
+
+    # 튜플을 벗겨서 준다. 부르는 쪽마다 [name for (name,) in ...] 을 반복하지 않게
+    return [name for (name,) in rows]

@@ -15,7 +15,7 @@ from datetime import datetime, timedelta, timezone
 from app.core.config import JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRE_MINUTES
 from app.domain.common import CommonMgr
 from app.repositories.users import find_user_by_email, create_user
-from app.repositories.pet import create_pet, add_pet_allergies, save_pet_survey
+from app.repositories.pet import create_pet, resolve_allergen_ids, add_pet_allergies, save_pet_survey
 
 # animal_category_id 1 = '개'(common_schema.py 시드값). pet_species를 안 주거나 못 찾으면 이 값으로 대체한다.
 DOG_CATEGORY_ID = 1
