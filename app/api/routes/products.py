@@ -4,19 +4,13 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from app.api.errors import product_http
 from app.api.schemas import Product, ProductCreate, ProductUpdate
 from app.core.auth import get_current_admin
 from app.features import products
 
 router = APIRouter(prefix="/admin/products", tags=["관리자-상품"],
                    dependencies=[Depends(get_current_admin)])
-
-
-def _http(exc: products.ProductError) -> HTTPException:
-    """ProductError.kind를 HTTP 상태로 옮긴다."""
-    status_code = 404 if exc.kind == "not_found" else 409
-    return HTTPException(status_code=status_code, detail=exc.message)
-
 
 @router.get("", response_model=list[Product])
 def product_list(page: int = 0, size: int = 20):
@@ -30,7 +24,7 @@ def product_get(product_id: int):
     try:
         return products.get_product(product_id)
     except products.ProductError as exc:
-        raise _http(exc) from exc
+        raise product_http(exc) from exc
 
 
 @router.post("", response_model=Product, status_code=201)
@@ -47,7 +41,7 @@ def product_update(product_id: int, patch: ProductUpdate):
             product_id, patch.model_dump(exclude_unset=True))
         return product
     except products.ProductError as exc:
-        raise _http(exc) from exc
+        raise product_http(exc) from exc
 
 
 @router.delete("/{product_id}", status_code=204)
@@ -55,4 +49,4 @@ def product_delete(product_id: int):
     try:
         products.delete_product(product_id)
     except products.ProductError as exc:
-        raise _http(exc) from exc
+        raise product_http(exc) from exc

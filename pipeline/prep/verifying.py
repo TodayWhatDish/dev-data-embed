@@ -71,9 +71,6 @@ def check_table_data(con: sqlite3.Connection, table_names: tuple, problems: list
 
 
 # 벡터를 되살려 차원 · 모델 · 정규화를 본다. {표 이름: (아이디, 행렬)} 을 돌려준다. (2단계)
-#
-# 저장 형식(BLOB vs JSON 문자열)을 가리지 않고 읽되, retrieve.py/db.load_vectors가
-# 기대하는 형식과 실제 저장 형식이 다르면 problems에 그 사실 자체를 기록한다.
 def check_vector_data(con: sqlite3.Connection, kinds: tuple, expected_dim: int, expected_model: str, problems: list[str]):
     meta = dict(con.execute("SELECT key, value FROM embedding_meta"))
     check(meta.get("model") == expected_model,
