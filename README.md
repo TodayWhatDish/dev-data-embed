@@ -1,5 +1,15 @@
 # dev-data-embed
 
+<br/>
+
+![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-vec-003B57?style=for-the-badge&logo=sqlite&logoColor=white)
+![LangChain](https://img.shields.io/badge/LangChain-1C3C3C?style=for-the-badge&logo=langchain&logoColor=white)
+![License](https://img.shields.io/badge/License-Apache_2.0-007EC6?style=for-the-badge)
+
+<br/>
+
 '오늘 뭐먹냥' — 개·고양이 사료·간식 AI 추천 서비스의 **백엔드**.
 더미 데이터 파이프라인(CSV → SQLite → 임베딩)과 그 위에서 도는 FastAPI 서비스(`app/`)를 담습니다.
 
