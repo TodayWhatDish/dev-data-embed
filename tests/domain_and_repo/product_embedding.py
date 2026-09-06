@@ -2,19 +2,24 @@ import logging
 
 from app.app_logger.logger import init_logger
 from app.domain.common import CommonMgr
-from app.domain.products import ProductMgr
 from app.domain.embedding_text import build_product_rows, product_text
+from app.domain.products import ProductMgr
 from app.repositories.common import get_animal_categories
-from app.repositories.products import (get_product_categories, get_feeding_purposes, get_ingredients,
-                                       get_products, get_product_animal_category_ids,
-                                       get_product_feeding_purpose_ids, get_product_ingredient_ids)
-
+from app.repositories.products import (
+    get_feeding_purposes,
+    get_ingredients,
+    get_product_animal_category_ids,
+    get_product_categories,
+    get_product_feeding_purpose_ids,
+    get_product_ingredient_ids,
+    get_products,
+)
 
 logger = logging.getLogger()
 
 
-if __name__ == '__main__':
-    init_logger('test_product_embedding')
+if __name__ == "__main__":
+    init_logger("test_product_embedding")
     common_mgr = CommonMgr.get_inst()
     common_mgr.set_animal_category(get_animal_categories())
 
@@ -44,24 +49,26 @@ if __name__ == '__main__':
 
     logger.info(f"상품 {len(rows)}건 조립")
     assert len(rows) == len(get_products())
-    logger.info("#"*20)
+    logger.info("#" * 20)
 
     for row in rows[:3]:
         logger.info(product_text(row))
-        logger.info("-"*20)
-    logger.info("#"*20)
+        logger.info("-" * 20)
+    logger.info("#" * 20)
 
     # 1:N 이 문장에 다 들어왔는지 - 관계 테이블 행 수와 문장의 항목 수가 맞아야 한다.
     # get_products() 가 is_active = 1 만 가져오므로, 비교 대상도 활성 상품의 원료로 좁힌다.
     active_ids = {r["product_id"] for r in rows}
     ing_cnt = sum(len(r["ingredients"].split(", ")) for r in rows if r["ingredients"])
     want = sum(1 for row in get_product_ingredient_ids() if row["product_id"] in active_ids)
-    logger.info(f"원료 항목 합 {ing_cnt} / 활성 상품의 product_ingredient {want}행 "
-          f"(전체 {len(get_product_ingredient_ids())}행 - 비활성 상품 제외)")
+    logger.info(
+        f"원료 항목 합 {ing_cnt} / 활성 상품의 product_ingredient {want}행 "
+        f"(전체 {len(get_product_ingredient_ids())}행 - 비활성 상품 제외)"
+    )
     assert ing_cnt == want
 
     no_animal = [r["product_id"] for r in rows if not r["target_animal_category"]]
     logger.info(f"축종이 비어 아무에게도 안 뜨는 상품(fail-closed): {no_animal}")
-    logger.info("#"*20)
+    logger.info("#" * 20)
 
-    logger.info('ok')
+    logger.info("ok")

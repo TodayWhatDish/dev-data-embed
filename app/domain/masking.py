@@ -54,12 +54,12 @@ HANDLE = re.compile(r"@[A-Za-z0-9._]{3,}")
 # 17개 시도는 바뀌지 않으니 여기 박고, 시군구·읍면동이 '두 단계 이상' 이어질 때만 주소로 본다.
 # 한 단계만 보면 '이동', '사료구' 같은 평범한 말이 걸린다.
 _SIDO = "서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주"
-_GU = r"[가-힣]{1,5}(?:시|군|구)"          # 시작 단위. 동/로 로 시작하면 '이동하면서' 가 걸린다
+_GU = r"[가-힣]{1,5}(?:시|군|구)"  # 시작 단위. 동/로 로 시작하면 '이동하면서' 가 걸린다
 _DONG = r"[가-힣]{1,5}(?:동|읍|면|리|로|길)"
 ADDRESS = re.compile(
     rf"(?:(?:{_SIDO})\s*{_GU}"
     rf"|{_GU}\s*{_DONG})"
-    rf"(?:\s*(?:{_GU}|{_DONG}))*"          # 시·구·로 가 이어지면 끊지 않고 한 덩어리로 문다
+    rf"(?:\s*(?:{_GU}|{_DONG}))*"  # 시·구·로 가 이어지면 끊지 않고 한 덩어리로 문다
     r"(?:\s*\d[\d\-]*(?:번지|번길|호|층)?)*"
 )
 
@@ -110,9 +110,7 @@ _RULES = (
 # 연락 수단은 종류가 달라도 하나로 줄인다. 마크에 든 대괄호는 re.escape 로 죽여야 한다 —
 # 그냥 끼워넣으면 '[이메일]' 이 '이/메/일 중 한 글자' 라는 문자클래스가 되어 엉뚱한 데 걸린다
 _CONTACT_MARKS = (CONTACT_MARK, REPLACE_PHONE, REPLACE_EMAIL, REPLACE_HANDLE)
-_REPEAT_CONTACT = re.compile(
-    r"(?:(?:%s)[\s,·/]*){2,}" % "|".join(map(re.escape, _CONTACT_MARKS))
-)
+_REPEAT_CONTACT = re.compile(r"(?:(?:%s)[\s,·/]*){2,}" % "|".join(map(re.escape, _CONTACT_MARKS)))
 # 주소·이름은 연락처가 아니다. 종류가 다른 마크까지 뭉치면 '[주소] [이름]' 이 한 덩어리가 되므로
 # 같은 마크가 잇달아 나올 때만 줄인다 — \1 은 '방금 잡은 그것과 똑같은 것'
 _REPEAT_SAME = re.compile(r"(\[[^\]]+\])(?:[\s,·/]*\1)+")
@@ -152,4 +150,3 @@ def mask(text: str, *, names: tuple[str, ...] = ()) -> str:
     for name in sorted({n for n in names if n}, key=len, reverse=True):
         text = text.replace(name, "[이름]")
     return _tidy(text)
-    

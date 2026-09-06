@@ -9,7 +9,9 @@
 
 import json
 import sqlite3
+
 import numpy as np
+
 from app.core.config import EMBED_MODEL
 
 
@@ -44,23 +46,17 @@ def save_chunks(con: sqlite3.Connection, chunks: list[dict]):
     con.commit()
 
 
-def save_vectors(
-    con: sqlite3.Connection, chunks: list[dict], vectors: np.ndarray, dim
-):
+def save_vectors(con: sqlite3.Connection, chunks: list[dict], vectors: np.ndarray, dim):
     """chunk_vectors 테이블을 만들고 벡터에 적재한다. save_chunks가 선행되어야 함"""
 
     # 청크와 벡터의 수가 다를 시 방어 로직
     if len(chunks) != len(vectors):
-        raise ValueError(
-            f"조각 {len(chunks)}개와 벡터 {len(vectors)}개의 수가 다릅니다."
-        )
+        raise ValueError(f"조각 {len(chunks)}개와 벡터 {len(vectors)}개의 수가 다릅니다.")
 
     cur = con.cursor()
 
     # chunks 테이블이 없을 시 오류
-    if not cur.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='chunks'"
-    ).fetchone():
+    if not cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='chunks'").fetchone():
         raise ValueError("chunks 테이블이 없습니다. save_chunks 를 먼저 실행하세요.")
 
     # chunk_vectors 테이블을 매번 다시 만든다.
@@ -98,11 +94,7 @@ def save_vectors(
         [
             ("model", EMBED_MODEL),
             ("dim", str(dim)),
-            ("count", str(len(chunks))),            
+            ("count", str(len(chunks))),
         ],
     )
     con.commit()
-
-
-
-

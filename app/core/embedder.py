@@ -9,14 +9,20 @@ get_embeddings() 가 돌려주는 SentenceTransformer 를 직접 .encode() 하�
 """
 
 from sentence_transformers import SentenceTransformer
-from app.core.config import (
-    EMBED_API_KEY, EMBED_BATCH_SIZE, EMBED_DEVICE, EMBED_MODEL,
-    EMBED_NORMALIZE, EMBED_PROVIDER, QUERY_PREFIX,
-)
 
+from app.core.config import (
+    EMBED_API_KEY,
+    EMBED_BATCH_SIZE,
+    EMBED_DEVICE,
+    EMBED_MODEL,
+    EMBED_NORMALIZE,
+    EMBED_PROVIDER,
+    QUERY_PREFIX,
+)
 
 _embeddings = None
 _client = None
+
 
 def get_embeddings() -> SentenceTransformer:
     """로컬 임베딩 모델 인스턴스 반환. 최초 호출 시 로드.
@@ -33,16 +39,15 @@ def get_embeddings() -> SentenceTransformer:
     if _embeddings is not None:
         return _embeddings
 
-    from huggingface_hub.utils import disable_progress_bars, logging as hub_logging
+    from huggingface_hub.utils import disable_progress_bars
+    from huggingface_hub.utils import logging as hub_logging
+
     hub_logging.set_verbosity_error()
     disable_progress_bars()
 
     from sentence_transformers import SentenceTransformer
 
-    _embeddings = SentenceTransformer(
-        EMBED_MODEL,
-        device=EMBED_DEVICE
-    )
+    _embeddings = SentenceTransformer(EMBED_MODEL, device=EMBED_DEVICE)
 
     return _embeddings
 
@@ -56,6 +61,7 @@ def _get_client():
                 f"{EMBED_MODEL} 을 쓰려면 .env 에 EMBED_API_KEY (또는 OPENAI_API_KEY) 가 있어야 합니다."
             )
         from openai import OpenAI
+
         _client = OpenAI(api_key=EMBED_API_KEY)
     return _client
 
@@ -74,7 +80,7 @@ def _embed_openai(texts: list[str]) -> list[list[float]]:
     client = _get_client()
     vectors: list[list[float]] = []
     for start in range(0, len(texts), EMBED_BATCH_SIZE):
-        batch = texts[start:start + EMBED_BATCH_SIZE]
+        batch = texts[start : start + EMBED_BATCH_SIZE]
         response = client.embeddings.create(model=EMBED_MODEL, input=batch)
         # 응답은 index 로 원래 자리를 알려준다. 순서를 가정하지 않고 그 값으로 되돌린다 -
         # 어긋나면 벡터와 조각이 통째로 뒤바뀌는데 에러 없이 검색 품질만 무너진다.
@@ -89,7 +95,7 @@ def _embed_openai(texts: list[str]) -> list[list[float]]:
     return (array / norms).tolist()
 
 
-def embed_documents(texts:list[str]) -> list[list[float]]:
+def embed_documents(texts: list[str]) -> list[list[float]]:
     """현재 리스트를 벡터 리스트로 변환. 배치 처리 + 정규화."""
     if EMBED_PROVIDER == "openai":
         return _embed_openai(texts)

@@ -11,7 +11,7 @@ select / insert / update 가 SQL 을 만들기 전에 전부 여기를 거친다
 """
 # from functools import lru_cache
 
-from app.core.db import fetch_tuples, QueryError
+from app.core.db import QueryError, fetch_tuples
 
 
 def get_all_table_names() -> list[str]:
@@ -24,22 +24,27 @@ def get_all_table_names() -> list[str]:
       execute_schema.drop_all() 이 쓰는 조건과 같다
     * 이름순으로 준다. 부를 때마다 순서가 달라지면 비교하는 쪽이 곤란하다
     """
-    return [name for (name,) in fetch_tuples(
-        "SELECT name FROM sqlite_master "
-        "WHERE type = 'table' AND name NOT LIKE 'sqlite_%' "
-        "ORDER BY name;")]
+    return [
+        name
+        for (name,) in fetch_tuples(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name;"
+        )
+    ]
+
 
 def _get_col_names(table_name) -> set[str]:
     """
     # Summary
     * 그 테이블에 실재하는 컬럼 이름. 없는 테이블이면 빈 set 이라 테이블명 검사도 같이 된다
     """
-    return {row[0] for row in fetch_tuples('SELECT name FROM pragma_table_info(?);', (table_name,))}
+    return {row[0] for row in fetch_tuples("SELECT name FROM pragma_table_info(?);", (table_name,))}
+
 
 # lru_cache 판. 아래 명시적 dict 판과 동작이 같아서 지금은 안 쓴다
 # @lru_cache(maxsize=None)
 # def get_col_names_cached(table_name) -> frozenset[str]:
 #     return frozenset(get_col_names(table_name))
+
 
 class ColumnMgr:
     """
@@ -53,13 +58,14 @@ class ColumnMgr:
     * 도메인의 XxxMgr 과 달리 init_from_db() 로 먹여주지 않고 스스로 채운다.
       general_query 는 파이프라인 스크립트에서도 불려서 기동 절차를 안 거치는 경로가 있다
     """
+
     _instance = None
 
     def __init__(self):
         self.reload()
 
     @classmethod
-    def get_inst(cls): #싱글턴 패턴을 위한
+    def get_inst(cls):  # 싱글턴 패턴을 위한
         if cls._instance == None:
             cls._instance = ColumnMgr()
         return cls._instance
@@ -74,8 +80,7 @@ class ColumnMgr:
           create_schema() 로 갈아엎은 뒤나 자체검증에서만 쓴다
         * 비우기만 하면 모든 테이블이 '없는 테이블' 이 되어 쿼리가 전부 막힌다. 그래서 비우지 않고 채운다
         """
-        self._col_names = {name: frozenset(_get_col_names(name))
-                           for name in get_all_table_names()}
+        self._col_names = {name: frozenset(_get_col_names(name)) for name in get_all_table_names()}
 
     def get_col_names(self, table_name) -> frozenset[str]:
         """
@@ -95,7 +100,7 @@ class ColumnMgr:
         return self._col_names.get(table_name, frozenset())
 
 
-def where_clause(table, table_cols, where : dict) -> tuple[str, tuple]:
+def where_clause(table, table_cols, where: dict) -> tuple[str, tuple]:
     """
     # Summary
     * WHERE 절과 거기 들어갈 값을 같이 만든다. where 가 비면 ('', ()) 라 절 자체가 안 붙는다

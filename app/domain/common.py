@@ -1,6 +1,6 @@
-
 class CommonMgr:
     _instance = None
+
     def __init__(self):
         pass
 
@@ -15,21 +15,21 @@ class CommonMgr:
         """
 
         # allregen_id를 키로 가지는 알러지 정보, 자식 알러지를 가지는 dict 생성
-        nodes = {row['allergen_id']: {**row, 'children': []} for row in rows}
+        nodes = {row["allergen_id"]: {**row, "children": []} for row in rows}
 
         # 최상위 알러지는 부모가 없기 때문에 roots로 따로 저장
         roots = []
 
         for node in nodes.values():
-            parent = nodes.get(node['parent_id'])
-            if parent: # 순회하면서, 노드의 부모가 있다면, 부모의 자식으로 노드를 저장
-                parent['children'].append(node)
-            else: # 부모가 없다면, roots에 저장
+            parent = nodes.get(node["parent_id"])
+            if parent:  # 순회하면서, 노드의 부모가 있다면, 부모의 자식으로 노드를 저장
+                parent["children"].append(node)
+            else:  # 부모가 없다면, roots에 저장
                 roots.append(node)
 
         # allerge_id 로 인덱싱 가능
-        self._allergen_hierarchy = nodes #알러지 정보 트리
-        self._allergen_roots = roots # 루트 노드들
+        self._allergen_hierarchy = nodes  # 알러지 정보 트리
+        self._allergen_roots = roots  # 루트 노드들
 
     def get_all_allergen_hierarchy(self):
         """
@@ -63,7 +63,7 @@ class CommonMgr:
         * 등록된 알러지원 이름(name_ko) 전체를 반환
         * 자유 텍스트에서 알러지 이름을 찾을 때 사용 (features/profile.py)
         """
-        return [node['name_ko'] for node in self._allergen_hierarchy.values()]
+        return [node["name_ko"] for node in self._allergen_hierarchy.values()]
 
     def resolve_allergen_ids(self, names: list[str]) -> list[int]:
         """
@@ -74,16 +74,16 @@ class CommonMgr:
         """
         ids = set()
         for node in self._allergen_hierarchy.values():
-            if node['name_ko'] in names:
-                ids.add(node['allergen_id'])
+            if node["name_ko"] in names:
+                ids.add(node["allergen_id"])
                 ids |= self._descendant_ids(node)
         return list(ids)
 
     def _descendant_ids(self, node: dict) -> set[int]:
         """node의 하위 알러지 id를 전부 모은다 (재귀)."""
         out = set()
-        for child in node['children']:
-            out.add(child['allergen_id'])
+        for child in node["children"]:
+            out.add(child["allergen_id"])
             out |= self._descendant_ids(child)
         return out
 
@@ -95,7 +95,7 @@ class CommonMgr:
         * k: animal_category_id
         * v: animal_category_info
         """
-        self._animal_category = {row['animal_category_id']: row for row in rows}
+        self._animal_category = {row["animal_category_id"]: row for row in rows}
 
     def get_animal_category(self, animal_category_id: int | None = None):
         """
@@ -115,12 +115,12 @@ class CommonMgr:
         * 못 찾으면 None
         """
         for category_id, row in self._animal_category.items():
-            if row['name_ko'] == name_ko:
+            if row["name_ko"] == name_ko:
                 return category_id
         return None
 
     @classmethod
-    def get_inst(cls): #싱글턴 패턴을 위한
+    def get_inst(cls):  # 싱글턴 패턴을 위한
         if cls._instance == None:
             cls._instance = CommonMgr()
         return cls._instance

@@ -14,9 +14,8 @@
 """
 
 TABLES = [
-
-# purchase — 구매 이력. 컬럼 설명은 docu/schema/purchase_schema.md#purchase
-'''
+    # purchase — 구매 이력. 컬럼 설명은 docu/schema/purchase_schema.md#purchase
+    """
 CREATE TABLE purchase (
     purchase_id           INTEGER NOT NULL PRIMARY KEY,
     pet_id                INTEGER NOT NULL
@@ -32,12 +31,10 @@ CREATE TABLE purchase (
 
     purchased_at          TEXT    NOT NULL CHECK (datetime(purchased_at) IS NOT NULL)
 ) STRICT
-''',
-
-# purchase 에 created_at / updated_at 은 없다 - UPDATE 가 없어 purchased_at 과 같은 값이 된다.
-
-# review — 후기. 구매 1건당 최대 1건. 컬럼 설명은 docu/schema/purchase_schema.md#review
-'''
+""",
+    # purchase 에 created_at / updated_at 은 없다 - UPDATE 가 없어 purchased_at 과 같은 값이 된다.
+    # review — 후기. 구매 1건당 최대 1건. 컬럼 설명은 docu/schema/purchase_schema.md#review
+    """
 CREATE TABLE review (
     purchase_id INTEGER NOT NULL PRIMARY KEY
         REFERENCES purchase(purchase_id) ON DELETE CASCADE,
@@ -47,16 +44,14 @@ CREATE TABLE review (
     is_holdout  INTEGER NOT NULL DEFAULT 0 CHECK (is_holdout IN (0, 1)),  -- 1 = 평가셋. 임베딩 제외
     reviewed_at TEXT    NOT NULL CHECK (datetime(reviewed_at) IS NOT NULL)
 ) STRICT
-''',
-
+""",
 ]
 
 
 INDEXES = [
     # "이 아이의 최근 구매" — 재구매 판정과 프로필 문맥이 전부 이 방향이다.
     # purchased_at 을 뒤에 붙여 정렬까지 인덱스가 처리한다(규칙 4: 날짜 단독 인덱스는 안 만든다).
-    'CREATE INDEX idx_purchase_pet      ON purchase(pet_id, purchased_at)',
-
+    "CREATE INDEX idx_purchase_pet      ON purchase(pet_id, purchased_at)",
     # 역방향: "이 제품을 산 사람들" — 제품별 후기 목록이 review 를 거쳐 이 인덱스를 탄다.
-    'CREATE INDEX idx_purchase_product  ON purchase(product_id, purchased_at)',
+    "CREATE INDEX idx_purchase_product  ON purchase(product_id, purchased_at)",
 ]

@@ -8,4 +8,5 @@ from app.domain.port import VectorStore
 def get_store(con) -> VectorStore:
     """VectorStore 구현을 돌려준다. 순환 import 를 피하려고 함수 안에서 import 한다."""
     from app.adapters.stores.sqlite_store import SqliteVectorStore
+
     return SqliteVectorStore(con)

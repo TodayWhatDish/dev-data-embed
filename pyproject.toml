@@ -31,6 +31,7 @@ dependencies = [
 dev = [
     "pytest",
     "httpx",
+    "ruff",
 ]
 
 # 채점기(eval/*)에만 필요하다. 서버를 돌리는 데는 하나도 안 쓴다 - ragas 가 pandas 와
@@ -50,6 +51,13 @@ eval = [
 trace = [
     "langsmith",
 ]
+
+[tool.ruff]
+line-length = 110
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]  # pycodestyle, pyflakes, import 정렬
+ignore = ["E501"]  # 한글 주석이 길어지는 줄이 많다 - 줄바꿈 강제보다 formatter 재량에 맡긴다
 
 # 자체검증 모아 돌리기. 수집 대상은 tests/test_selfchecks.py 하나뿐이다 -
 # 나머지 tests/*.py 는 test_ 로 시작하지 않아 pytest 가 안 줍는다(단독 실행 스크립트라서)

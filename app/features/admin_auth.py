@@ -6,7 +6,8 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 import jwt
-from app.core.config import JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRE_MINUTES, ADMIN_PASSWORD
+
+from app.core.config import ADMIN_PASSWORD, JWT_ALGORITHM, JWT_EXPIRE_MINUTES, JWT_SECRET
 
 
 def login(password: str) -> str:
@@ -21,4 +22,3 @@ def login(password: str) -> str:
         algorithm=JWT_ALGORITHM,
     )
     return token
-    

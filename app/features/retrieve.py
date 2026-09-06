@@ -2,19 +2,21 @@
 
 """chunk_vectors를 기반으로 유사리뷰를 찾는 행위를한다. (검색)
 
-   프로필 키를 기준으로 조각 점수를 반환하며, 사용자 쿼리 호출시 사용된다.
+프로필 키를 기준으로 조각 점수를 반환하며, 사용자 쿼리 호출시 사용된다.
 
-   DB 에는 repositories/embedding.py 를 통해서만 닿는다. features 에 SQL 이 있으면
-   스키마가 바뀔 때 고칠 곳이 두 층으로 흩어진다.
+DB 에는 repositories/embedding.py 를 통해서만 닿는다. features 에 SQL 이 있으면
+스키마가 바뀔 때 고칠 곳이 두 층으로 흩어진다.
 
-   FILTERS 의 조건절은 SQL 조각이지만 여기 남는다. 실행하는 게 아니라 벡터 검색에
-   넘길 WHERE 를 조립하는 것이고, 무엇으로 거를지는 검색 정책이라 features 의 일이다.
+FILTERS 의 조건절은 SQL 조각이지만 여기 남는다. 실행하는 게 아니라 벡터 검색에
+넘길 WHERE 를 조립하는 것이고, 무엇으로 거를지는 검색 정책이라 features 의 일이다.
 """
 
 import logging
 import sqlite3
+
 import sqlite_vec
-from app.core.config import EMBED_MODEL, EMBED_DIM, SIZE_CASE
+
+from app.core.config import EMBED_DIM, EMBED_MODEL, SIZE_CASE
 from app.core.embedder import embed_query
 
 logger = logging.getLogger()
@@ -55,7 +57,9 @@ def fmt_purchase_id(pid: int):
     """
     return f"O{pid:05d}"
 
+
 MIN_RATING = 3
+
 
 def build_where(profile):
     """프로필 딕셔너리를 WHERE 절과 바인딩 파라미터로 바꾼다.
@@ -75,12 +79,13 @@ def build_where(profile):
             continue
         # 알레르기처럼 값이 여러 개면 같은 조건절을 값마다 반복해 AND 로 묶는다.
         # 하나만 걸면 나머지 알레르겐이 든 상품이 그대로 통과한다.
-        for item in (value if isinstance(value, list) else [value]):
+        for item in value if isinstance(value, list) else [value]:
             clauses.append(clause)
             params.append(item)
 
     logger.debug(f"WHERE 조립: 조건 {len(clauses)}개, params={tuple(params)}")
     return " AND ".join(clauses) or "1=1", tuple(params)
+
 
 def chunk_fingerprint(con: sqlite3.Connection) -> str:
     """지금 chunks 테이블의 지문. embed.py:50 이 색인 때 남기는 것과 같은 식으로 계산한다."""
@@ -89,6 +94,7 @@ def chunk_fingerprint(con: sqlite3.Connection) -> str:
     ).fetchone()
     # n, id_sum, token_sum = embedding_repo.get_chunk_stats(con)
     return f"{n}:{id_sum}:{token_sum}"
+
 
 def check_freshness(con: sqlite3.Connection):
     """색인 시점의 모델,데이터 지문을 지금 DB와 비교해 어긋난 점을 문장 목록으로 돌려준다. 맞으면 빈 목록.
@@ -107,17 +113,13 @@ def check_freshness(con: sqlite3.Connection):
         )
 
     if meta.get("dim") != str(EMBED_DIM):
-        problems.append(
-            f"색인 벡터는 {meta.get('dim')}차원인데 지금 모델은 {EMBED_DIM}차원입니다."
-        )
+        problems.append(f"색인 벡터는 {meta.get('dim')}차원인데 지금 모델은 {EMBED_DIM}차원입니다.")
 
     # embed.py:50 이 색인 시점에 남긴 조각 지문을 지금 chunks 로 다시 계산해 대조한다.
     # chunk.py 만 돌리고 embed.py 를 잊는 게 재색인 사이클에서 가장 흔한 실수다.
     now = chunk_fingerprint(con)
     if meta.get("source") != now:
-        problems.append(
-            f"색인 당시 조각 지문은 '{meta.get('source')}' 인데 지금 chunks 는 '{now}' 입니다."
-        )
+        problems.append(f"색인 당시 조각 지문은 '{meta.get('source')}' 인데 지금 chunks 는 '{now}' 입니다.")
 
     if problems:
         problems.append("chunk.py 와 embed.py 를 다시 실행하세요.")
@@ -129,7 +131,8 @@ def check_freshness(con: sqlite3.Connection):
 
     return problems
 
-def search(con, query, where = "1=1", params: tuple = (), top_k: int = 3):
+
+def search(con, query, where="1=1", params: tuple = (), top_k: int = 3):
     """입력된 자연어 질문 하나를 받아서, DB에 저장된 리뷰 조각들 중 질문과 의미가 가장 비슷한 것을 최대 top_k개 뽑아준다.
     질문 -> 벡터 -> DB안 벡터들과 거리 비교 -> 정렬 -> 중복 제거 -> 최종 까지의 프로세스를 거친다."""
 
@@ -139,12 +142,13 @@ def search(con, query, where = "1=1", params: tuple = (), top_k: int = 3):
     # embed_query()가 QUERY_PREFIX와 정규화를 다 챙긴다 - 모델이 로컬이든 API든 여기는 안 바뀐다.
     q_vec = sqlite_vec.serialize_float32(embed_query(query))
 
-    # 1 con : 사용자검색하면 FastAPI 엔드포인트가 요청받고 엔드포인트 함수 동작함. 
+    # 1 con : 사용자검색하면 FastAPI 엔드포인트가 요청받고 엔드포인트 함수 동작함.
     # 2 con이 DB에 SQL날려서 정보를 가지고 con통로로 다시 보내줌
     # query : FastAPI 엔드포인트가 요청으로 받은 사용자가 타이핑한 자연어를 얘가 받음.
-    
+
     # rows는 chunk 하나 당 한줄을 의미한다.
-    rows = con.execute(f"""
+    rows = con.execute(
+        f"""
         SELECT v.purchase_id, pu.product_id, c.body, vec_distance_cosine(v.vector, ?) AS distance
         FROM chunk_vectors AS v
         JOIN chunks AS c ON c.purchase_id = v.purchase_id AND c.chunk_index = v.chunk_index
@@ -152,15 +156,17 @@ def search(con, query, where = "1=1", params: tuple = (), top_k: int = 3):
         JOIN review AS r ON r.purchase_id = pu.purchase_id
         WHERE {where}
         ORDER BY distance
-    """, (q_vec, *params)).fetchall()
+    """,
+        (q_vec, *params),
+    ).fetchall()
 
     # rows 사용자 자연어랑 비교할 것들을 쿼리문생성
-    # rows 구매건 번호, 리뷰 조각들, 검색어 거리 
+    # rows 구매건 번호, 리뷰 조각들, 검색어 거리
     # rows 리뷰조각들 여러개 일수가 있습니다 아래서 제일 비슷한 조각 하나만 남겨줌.
 
     best = {}
     for purchase_id, product_id, body, distance in rows:
-        if purchase_id not in best or distance < best[purchase_id][2]: 
+        if purchase_id not in best or distance < best[purchase_id][2]:
             best[purchase_id] = (product_id, body, distance)
     # best 구매건마다 사용자 검색어랑 비슷한 조각들을 담음.
     # best 구매건ID 중복으로 들어온다면 distance 코사인을 비교해 유사도 높은 것만 남김
@@ -171,7 +177,7 @@ def search(con, query, where = "1=1", params: tuple = (), top_k: int = 3):
         if product_id not in best_per_product or distance < best_per_product[product_id][-1]:
             best_per_product[product_id] = (purchase_id, body, distance)
 
-    ranked = sorted(best_per_product.values(), key=lambda item: item[-1])[:top_k] 
+    ranked = sorted(best_per_product.values(), key=lambda item: item[-1])[:top_k]
     return [(purchase_id, 1 - distance, body) for purchase_id, body, distance in ranked]
 
     # 반환시 1 빼기 각 코사인거리를 빼주니까 유사도가 높은 순대로 나옴 유사도 높은것 3개만 남김

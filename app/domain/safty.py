@@ -10,9 +10,9 @@
 from app.domain.common import CommonMgr
 from app.domain.products import ProductMgr
 
-WARN = '위험'
-UNKNOWN = '판정불가'
-SAFE = '안전'
+WARN = "위험"
+UNKNOWN = "판정불가"
+SAFE = "안전"
 
 
 def _hit_allergens(ingredient_ids, pet_allergen_ids):
@@ -32,11 +32,12 @@ def _hit_allergens(ingredient_ids, pet_allergen_ids):
 
     allergen_of_ingredient = ProductMgr.get_inst().get_ingredient_allergen
 
-
     # 제품이 가진 재료 -> 알러지 정보 추출하여 set으로 저장
-    product_allergens = {allergen_id
-                         for ingredient_id in ingredient_ids
-                         for allergen_id in allergen_of_ingredient(ingredient_id)}
+    product_allergens = {
+        allergen_id
+        for ingredient_id in ingredient_ids
+        for allergen_id in allergen_of_ingredient(ingredient_id)
+    }
 
     # 교집합을 확인
     return product_allergens & set(pet_allergen_ids)
@@ -53,23 +54,23 @@ def judge(product_ingredient_ids, pet_allergen_ids, ingredients_verified):
     * 반환: (판정, 근거 문장)
     * 판정: WARN(위험) / UNKNOWN(판정불가) / SAFE(안전) 3분법
     * 근거 문장: 안전이면 빈 문자열
-    
+
     # params
     * product_ingredient_ids: 그 상품의 원료 id 목록 (product_ingredient)
     * pet_allergen_ids: 그 반려동물에게 등록된 알러지원 id 목록 (pet_allergy)
     * ingredients_verified: product.ingredients_verified. 0 이면 원료표를 사람이 확인한 적이 없다
     """
     if not product_ingredient_ids:
-        return UNKNOWN, '원료표가 존재하지 않을 수 없습니다.'
-    
+        return UNKNOWN, "원료표가 존재하지 않을 수 없습니다."
+
     hits = _hit_allergens(product_ingredient_ids, pet_allergen_ids)
 
     if hits:
         common = CommonMgr.get_inst()
-        names = ', '.join(sorted(common.get_allergen(aid)['name_ko'] for aid in hits))
-        return WARN, f'{names} 알러지원이 들어 있습니다'
+        names = ", ".join(sorted(common.get_allergen(aid)["name_ko"] for aid in hits))
+        return WARN, f"{names} 알러지원이 들어 있습니다"
 
     if not ingredients_verified or ingredients_verified == 0:
-        return UNKNOWN, '원료표를 사람이 확인한 적이 없습니다'
+        return UNKNOWN, "원료표를 사람이 확인한 적이 없습니다"
 
-    return SAFE, ''
+    return SAFE, ""

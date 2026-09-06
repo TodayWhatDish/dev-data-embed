@@ -25,12 +25,15 @@ def attach_names(rows: list[dict]) -> list[dict]:
     for row in rows:
         # 마스터에 없는 id 는 이름 대신 None 이다. 여기서 터뜨리면 펫 목록 전체가 안 뜬다 -
         # 화면은 한 칸이 비는 걸로 끝나고, 원인은 마스터 적재 로그에서 찾는 게 맞다
-        category = cmgr.get_animal_category(row['animal_category_id'])
-        ids = row.get('allergen_ids')
-        out.append({**row,
-                    'animal_category': category['name_ko'] if category else None,
-                    'allergies': [cmgr.get_allergen(int(i))['name_ko']
-                                  for i in ids.split(',')] if ids else []})
+        category = cmgr.get_animal_category(row["animal_category_id"])
+        ids = row.get("allergen_ids")
+        out.append(
+            {
+                **row,
+                "animal_category": category["name_ko"] if category else None,
+                "allergies": [cmgr.get_allergen(int(i))["name_ko"] for i in ids.split(",")] if ids else [],
+            }
+        )
     return out
 
 
@@ -44,7 +47,9 @@ class PetMgr:
     # Summary
     * pet 도메인 마스터(breed) 캐시
     """
+
     _instance = None
+
     def __init__(self):
         pass
 
@@ -62,7 +67,7 @@ class PetMgr:
         # ex) 강아지 - [포메, 웰시, 겨울이, 시바견, 진도개...]
         # ex) 고양이 - [먼치킨, 코숏...]
         for row in rows:
-            breeds.setdefault(row['animal_category_id'], []).append(row)
+            breeds.setdefault(row["animal_category_id"], []).append(row)
 
         self._breeds = breeds
 
@@ -83,7 +88,7 @@ class PetMgr:
         return self._breeds
 
     @classmethod
-    def get_inst(cls): #싱글턴 패턴을 위한
+    def get_inst(cls):  # 싱글턴 패턴을 위한
         if cls._instance == None:
             cls._instance = PetMgr()
         return cls._instance

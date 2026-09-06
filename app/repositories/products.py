@@ -1,7 +1,7 @@
-from app.core.db import QueryError
-from app.repositories.general_query import (select, select_all, select_range,
-                                            insert_query, update_query)
 import logging
+
+from app.core.db import QueryError
+from app.repositories.general_query import insert_query, select, select_all, select_range, update_query
 
 # 단일 테이블 + = 조건인 쿼리는 general_query 로 간다. SQL 을 손으로 쓰지 않는 것보다,
 # 컬럼 이름이 틀렸을 때 QueryError('unknown_column') 로 통일되는 게 크다 —
@@ -12,7 +12,7 @@ import logging
 #     fetch_tuples("""
 #     SELECT *
 #     FROM product
-#     JOIN 
+#     JOIN
 #     """)
 #     pass
 
@@ -24,11 +24,14 @@ import logging
 #           )
 #     pass
 
+
 def get_product_categories():
     return select_all("product_category")
 
+
 def get_feeding_purposes():
     return select_all("feeding_purpose")
+
 
 def get_ingredients():
     return select_all("ingredient")
@@ -40,25 +43,32 @@ def get_ingredients():
 # 예전엔 컬럼 두 개만 뽑으려고 fetch_tuples 로 SQL 을 직접 썼다. select_all 이 cols 를 받게
 # 되면서 그 이유가 없어졌다 - 컬럼 이름이 붙어 오니 받는 쪽이 자리로 풀지 않아도 된다
 
+
 def get_products():
     return select("product", {"is_active": 1})
+
 
 def get_product_animal_category_ids():
     return select_all("product_animal_category", None, ["product_id", "animal_category_id"])
 
+
 def get_product_feeding_purpose_ids():
     return select_all("product_feeding_purpose", None, ["product_id", "feeding_purpose_id"])
+
 
 def get_product_ingredient_ids():
     return select_all("product_ingredient", None, ["product_id", "ingredient_id"])
 
+
 def get_product_nutritions():
     return select_all("product_nutrition")
+
 
 def find_by_id(product_id: int) -> dict | None:
     """상품 한 건 조회. 없으면 None (예외가 아니다 — 부른 쪽이 404 를 정한다)"""
     rows = select("product", {"product_id": product_id})
     return rows[0] if rows else None
+
 
 def find_page(page: int, size: int) -> list[dict]:
     """상품 여러 건 조회
@@ -76,11 +86,13 @@ def find_page(page: int, size: int) -> list[dict]:
     except QueryError as e:
         # 거절 사유와 실제로 계산된 offset 을 아는 건 여기다. features 는 page/size 만 안다
         logging.getLogger().warning(
-            f"Reject find_page: reason={e.reason}, page={page}, size={size}, offset={offset}, detail={e.detail}")
-        raise            # 인자 없는 raise 여야 원래 트레이스백이 안 날아간다
+            f"Reject find_page: reason={e.reason}, page={page}, size={size}, offset={offset}, detail={e.detail}"
+        )
+        raise  # 인자 없는 raise 여야 원래 트레이스백이 안 날아간다
 
     logging.getLogger().debug(f"Find page product, page: {page}, size: {size}, rows: {len(products)}")
     return products
+
 
 def insert(values: dict) -> int:
     """상품 한 건을 등록하고 새로 생긴 product_id를 돌려준다.
@@ -89,11 +101,12 @@ def insert(values: dict) -> int:
     아는 건 여기라, 로그는 여기서 찍고 예외는 그대로 위로 넘긴다.
     """
     try:
-        product_id = insert_query('product', values)
+        product_id = insert_query("product", values)
     except QueryError as e:
         logging.getLogger().warning(
-            f"Reject insert product: reason={e.reason}, cols={list(values.keys())}, detail={e.detail}")
-        raise            # 인자 없는 raise 여야 원래 트레이스백이 안 날아간다
+            f"Reject insert product: reason={e.reason}, cols={list(values.keys())}, detail={e.detail}"
+        )
+        raise  # 인자 없는 raise 여야 원래 트레이스백이 안 날아간다
 
     logging.getLogger().debug(f"Insert product, product_id: {product_id}, cols: {list(values.keys())}")
     return product_id
@@ -106,11 +119,13 @@ def update_product(product_id: int, values: dict) -> int:
     아는 건 여기라, 로그는 여기서 찍고 예외는 그대로 위로 넘긴다.
     """
     try:
-        return update_query('product', values, {'product_id' : product_id})
+        return update_query("product", values, {"product_id": product_id})
     except QueryError as e:
         logging.getLogger().warning(
-            f"Reject update product: reason={e.reason}, product_id={product_id}, detail={e.detail}")
-        raise            # 인자 없는 raise 여야 원래 트레이스백이 안 날아간다
+            f"Reject update product: reason={e.reason}, product_id={product_id}, detail={e.detail}"
+        )
+        raise  # 인자 없는 raise 여야 원래 트레이스백이 안 날아간다
+
 
 def inactive_product(product_id: int) -> int:
     """상품 한 건을 비활성화(is_active=0)하고 고친 행 수를 돌려준다. 없는 id 면 예외가 아니라 0 이다.
@@ -118,7 +133,8 @@ def inactive_product(product_id: int) -> int:
     행을 지우지 않는다 — 구매 이력이 product_id 를 참조하고 있어서 DELETE 는 constraint_fk 로
     막히거나 이력을 끊는다. 조회 쪽은 get_products / v_safe_products 가 is_active = 1 로 거른다.
     """
-    return update_product(product_id, {'is_active': 0})
+    return update_product(product_id, {"is_active": 0})
+
 
 def get_ingredient_allergen_ids():
     return select_all("ingredient_allergen", None, ["ingredient_id", "allergen_id"])

@@ -3,7 +3,8 @@
 
 import sqlite3
 import threading
-from app.core.config import DB_PATH, INDEX_FILTER
+
+from app.core.config import DB_PATH
 
 # 스레드마다 자기 커넥션을 쓴다. 전에는 모듈 전역 커넥션 하나를 check_same_thread=False 로 열어
 # 다 같이 썼는데, 라우트가 전부 def(= async 아님)라 FastAPI 가 스레드풀에서 돌린다.
@@ -44,6 +45,7 @@ class QueryError(Exception):
     * table: 어느 테이블에서 났는지. 모르면 None
     * detail: 어떤 컬럼이 틀렸는지 등 사람이 볼 부연
     """
+
     def __init__(self, reason, table=None, detail=None):
         super().__init__(f"{reason}: table={table}, detail={detail}")
         self.reason = reason
@@ -53,11 +55,11 @@ class QueryError(Exception):
 
 # sqlite 제약 위반 이름 -> reason. 메시지 문자열을 파싱하지 않으려고 errorname 을 쓴다
 CONSTRAINT_REASON = {
-    'SQLITE_CONSTRAINT_UNIQUE':     'constraint_unique',
-    'SQLITE_CONSTRAINT_PRIMARYKEY': 'constraint_unique',
-    'SQLITE_CONSTRAINT_CHECK':      'constraint_check',
-    'SQLITE_CONSTRAINT_FOREIGNKEY': 'constraint_fk',
-    'SQLITE_CONSTRAINT_NOTNULL':    'constraint_notnull',
+    "SQLITE_CONSTRAINT_UNIQUE": "constraint_unique",
+    "SQLITE_CONSTRAINT_PRIMARYKEY": "constraint_unique",
+    "SQLITE_CONSTRAINT_CHECK": "constraint_check",
+    "SQLITE_CONSTRAINT_FOREIGNKEY": "constraint_fk",
+    "SQLITE_CONSTRAINT_NOTNULL": "constraint_notnull",
 }
 
 
@@ -74,8 +76,9 @@ def execute(sql, params=(), table=None) -> sqlite3.Cursor:
         con.commit()
         return cur
     except sqlite3.IntegrityError as e:
-        raise QueryError(CONSTRAINT_REASON.get(getattr(e, 'sqlite_errorname', ''), 'constraint_other'),
-                         table, str(e)) from e
+        raise QueryError(
+            CONSTRAINT_REASON.get(getattr(e, "sqlite_errorname", ""), "constraint_other"), table, str(e)
+        ) from e
 
 
 def fetch(sql, params=()) -> list[dict]:

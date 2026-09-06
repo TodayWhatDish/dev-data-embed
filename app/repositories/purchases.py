@@ -12,6 +12,7 @@ from app.repositories.general_query.insert import insert_query
 
 logger = logging.getLogger()
 
+
 def get_product_id(purchase_id: int) -> int | None:
     """이 구매가 산 상품의 id. 없는 구매면 None.
 
@@ -22,18 +23,21 @@ def get_product_id(purchase_id: int) -> int | None:
     rows = select("purchase", {"purchase_id": purchase_id})
     return rows[0]["product_id"] if rows else None
 
+
 def count_for_product(product_id: int) -> int:
     """이 상품이 몇 번 팔렸는지"""
     try:
-        return fetch_tuple_one("SELECT COUNT(*) FROM purchase WHERE product_id = ?",(product_id,))[0]
+        return fetch_tuple_one("SELECT COUNT(*) FROM purchase WHERE product_id = ?", (product_id,))[0]
     except sqlite3.Error:
         logger.exception(f"purchase 집계 실패: product_id={product_id}")
         raise
     # COUNT(*) 는 맞는 행이 없어도 (0,) 을 준다. 여기서만 [0] 이 안전한 이유다
 
+
 def list_by_user(user_id: int) -> list[dict]:
     """이 회원의 구매 내역 전체. 리뷰를 쓴 건이면 rating/review_body가 같이 붙는다(없으면 NULL)."""
-    return fetch("""
+    return fetch(
+        """
         SELECT pu.purchase_id, pu.purchased_at, p.product_id, p.name AS product_name,
                r.rating, r.body AS review_body
         FROM purchase AS pu
@@ -42,36 +46,51 @@ def list_by_user(user_id: int) -> list[dict]:
         LEFT JOIN review AS r ON r.purchase_id = pu.purchase_id
         WHERE pe.user_id = ?
         ORDER BY pu.purchased_at DESC
-    """, (user_id,))
+    """,
+        (user_id,),
+    )
+
 
 def is_owned_by(purchase_id: int, user_id: int) -> bool:
     """이 구매가 이 회원 것인지. 리뷰를 쓰기 전에 남의 구매를 못 건드리게 막는다."""
-    rows = fetch("""
+    rows = fetch(
+        """
         SELECT 1 FROM purchase AS pu JOIN pet AS pe ON pe.pet_id = pu.pet_id
         WHERE pu.purchase_id = ? AND pe.user_id = ?
-    """, (purchase_id, user_id))
+    """,
+        (purchase_id, user_id),
+    )
     return bool(rows)
+
 
 def create_purchase(pet_id: int, product_id: int, quantity: int, unit_price_krw: int) -> int:
     """구매 한 건을 남긴다. age_month_at_purchase/size_at_purchase는 지금 계산할 근거가
     마땅치 않아 비운다(둘 다 NULL 허용 컬럼)."""
-    return insert_query("purchase", {
-        "pet_id": pet_id,
-        "product_id": product_id,
-        "quantity": quantity,
-        "unit_price_krw": unit_price_krw,
-        "purchased_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    })
+    return insert_query(
+        "purchase",
+        {
+            "pet_id": pet_id,
+            "product_id": product_id,
+            "quantity": quantity,
+            "unit_price_krw": unit_price_krw,
+            "purchased_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        },
+    )
+
 
 def create_review(purchase_id: int, rating: int, body: str) -> None:
     """구매 건에 리뷰를 남긴다. purchase_id가 review의 PK라 이미 리뷰가 있으면
     QueryError('constraint_unique')가 난다 - 부르는 쪽(features)이 잡는다."""
-    insert_query("review", {
-        "purchase_id": purchase_id,
-        "rating": rating,
-        "body": body,
-        "reviewed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    })
+    insert_query(
+        "review",
+        {
+            "purchase_id": purchase_id,
+            "rating": rating,
+            "body": body,
+            "reviewed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        },
+    )
+
 
 def find_products_by_purchase_ids(purchase_ids: list[int]) -> dict[int, dict]:
     """purchase_id 목록으로 상품 정보를 한 번에 묶어온다. candidates()의 N+1 조회를 대체한다.
@@ -80,11 +99,13 @@ def find_products_by_purchase_ids(purchase_ids: list[int]) -> dict[int, dict]:
     if not purchase_ids:
         return {}
     marks = ", ".join("?" for _ in purchase_ids)
-    rows = fetch(f"""
+    rows = fetch(
+        f"""
         SELECT pu.purchase_id, p.product_id, p.name, p.brand, p.price_krw, p.product_category_id
         FROM purchase AS pu
         JOIN product AS p ON p.product_id = pu.product_id
         WHERE pu.purchase_id IN ({marks})
-    """, tuple(purchase_ids))
+    """,
+        tuple(purchase_ids),
+    )
     return {row["purchase_id"]: row for row in rows}
-

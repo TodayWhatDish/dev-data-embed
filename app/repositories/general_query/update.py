@@ -6,29 +6,30 @@
   * update_query_all : 전체 UPDATE 를 하겠다고 부른 쪽이 True 를 적어야만 나간다
 '전체를 고친다' 는 뜻이 함수 이름과 인자에 드러나 있어야 실수로 도달하지 않는다.
 """
-from app.core.db import execute, QueryError
+
+from app.core.db import QueryError, execute
 from app.repositories.general_query.columns import ColumnMgr, where_clause
 
 
-def update_query_all(table : str, update_val : dict, is_verified : bool | None = False):
+def update_query_all(table: str, update_val: dict, is_verified: bool | None = False):
     """
-        # summary
-        * 범용적인 TABLE 전체 UPDATE 쿼리
+    # summary
+    * 범용적인 TABLE 전체 UPDATE 쿼리
 
-        # params
-        * table: table name
-        * update_val: 업데이트 값
-            * dict 형태로 k = v, k = v ...
-        * is_verfied : 사용자 확인 **(주의)**
-            * 해당 쿼리는 테이블 전체가 업데이트이기 때문에, 항상 쿼리를 수행한 당사자가 True를 인자로 넣어야합니다.
-            * 인자가 없으면 수행되지 않고, QueryError 를 냅니다.
+    # params
+    * table: table name
+    * update_val: 업데이트 값
+        * dict 형태로 k = v, k = v ...
+    * is_verfied : 사용자 확인 **(주의)**
+        * 해당 쿼리는 테이블 전체가 업데이트이기 때문에, 항상 쿼리를 수행한 당사자가 True를 인자로 넣어야합니다.
+        * 인자가 없으면 수행되지 않고, QueryError 를 냅니다.
 
-        # return value
-        * 0 < : 업데이트 된 행의 갯수
-        * 0   : 업데이트 된 행이 없음
+    # return value
+    * 0 < : 업데이트 된 행의 갯수
+    * 0   : 업데이트 된 행이 없음
 
-        # raises
-        * QueryError: 쿼리를 만들지 못했거나 DB 가 거절했습니다. reason 에 사유가 들어있습니다
+    # raises
+    * QueryError: 쿼리를 만들지 못했거나 DB 가 거절했습니다. reason 에 사유가 들어있습니다
     """
     if not is_verified:
         raise QueryError("not_verified", table)
@@ -49,7 +50,8 @@ def update_query_all(table : str, update_val : dict, is_verified : bool | None =
     # execute 는 파라미터를 시퀀스 하나로 받는다. 풀어서 넘기면 두 번째 인자로 들어가 터진다
     return execute(f"UPDATE {table} SET {sets}", tuple(update_val.values()), table).rowcount
 
-def update_query(table : str, update_val : dict, where : dict):
+
+def update_query(table: str, update_val: dict, where: dict):
     """
     # summary
     * 범용적인 UPDATE 쿼리
@@ -90,5 +92,4 @@ def update_query(table : str, update_val : dict, where : dict):
     # WHERE 쪽 컬럼 검사도 여기서 같이 된다
     clause, params = where_clause(table, cols, where)
     # SET 값이 먼저, WHERE 값이 나중 - ? 자리 순서와 같아야 한다
-    return execute(f"UPDATE {table} SET {sets}{clause}",
-                   (*update_val.values(), *params), table).rowcount
+    return execute(f"UPDATE {table} SET {sets}{clause}", (*update_val.values(), *params), table).rowcount

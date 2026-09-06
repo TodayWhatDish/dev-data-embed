@@ -11,6 +11,7 @@ golden.py 와 무엇이 다른가. 저기는 홀드아웃 리뷰 '전문'을 질
 
 LLM 을 한 번도 안 부른다 - 요금이 안 든다.
 """
+
 import json
 import sqlite3
 import sys
@@ -19,9 +20,8 @@ from pathlib import Path
 sys.stdout.reconfigure(errors="replace")
 
 from app.features.searching import candidates as search_candidates
-from pipeline.vector_db import connect
-
 from eval.tracing import banner, eval_run, warm_domain
+from pipeline.vector_db import connect
 
 GOLDEN = json.loads((Path(__file__).parent / "qa_golden.json").read_text(encoding="utf-8"))
 ITEMS = GOLDEN["items"]
@@ -161,7 +161,9 @@ def main() -> int:
             precision = sum(r["n_match"] for r in rows) / n_returned * 100 if n_returned else 0.0
             wrong_animal = sum(r["n_wrong_animal"] for r in rows)
 
-            print(f"  hit@{K} {hit:.0f}%  ·  precision@{K} {precision:.0f}%   ({n}문항 · 후보 {n_returned}건)")
+            print(
+                f"  hit@{K} {hit:.0f}%  ·  precision@{K} {precision:.0f}%   ({n}문항 · 후보 {n_returned}건)"
+            )
             print(f"  축종이 어긋난 후보 {wrong_animal}/{n_returned}건")
             print()
             print("  hit@k 는 '상위 k 에 맞는 게 하나라도 있나', precision@k 는 '몇 개나 맞나'다.")
@@ -181,13 +183,15 @@ def main() -> int:
                 if r["n_unsafe"]:
                     print(f"      {r['id']}번: {r['question']}  -> 위반 {r['n_unsafe']}건 {r['got']}")
 
-            run.record(**{
-                f"hit@{K}": round(hit, 1),
-                f"precision@{K}": round(precision, 1),
-                "축종_어긋남": wrong_animal,
-                "알레르기_위반": unsafe,
-                "후보_건수": n_returned,
-            })
+            run.record(
+                **{
+                    f"hit@{K}": round(hit, 1),
+                    f"precision@{K}": round(precision, 1),
+                    "축종_어긋남": wrong_animal,
+                    "알레르기_위반": unsafe,
+                    "후보_건수": n_returned,
+                }
+            )
 
             misses = [r for r in rows if not r["hit"]]
             if misses:

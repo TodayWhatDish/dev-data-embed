@@ -6,16 +6,23 @@
 from app.core.db import fetch, fetch_one
 from app.repositories.general_query.insert import insert_query
 
+
 def find_user_by_email(email: str) -> dict | None:
     """로그인/가입 시 이메일 중복 확인. email 은 UNIQUE라 최대 한 행."""
     return fetch_one("SELECT user_id, password_hash FROM user WHERE email = ?", (email,))
 
 
-def create_user(email: str, name: str, password_hash: str,
-                 phone: str | None = None, region: str | None = None) -> int:
+def create_user(
+    email: str, name: str, password_hash: str, phone: str | None = None, region: str | None = None
+) -> int:
     """local 회원가입. auth_uid는 로컬 계정엔 별도 외부 ID가 없어 email을 그대로 쓴다."""
-    values = {"auth_provider": "local", "auth_uid": email, "email": email,
-              "password_hash": password_hash, "name": name}
+    values = {
+        "auth_provider": "local",
+        "auth_uid": email,
+        "email": email,
+        "password_hash": password_hash,
+        "name": name,
+    }
     if phone:
         values["phone"] = phone
     if region:
@@ -52,16 +59,20 @@ def list_users() -> list[dict]:
 
 def get_user_detail(user_id: int) -> dict | None:
     """고객 한 명의 프로필 + 반려동물 + 구매이력을 한 번에 묶는다."""
-    user = fetch_one("""
+    user = fetch_one(
+        """
         SELECT user_id, name, email, phone, region, created_at, last_login_at
         FROM user WHERE user_id = ?
-    """, (user_id,))
+    """,
+        (user_id,),
+    )
     if not user:
         return None
 
     # allergies/diet_note/skin_note는 관리자 화면 설문 요약용 - allergies는 이름을 콤마로 합친 문자열이다
     # (list_users()의 species와 같은 방식). pet_survey는 가입 때 한 번 없을 수 있어 LEFT JOIN.
-    user["pets"] = fetch("""
+    user["pets"] = fetch(
+        """
         SELECT pe.pet_id, pe.name, ac.name_ko AS animal_category, pe.gender, pe.birth_date,
                pe.weight_kg, pe.neutered, pe.size, pe.activity_level,
                ps.diet_note, ps.skin_note,
@@ -73,11 +84,14 @@ def get_user_detail(user_id: int) -> dict | None:
         JOIN animal_category AS ac ON ac.animal_category_id = pe.animal_category_id
         LEFT JOIN pet_survey AS ps ON ps.pet_id = pe.pet_id
         WHERE pe.user_id = ?
-    """, (user_id,))
+    """,
+        (user_id,),
+    )
 
     # product_category_id 를 그대로 준다. 사료/간식으로 접는 건 분류 트리를 걸어야 하는 일이고,
     # 트리를 들고 있는 건 ProductMgr 캐시다 - domain.products.attach_product_type 이 붙인다
-    user["purchases"] = fetch("""
+    user["purchases"] = fetch(
+        """
         SELECT pu.purchase_id, pu.purchased_at, pu.unit_price_krw, pu.quantity,
                p.product_id, p.name AS product_name, r.rating, r.body AS review_body,
                p.product_category_id
@@ -87,6 +101,8 @@ def get_user_detail(user_id: int) -> dict | None:
         LEFT JOIN review AS r ON r.purchase_id = pu.purchase_id
         WHERE pe.user_id = ?
         ORDER BY pu.purchased_at DESC
-    """, (user_id,))
+    """,
+        (user_id,),
+    )
 
     return user

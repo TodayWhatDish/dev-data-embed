@@ -7,6 +7,7 @@ STEPS 표에 한 줄 넣는 것이 채점기를 붙이는 유일한 절차다. �
 
 요금 여부를 표에 박아 두는 이유: 'all' 이 돈을 쓰면 아무도 all 을 못 돌린다.
 """
+
 import runpy
 import sys
 

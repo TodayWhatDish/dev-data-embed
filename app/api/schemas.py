@@ -1,28 +1,32 @@
 # Last updated: 2026-09-03
 # Last Updated : 2026-08-31
 
-""" API 요청/응답 형태를 정의하는 자리. 라우트 함수는 이 모델로 입출력을 검증한다.
-    들어오는 값들이 각 클래스별 클래스 변수들이 맞는지 봄.
+"""API 요청/응답 형태를 정의하는 자리. 라우트 함수는 이 모델로 입출력을 검증한다.
+들어오는 값들이 각 클래스별 클래스 변수들이 맞는지 봄.
 
-    브라우저(JS) → POST /search 요청 보냄 → FastAPI 서버가 처리 → 
-    SearchResponse 모양으로 응답 만듦 → 그 응답이 다시 브라우저로 돌아감 → 
-    JS가 그거 받아서 화면에 검색결과 뿌림
+브라우저(JS) → POST /search 요청 보냄 → FastAPI 서버가 처리 →
+SearchResponse 모양으로 응답 만듦 → 그 응답이 다시 브라우저로 돌아감 →
+JS가 그거 받아서 화면에 검색결과 뿌림
 """
 
 from pydantic import BaseModel, Field
 
+
 class RecommendRequest(BaseModel):
     """routes/recommend 요청 바디. profile.build_profile()의 raw 인자 + candidates()/recommend()가 쓰는 값."""
+
     user_query: str
     animal_category: str | None = None
     size_category: str | None = None
     allergy: str | None = None
     n_pick: int = 5
 
+
 class AskRequest(BaseModel):
     """routes/ask 요청 바디. pet_id 를 주면 그 펫의 DB 프로필을 그대로 쓴다(관리자 대시보드용).
     user_id 를 주면 그 고객의 실제 구매 이력을 [고객 정보]로 함께 넘긴다 - 없으면 검색 후보와
     실제 구매가 섞여서 '이 고객' 질문에 LLM이 근거 없이 답할 수 있다."""
+
     user_query: str
     pet_id: int | None = None
     user_id: int | None = None
@@ -30,33 +34,43 @@ class AskRequest(BaseModel):
     size_category: str | None = None
     allergy: str | None = None
 
+
 class AskMeRequest(BaseModel):
     """routes/ask 의 /ask/me 요청 바디 - 일반 회원용. user_id/pet_id를 안 받는다 -
     토큰(get_current_user)에서만 가져와야 다른 회원 구매 이력을 못 들여다본다."""
+
     user_query: str
+
 
 class Pick(BaseModel):
     product_id: int
     reason: str
 
+
 class RecommendResponse(BaseModel):
     """recommend()의 (picks, retries, last_error) 튜플을 그대로 담는다."""
+
     picks: list[Pick]
     retries: int
     error: str
+
 
 class AuthResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
 
+
 class AdminLoginRequest(BaseModel):
     """관리자 로그인 - 계정 없이 공용 비밀번호만 받는다."""
+
     password: str
+
 
 class SignupRequest(BaseModel):
     """일반 회원가입 - 계정 정보 + 반려동물(강아지) 프로필 + 설문(알러지/식성/피부/활동량)을 한 번에 받는다.
     gender는 pet 테이블 CHECK 제약과 같은 값('M'/'F')만 받는다.
     pet_allergies는 GET /allergens가 준 이름(name_ko) 그대로 - id는 서버가 CommonMgr로 알아서 바꾼다."""
+
     email: str
     password: str
     name: str
@@ -73,22 +87,29 @@ class SignupRequest(BaseModel):
     diet_note: str | None = None
     skin_note: str | None = None
 
+
 class LoginRequest(BaseModel):
     email: str
     password: str
 
+
 class ReviewRequest(BaseModel):
     """POST /me/purchases/{id}/review 요청 바디. review 테이블 CHECK 제약과 같은 범위만 받는다."""
+
     rating: int = Field(ge=1, le=5)
     body: str = Field(min_length=1)
 
+
 class BuyRequest(BaseModel):
     """POST /me/purchases 요청 바디 - 추천 카드의 '구매하기'가 보낸다."""
+
     product_id: int
     quantity: int = Field(default=1, ge=1)
 
+
 class ProductCreate(BaseModel):
     """상품 등록 요청 바디. product 테이블 컬럼 중 서버가 채우는 값(product_id, created_at, updated_at)만 뺐다."""
+
     product_category_id: int
     brand: str
     name: str
@@ -104,8 +125,10 @@ class ProductCreate(BaseModel):
     ingredients_verified: int = 0
     is_active: int = 1
 
+
 class ProductUpdate(BaseModel):
     """상품 수정 요청 바디. 준 필드만 바꾼다 — 전부 선택값."""
+
     product_category_id: int | None = None
     brand: str | None = None
     name: str | None = None
@@ -121,10 +144,10 @@ class ProductUpdate(BaseModel):
     ingredients_verified: int | None = None
     is_active: int | None = None
 
+
 class Product(ProductCreate):
     """상품 조회 응답 바디. product 테이블 컬럼 전부."""
+
     product_id: int
     created_at: str
     updated_at: str
-
-

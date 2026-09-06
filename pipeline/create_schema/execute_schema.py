@@ -111,19 +111,19 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import common_schema
-import user_schema
 import pet_schema
 import product_schema
 import purchase_schema
+import user_schema
 
-DB_PATH = 'user.db'
+DB_PATH = "user.db"
 
 # 순서가 곧 생성 순서다. 의존이 있는 쪽이 뒤.
 MODULES = (common_schema, user_schema, pet_schema, product_schema, purchase_schema)
 
 # 모듈에서 걷어오는 이름. 실행 순서이기도 하다 —
 # 테이블이 다 생긴 뒤에 인덱스, 그 다음 뷰, 시드는 맨 마지막(FK 검증을 켜고 넣는다).
-DDL_KINDS = ('TABLES', 'INDEXES', 'UNIQUE_INDEXES', 'VIEWS')
+DDL_KINDS = ("TABLES", "INDEXES", "UNIQUE_INDEXES", "VIEWS")
 
 
 def collect(kind):
@@ -146,10 +146,13 @@ def drop_all(con):
     이 스크립트의 계약은 '전체 재생성'이다(증분이 아니다). db_path 를
     다른 DB 로 돌리면 그 DB 도 비워진다.
     """
-    views = [n for (n,) in con.execute(
-        "SELECT name FROM sqlite_master WHERE type = 'view'")]
-    tables = [n for (n,) in con.execute(
-        "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")]
+    views = [n for (n,) in con.execute("SELECT name FROM sqlite_master WHERE type = 'view'")]
+    tables = [
+        n
+        for (n,) in con.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+        )
+    ]
     for name in views:
         con.execute(f'DROP VIEW IF EXISTS "{name}"')
     for name in tables:
@@ -164,21 +167,25 @@ def check_fk_targets(con):
     그래서 MODULES 순서가 틀어지거나 테이블명에 오타가 나도 생성은 성공하고,
     나중에 INSERT 할 때가 되어서야 터진다. 여기서 미리 잡는다.
     """
-    tables = {n for (n,) in con.execute(
-        "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")}
+    tables = {
+        n
+        for (n,) in con.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+        )
+    }
     broken = []
     for t in sorted(tables):
         for row in con.execute(f'PRAGMA foreign_key_list("{t}")'):
             target = row[2]
             if target not in tables:
-                broken.append(f'{t} -> {target}')
+                broken.append(f"{t} -> {target}")
     if broken:
-        raise RuntimeError('없는 테이블을 가리키는 FK: ' + ', '.join(broken))
+        raise RuntimeError("없는 테이블을 가리키는 FK: " + ", ".join(broken))
 
 
 def owners():
     """객체명 -> 모듈명. 인벤토리를 모듈별로 묶어 보여주려고 DDL 에서 이름을 뽑는다."""
-    pat = re.compile(r'CREATE\s+(?:UNIQUE\s+)?(TABLE|VIEW|INDEX)\s+([A-Za-z_][\w]*)', re.I)
+    pat = re.compile(r"CREATE\s+(?:UNIQUE\s+)?(TABLE|VIEW|INDEX)\s+([A-Za-z_][\w]*)", re.I)
     out = {}
     for mod in MODULES:
         for kind in DDL_KINDS:
@@ -193,39 +200,38 @@ def report(con):
     """모듈별로 무엇이 생겼는지, 시드가 몇 행 들어갔는지 출력한다."""
     own = owners()
     rows = con.execute(
-        "SELECT type, name FROM sqlite_master "
-        "WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite_%'"
+        "SELECT type, name FROM sqlite_master WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite_%'"
     ).fetchall()
 
     for mod in MODULES:
         mine = sorted(n for k, n in rows if own.get(n) == mod.__name__)
-        print(f'\n[{mod.__name__}]')
+        print(f"\n[{mod.__name__}]")
         for name in mine:
             kind = next(k for k, n in rows if n == name)
-            seeded = ''
-            if kind == 'table':
+            seeded = ""
+            if kind == "table":
                 (cnt,) = con.execute(f'SELECT count(*) FROM "{name}"').fetchone()
                 if cnt:
-                    seeded = f'  (시드 {cnt}행)'
-            print(f'  {kind:5} {name}{seeded}')
+                    seeded = f"  (시드 {cnt}행)"
+            print(f"  {kind:5} {name}{seeded}")
 
-    n_tab = sum(1 for k, _ in rows if k == 'table')
-    n_view = sum(1 for k, _ in rows if k == 'view')
+    n_tab = sum(1 for k, _ in rows if k == "table")
+    n_view = sum(1 for k, _ in rows if k == "view")
     (n_idx,) = con.execute(
         "SELECT count(*) FROM sqlite_master WHERE type = 'index' AND sql IS NOT NULL"
     ).fetchone()
-    print(f'\n{n_tab} tables, {n_view} views, {n_idx} indexes')
+    print(f"\n{n_tab} tables, {n_view} views, {n_idx} indexes")
 
     orphan = [n for _, n in rows if n not in own]
     if orphan:
-        print(f'[경고] 어느 모듈에서 왔는지 알 수 없는 객체: {orphan}')
+        print(f"[경고] 어느 모듈에서 왔는지 알 수 없는 객체: {orphan}")
 
 
 def create_schema(db_path=DB_PATH, verbose=True):
     con = sqlite3.connect(db_path)
     try:
         # DROP 중에는 FK 를 끈다. 부모를 먼저 지워도 걸리지 않게 하기 위해서다.
-        con.execute('PRAGMA foreign_keys = OFF')
+        con.execute("PRAGMA foreign_keys = OFF")
         dropped = drop_all(con)
 
         for kind in DDL_KINDS:
@@ -236,19 +242,19 @@ def create_schema(db_path=DB_PATH, verbose=True):
         # PRAGMA foreign_keys 는 트랜잭션 안에서 무시되므로 commit 뒤에 켠다.
         # 시드를 FK 검증이 켜진 상태로 넣어야 product_category 의 parent_id 같은
         # 자기참조가 실제로 검사된다.
-        con.execute('PRAGMA foreign_keys = ON')
-        for sql, rows in collect('SEEDS'):
+        con.execute("PRAGMA foreign_keys = ON")
+        for sql, rows in collect("SEEDS"):
             con.executemany(sql, rows)
         con.commit()
 
         check_fk_targets(con)
         if verbose:
             if any(dropped):
-                print(f'기존 객체 삭제: 테이블 {dropped[0]}개, 뷰 {dropped[1]}개')
+                print(f"기존 객체 삭제: 테이블 {dropped[0]}개, 뷰 {dropped[1]}개")
             report(con)
     finally:
         con.close()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     create_schema()

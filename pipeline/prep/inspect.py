@@ -22,30 +22,39 @@ _TABLE = {
 
 def _rows_for(con: sqlite3.Connection, kind: str, q_vec) -> list[tuple]:
     if kind == "chunk":
-        return con.execute("""
+        return con.execute(
+            """
             SELECT v.purchase_id, c.body, vec_distance_cosine(v.vector, ?) AS distance
             FROM chunk_vectors AS v
             JOIN chunks AS c ON c.purchase_id = v.purchase_id AND c.chunk_index = v.chunk_index
             ORDER BY distance
-        """, (q_vec,)).fetchall()
+        """,
+            (q_vec,),
+        ).fetchall()
 
     if kind == "product":
-        return con.execute("""
+        return con.execute(
+            """
             SELECT v.product_id, p.brand || ' ' || p.name AS body,
                    vec_distance_cosine(v.vector, ?) AS distance
             FROM product_vectors AS v
             JOIN product AS p ON p.product_id = v.product_id
             ORDER BY distance
-        """, (q_vec,)).fetchall()
+        """,
+            (q_vec,),
+        ).fetchall()
 
     if kind == "customer":
         # customer_vectors는 그 고객 리뷰들의 평균이라 원문 자체가 없다.
-        return con.execute("""
+        return con.execute(
+            """
             SELECT customer_id, '(집계 벡터 - 원문 없음)' AS body,
                    vec_distance_cosine(vector, ?) AS distance
             FROM customer_vectors
             ORDER BY distance
-        """, (q_vec,)).fetchall()
+        """,
+            (q_vec,),
+        ).fetchall()
 
     raise ValueError(f"모르는 kind: {kind}")
 
@@ -57,9 +66,7 @@ def inspect(con: sqlite3.Connection, kind: str, questions: list[str], top_k: int
         print(f"[6단계] 모르는 kind '{kind}' 라 건너뜁니다.")
         return
 
-    exists = con.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,)
-    ).fetchone()
+    exists = con.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone()
     if not exists:
         print(f"[6단계] {table} 테이블이 없어 '{kind}' 검색을 건너뜁니다.")
         return

@@ -17,5 +17,6 @@ def get_allergens():
     """
     return select_all("allergen", [("allergen_id", "ASC")])
 
+
 def get_animal_categories():
     return select_all("animal_category")

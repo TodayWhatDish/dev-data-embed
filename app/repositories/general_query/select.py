@@ -3,7 +3,8 @@
 읽기라 execute 를 안 거치고 fetch 로 바로 간다 — 제약 위반이 날 일이 없어서 QueryError 는
 전부 'SQL 을 만들기 전에 거절' 쪽이다. 식별자를 화이트리스트로 거르는 이유는 columns 참고.
 """
-from app.core.db import fetch, QueryError
+
+from app.core.db import QueryError, fetch
 from app.repositories.general_query.columns import ColumnMgr, where_clause
 
 
@@ -33,6 +34,7 @@ def _select_clause(table, table_cols, want) -> str:
         raise QueryError("unknown_column", table, sorted(unknown))
 
     return ", ".join(want)
+
 
 def _order_clause(table, cols, order_by) -> str:
     """
@@ -83,8 +85,8 @@ def _order_clause(table, cols, order_by) -> str:
 
     return " ORDER BY " + ", ".join(parts)
 
-def select_all(table : str, order_by : list[tuple] | None = None,
-               cols : list[str] | None = None) -> list[dict]:
+
+def select_all(table: str, order_by: list[tuple] | None = None, cols: list[str] | None = None) -> list[dict]:
     """
     # summary
     * 범용적인 TABLE 전체 SELECT 쿼리
@@ -118,8 +120,10 @@ def select_all(table : str, order_by : list[tuple] | None = None,
 
     return fetch(f"SELECT {picked} FROM {table}{_order_clause(table, table_cols, order_by)}")
 
-def select(table : str, where : dict, order_by : list[tuple] | None = None,
-           cols : list[str] | None = None) -> list[dict]:
+
+def select(
+    table: str, where: dict, order_by: list[tuple] | None = None, cols: list[str] | None = None
+) -> list[dict]:
     """
     # summary
     * 범용적인 SELECT 쿼리
@@ -159,9 +163,15 @@ def select(table : str, where : dict, order_by : list[tuple] | None = None,
     orders = _order_clause(table, table_cols, order_by)
     return fetch(f"SELECT {picked} FROM {table}{clause}{orders}", params)
 
-def select_range(table: str, where : dict, size : int, start_offset : int | None = 0,
-                 order_by : list[tuple] | None = None,
-                 cols : list[str] | None = None) -> list[dict]:
+
+def select_range(
+    table: str,
+    where: dict,
+    size: int,
+    start_offset: int | None = 0,
+    order_by: list[tuple] | None = None,
+    cols: list[str] | None = None,
+) -> list[dict]:
     """
     # summary
     * 범용적인 SELECT 쿼리 (페이징)
@@ -219,5 +229,4 @@ def select_range(table: str, where : dict, size : int, start_offset : int | None
 
     # WHERE 값이 먼저, size / offset 이 나중 - ? 자리 순서와 같아야 한다.
     # 정렬은 글자로 박혀 있어 ? 자리를 차지하지 않는다
-    return fetch(f"SELECT {picked} FROM {table}{clause}{orders} LIMIT ? OFFSET ?",
-                 (*params, size, offset))
+    return fetch(f"SELECT {picked} FROM {table}{clause}{orders} LIMIT ? OFFSET ?", (*params, size, offset))

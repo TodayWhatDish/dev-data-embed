@@ -1,14 +1,21 @@
+import logging
+
+from app.domain.common import CommonMgr
+from app.domain.pet import PetMgr
+from app.domain.products import ProductMgr
 from app.repositories.common import get_allergens, get_animal_categories
 from app.repositories.pet import get_breeds
-from app.repositories.products import get_product_categories, get_feeding_purposes, get_ingredients, get_ingredient_allergen_ids
-from app.domain.products import ProductMgr
-from app.domain.pet import PetMgr
-from app.domain.common import CommonMgr
-import logging
+from app.repositories.products import (
+    get_feeding_purposes,
+    get_ingredient_allergen_ids,
+    get_ingredients,
+    get_product_categories,
+)
 
 """
 DB로 부터 최초 1회 초기화해야하는 정보들 처리
 """
+
 
 def init_from_db():
     """
@@ -36,10 +43,12 @@ def init_from_db():
     product_mgr.set_ingredient(get_ingredients())
     product_mgr.set_ingredient_allergen(get_ingredient_allergen_ids())
 
-    logger.info(f'Cached master: allergen={len(common_mgr.get_all_allergen_hierarchy())}, '
-                f'animal_category={len(common_mgr.get_animal_category())}, '
-                f'breed={sum(len(b) for b in pet_mgr.get_all_breeds().values())}, '
-                f'product_category={len(product_mgr.get_all_product_category_hierarchy())}, '
-                f'feeding_purpose={len(product_mgr.get_feeding_purpose())}, '
-                f'ingredient={len(product_mgr.get_ingredient())}, '
-                f'ingredient_allergen={len(product_mgr.get_ingredient_allergen())}')
+    logger.info(
+        f"Cached master: allergen={len(common_mgr.get_all_allergen_hierarchy())}, "
+        f"animal_category={len(common_mgr.get_animal_category())}, "
+        f"breed={sum(len(b) for b in pet_mgr.get_all_breeds().values())}, "
+        f"product_category={len(product_mgr.get_all_product_category_hierarchy())}, "
+        f"feeding_purpose={len(product_mgr.get_feeding_purpose())}, "
+        f"ingredient={len(product_mgr.get_ingredient())}, "
+        f"ingredient_allergen={len(product_mgr.get_ingredient_allergen())}"
+    )
