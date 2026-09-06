@@ -14,11 +14,9 @@ from app.domain.products import root_category_name
 from app.features.retrieve import build_where,search
 from pipeline.vector_db import connect
 from app.features.profile import pet_profile
-from app.repositories import products as product_repo
 from app.repositories import purchases as purchase_repo
 from app.features.customers import customer_detail
 logger = logging.getLogger()
-
 
 
 def candidates(profiles: dict[str, Any],user_query: str, limit: int=20,
@@ -46,22 +44,18 @@ def candidates(profiles: dict[str, Any],user_query: str, limit: int=20,
         if owns_con:
             con.close()
 
+    products_by_purchase = purchase_repo.find_products_by_purchase_ids([h[0] for h in hits])
     result = []
     for purchase_id, score, review in hits:
         # 색인은 purchase 단위인데 보여줄 건 product 라 한 단계 건너뛴다.
         # 조회 실패는 예외가 아니라 None 이다 (repositories 규약) - 그 건만 빼고 검색은 살린다
-        product_id = purchase_repo.get_product_id(purchase_id)
-        if product_id is None:
+        product = products_by_purchase.get(purchase_id)
+        if product is None:
             logger.warning(f"색인이 가리키는 purchase_id={purchase_id} 가 없다 - 후보에서 제외")
             continue
 
-        product = product_repo.find_by_id(product_id)
-        if product is None:
-            logger.warning(f"purchase_id={purchase_id} 의 product_id={product_id} 가 없다 - 후보에서 제외")
-            continue
-
         result.append({
-            "product_id": product_id,
+            "product_id": product["product_id"],
             "name": product["name"],
             "brand": product["brand"],
             "price_krw": product["price_krw"],
@@ -75,6 +69,7 @@ def candidates(profiles: dict[str, Any],user_query: str, limit: int=20,
         logger.warning(f"검색 {len(hits)}건 중 {dropped}건이 상품 조회에 실패해 빠졌다")
     logger.info(f"후보 {len(result)}건 반환 (검색 {len(hits)}건)")
     return result
+
 def similar_reviews_for(user_id: int, limit: int = 5) -> dict[str, Any]:
     """이 고객이 실제로 남긴 가장 최근 리뷰를 쿼리 삼아 추천을 찾는다.
 

@@ -72,3 +72,19 @@ def create_review(purchase_id: int, rating: int, body: str) -> None:
         "body": body,
         "reviewed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     })
+
+def find_products_by_purchase_ids(purchase_ids: list[int]) -> dict[int, dict]:
+    """purchase_id 목록으로 상품 정보를 한 번에 묶어온다. candidates()의 N+1 조회를 대체한다.
+    없는 purchase_id/product_id는 결과 dict에서 그냥 빠진다. 호출부가 get()으로 걸러쓴다."""
+
+    if not purchase_ids:
+        return {}
+    marks = ", ".join("?" for _ in purchase_ids)
+    rows = fetch(f"""
+        SELECT pu.purchase_id, p.product_id, p.name, p.brand, p.price_krw, p.product_category_id
+        FROM purchase AS pu
+        JOIN product AS p ON p.product_id = pu.product_id
+        WHERE pu.purchase_id IN ({marks})
+    """, tuple(purchase_ids))
+    return {row["purchase_id"]: row for row in rows}
+

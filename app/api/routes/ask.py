@@ -90,4 +90,4 @@ def ask_me(body: AskMeRequest, req: Request, user_id: int = Depends(get_current_
     받으니 지금은 이걸로 충분하다. 펫이 여러 마리가 되면 pet_id 선택 UI가 먼저 필요하다."""
     pets = find_pets_by_user(user_id)
     pet_id = pets[0]["pet_id"] if pets else None
-    return _stream_answer(req.user_query, body.user_query, pet_id, user_id)
+    return _stream_answer(req.app.state.con, body.user_query, pet_id, user_id)
