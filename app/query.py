@@ -1,15 +1,16 @@
-# Last updated: 2026-09-03
-# 프로필 + 질문을 받아 유사 리뷰를 찾아주는 대화형 확인용 CLI
-#
-# 검색 로직 자체는 search.py 에 있다. 여기서는 입력을 받고 결과를 찍고 로그를 남기는 일만 한다.
+# Last Updated: 2026-09-06
+
+"""프로필 + 질문을 받아 유사 리뷰를 찾아주는 대화형 확인용 CLI
+검색 로직 자체는 search.py 에 있다. 여기서는 입력을 받고 결과를 찍고 로그를 남기는 일만 한다.
+"""
 import json
 import sqlite3
 from datetime import datetime
 from app.core.config import LOG_PATH, PASSAGE_PREFIX
 from app.core.config import SIZE_LABELS
-from app.features.retrieve import build_where,fmt_purchase_id
-from pipeline.vector_db import search,connect  
+from app.features.retrieve import build_where, fmt_purchase_id, search
 from app.features.profile import list_pets, pet_profile
+from pipeline.vector_db import connect  
 
 def log_result(profile, query, hits):
     record = {
@@ -21,9 +22,6 @@ def log_result(profile, query, hits):
             for pid, score, doc in hits
         ],
     }
-
-    # 'a'(append) 모드라 기존 로그를 안 지우고 계속 뒤에 붙입니다. 
-    # ensure_ascii=False가 없으면 한글이 \uXXXX로 저장돼서 눈으로 못 읽게됨
     with open(LOG_PATH, 'a', encoding='utf-8') as f:
         f.write(json.dumps(record, ensure_ascii=False,indent=2) + '\n')
 
@@ -55,7 +53,6 @@ def choose_pet():
 
 def main():
     con = connect()
-    # 모델 로딩과 벡터 읽기를 여기서 한 번만 치른다. 이후 질문은 이 캐시를 재사용한다.
 
     pet_id = None
     while pet_id is None:
@@ -63,7 +60,6 @@ def main():
 
     profile = pet_profile(pet_id)   # 종/체급/알레르기를 DB 에서 확정한다. 사람이 다시 안 친다.
     print(f'\n적용된 프로필: {profile}')
-
     print('질문을 입력하세요 (빈 줄 입력 시 종료)')
     while True:
         query = input('\n질문: ').strip()

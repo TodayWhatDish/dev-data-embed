@@ -8,12 +8,12 @@
 """
 import logging
 from typing import Any
-
+import sqlite3
 from app.core.config import PASSAGE_PREFIX
 from app.domain.products import root_category_name
-from app.features.retrieve import build_where
+from app.features.retrieve import build_where,search
+from pipeline.vector_db import connect
 from app.features.profile import pet_profile
-from pipeline.vector_db import search,connect
 from app.repositories import products as product_repo
 from app.repositories import purchases as purchase_repo
 from app.features.customers import customer_detail
@@ -21,13 +21,19 @@ logger = logging.getLogger()
 
 
 
-def candidates(profiles: dict[str, Any],user_query: str, limit: int=20) -> list[dict[str, Any]]:
+def candidates(profiles: dict[str, Any],user_query: str, limit: int=20,
+               con: sqlite3.Connection | None = None) -> list[dict[str, Any]]:
     """ 프로필에 맞는 상품 후보를 반환한다.
 
         별점/알레르기/체급/축종 필터는 build_where()가 이미 SQL로 처리한다.
         여기서는 리뷰 단위의 결과를 product 테이블과 합쳐 LLM이 판단할 수 있는 모양으로 바꾼다.
+
+        con 을 안 넘기면(=CLI/eval 처럼 혼자 쓰는 자리) 예전처럼 직접 열고 닫는다.
+        API 라우트처럼 요청마다 불릴 땐 app.state.con 을 넘겨 커넥션을 재사용한다.
     """
-    con = connect()
+    owns_con = con is None
+    if owns_con:
+        con = connect()
     try:
         where, params = build_where(profiles)
         hits = search(con, user_query, where=where, params=params, top_k=limit)
@@ -37,8 +43,8 @@ def candidates(profiles: dict[str, Any],user_query: str, limit: int=20) -> list[
         logger.exception(f"벡터 검색 실패: query={user_query!r}, profiles={profiles}")
         raise
     finally:
-        # 원래는 return 직전에만 닫아서, 중간에 터지면 커넥션이 샜다. finally 라야 반드시 닫힌다
-        con.close()
+        if owns_con:
+            con.close()
 
     result = []
     for purchase_id, score, review in hits:
