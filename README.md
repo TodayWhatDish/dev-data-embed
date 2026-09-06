@@ -47,10 +47,10 @@ flowchart TB
     features --> domain
     repo --> core
     adapters --> core
-    adapters -. 구현체가 domain.port 를 따름 .-> domain
+    adapters -.->|"domain 포트(Protocol) 구현"| domain
 
-    repo -. "금지 (SQL만 하는 층)" .-> domain
-    repo -. "금지 (SQL만 하는 층)" .-> features
+    repo -.->|"금지 (SQL만 하는 층)"| domain
+    repo -.->|"금지 (SQL만 하는 층)"| features
 ```
 
 데이터는 CSV → SQLite → 임베딩 순으로 오프라인 파이프라인이 만들고, 서비스는 그 결과만 읽습니다.
