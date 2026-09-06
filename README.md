@@ -26,6 +26,46 @@
 | 트레이싱 (선택 설치) | langsmith |
 | 테스트/린트 (`dev`, 선택 설치) | pytest, httpx, ruff |
 
+## 아키텍처
+
+`app/`은 6개 층으로 나뉘고 의존 방향은 한쪽으로만 흐릅니다 (`tests/test_layers.py`가 import 문을 AST로 훑어 이 방향을 강제합니다).
+
+```mermaid
+flowchart TB
+    api["api (4)<br/>HTTP · 인증 · 상태코드"]
+    features["features (3)<br/>추천 · 검색 비즈니스 로직"]
+    repo["repositories (2)<br/>SQL 조회"]
+    adapters["adapters (2)<br/>LLM · 벡터 스토어"]
+    core["core (1)<br/>DB 연결 · 설정 · 인증 · 트레이스"]
+    domain["domain (0)<br/>순수 비즈니스 규칙"]
+
+    api --> features
+    api --> repo
+    api --> domain
+    features --> repo
+    features --> adapters
+    features --> domain
+    repo --> core
+    adapters --> core
+    adapters -. 구현체가 domain.port 를 따름 .-> domain
+
+    repo -. "금지 (SQL만 하는 층)" .-> domain
+    repo -. "금지 (SQL만 하는 층)" .-> features
+```
+
+데이터는 CSV → SQLite → 임베딩 순으로 오프라인 파이프라인이 만들고, 서비스는 그 결과만 읽습니다.
+
+```mermaid
+flowchart LR
+    A["data/master, data/seed<br/>(*.csv)"] -->|pipeline.load_csv| B[("pet_reco.db")]
+    B -->|pipeline.chunk| C["chunks 테이블"]
+    C -->|pipeline.embed| D["chunk_vectors 테이블"]
+    B -->|pipeline.prep_rec| E["product_vectors /<br/>customer_vectors<br/>(평가용 홀드아웃)"]
+    B -->|pipeline.verify| F["정합성 점검<br/>(개수 · FK · 벡터 차원 · recall)"]
+    D --> G["app.features.searching<br/>검색 → 추천"]
+    G --> H["FastAPI (app/)"]
+```
+
 ## 문서
 
 | 파일 | 내용 |
