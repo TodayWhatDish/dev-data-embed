@@ -20,11 +20,11 @@ import random
 import sqlite3
 import sys
 
-from app.features.retrieve import build_where  # 프로필 딕셔너리 -> SQL where절 변환
+from app.features.retrieve import build_where 
 from app.features.searching import candidates as search_candidates
 from app.features.recommending import recommend
 from app.core.config import DB_PATH, SIZE_CASE, EVAL_DIR, EMBED_MODEL, EMBED_DIM
-from pipeline.vector_db import search,connect
+from pipeline.vector_db import connect
 
 from eval.tracing import banner, eval_run, require_llm, warm_domain
 

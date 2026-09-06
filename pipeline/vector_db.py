@@ -3,8 +3,6 @@ import sqlite3
 import sqlite_vec
 
 from app.core.config import DB_PATH, EMBED_MODEL
-from app.core.embedder import embed_query
-from app.features.retrieve import check_freshness
 
 def connect(): # DB연결하고 VEC 확장을 추가해서 벡터거리계산하는 함수를 쓸수있는 커넥션을 만들었음
     # check_same_thread=False : FastAPI sync 엔드포인트는 요청마다 스레드풀의 다른 스레드에서 도는데
@@ -75,51 +73,3 @@ def save_vectors(con, chunks, vectors, dim, source): # 안전비교작업.chunk_
         ],
     )
     con.commit() # 이때 DB 확정저장임 커밋해야함.
-
-def search(con, query, where = "1=1", params: tuple = (), top_k: int = 3):
-    """입력된 자연어 질문 하나를 받아서, DB에 저장된 리뷰 조각들 중 질문과 의미가 가장 비슷한 것을 최대 top_k개 뽑아준다.
-    질문 -> 벡터 -> DB안 벡터들과 거리 비교 -> 정렬 -> 중복 제거 -> 최종 까지의 프로세스를 거친다."""
-
-    for line in check_freshness(con):
-        print(f"[경고] {line}")
-
-    # embed_query()가 QUERY_PREFIX와 정규화를 다 챙긴다 - 모델이 로컬이든 API든 여기는 안 바뀐다.
-    q_vec = sqlite_vec.serialize_float32(embed_query(query))
-
-    # 1 con : 사용자검색하면 FastAPI 엔드포인트가 요청받고 엔드포인트 함수 동작함. 
-    # 2 con이 DB에 SQL날려서 정보를 가지고 con통로로 다시 보내줌
-    # query : FastAPI 엔드포인트가 요청으로 받은 사용자가 타이핑한 자연어를 얘가 받음.
-    
-    # rows는 chunk 하나 당 한줄을 의미한다.
-    rows = con.execute(f"""
-        SELECT v.purchase_id, pu.product_id, c.body, vec_distance_cosine(v.vector, ?) AS distance
-        FROM chunk_vectors AS v
-        JOIN chunks AS c ON c.purchase_id = v.purchase_id AND c.chunk_index = v.chunk_index
-        JOIN purchase AS pu ON pu.purchase_id = v.purchase_id
-        JOIN review AS r ON r.purchase_id = pu.purchase_id
-        WHERE {where}
-        ORDER BY distance
-    """, (q_vec, *params)).fetchall()
-
-    # rows 사용자 자연어랑 비교할 것들을 쿼리문생성
-    # rows 구매건 번호, 리뷰 조각들, 검색어 거리 
-    # rows 리뷰조각들 여러개 일수가 있습니다 아래서 제일 비슷한 조각 하나만 남겨줌.
-
-    best = {}
-    for purchase_id, product_id, body, distance in rows:
-        if purchase_id not in best or distance < best[purchase_id][2]: 
-            best[purchase_id] = (product_id, body, distance)
-    # best 구매건마다 사용자 검색어랑 비슷한 조각들을 담음.
-    # best 구매건ID 중복으로 들어온다면 distance 코사인을 비교해 유사도 높은 것만 남김
-
-    # 상품이 겹치면 제일 유사도 높은 리뷰 하나만 남긴다 - 후보 3개가 같은 상품 리뷰로 채워지는 것을 방지 (중복제거)
-    best_per_product = {}
-    for purchase_id, (product_id, body, distance) in best.items():
-        if product_id not in best_per_product or distance < best_per_product[product_id][-1]:
-            best_per_product[product_id] = (purchase_id, body, distance)
-
-    ranked = sorted(best_per_product.values(), key=lambda item: item[-1])[:top_k] 
-    return [(purchase_id, 1 - distance, body) for purchase_id, body, distance in ranked]
-
-    # 반환시 1 빼기 각 코사인거리를 빼주니까 유사도가 높은 순대로 나옴 유사도 높은것 3개만 남김
-    # 형태도 튜플로 다시 묶어서 리스트로 반환
