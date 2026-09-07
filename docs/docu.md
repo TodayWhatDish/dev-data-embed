@@ -38,7 +38,7 @@
       def creates_cycle(node_id, parent_id, parent_of):
           p = parent_id
           while p is not None:
-              if p == node_id:      # 자기참조 (5,5) 도 첫 반복에서 걸린다
+              if p == node_id:  # 자기참조 (5,5) 도 첫 반복에서 걸린다
                   return True
               p = parent_of.get(p)
           return False

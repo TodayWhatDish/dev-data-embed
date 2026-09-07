@@ -1,25 +1,27 @@
 # Last updated: 2026-09-03
 # Last Updated: 2026-09-03
 
-""" 모든 스크립트가 공유하는 설정값과 상수를 모아둔다
+"""모든 스크립트가 공유하는 설정값과 상수를 모아둔다
 
-    경로, 모델 이름, 토큰 한도, 색깅 대상 조건과 같은 '값' 선언.
-    표준 라이브러리 및 경로를 정의.
+경로, 모델 이름, 토큰 한도, 색깅 대상 조건과 같은 '값' 선언.
+표준 라이브러리 및 경로를 정의.
 """
+
 import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-DATA_DIR = ROOT / 'data'
-DB_PATH = DATA_DIR / 'pet_reco.db'
-MASTER_DIR = DATA_DIR / 'master'
-LOG_PATH = ROOT / 'logs' / 'query_log.jsonl'
-SEED_DIR = DATA_DIR / 'seed'
+DATA_DIR = ROOT / "data"
+DB_PATH = DATA_DIR / "pet_reco.db"
+MASTER_DIR = DATA_DIR / "master"
+LOG_PATH = ROOT / "logs" / "query_log.jsonl"
+SEED_DIR = DATA_DIR / "seed"
 # 모델별 평가 결과를 남긴다. 모델을 바꿔 재색인하면 이전 결과는 DB에서 사라지므로
 # 비교하려면 DB 밖에 남겨둬야 한다.
-EVAL_DIR = DATA_DIR / 'eval'
+EVAL_DIR = DATA_DIR / "eval"
 
-LOGGER_DIR = ROOT / 'log'
+LOGGER_DIR = ROOT / "log"
+
 
 # .env 를 환경변수로 올린다.
 def load_env(path=ROOT / ".env"):
@@ -30,14 +32,15 @@ def load_env(path=ROOT / ".env"):
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
-        k,v = line.split("=", 1)
+        k, v = line.split("=", 1)
         k = k.strip()
         v = v.strip().strip('"').strip("'")
-        os.environ.setdefault(k,v)
+        os.environ.setdefault(k, v)
+
 
 def env(name: str, default: str) -> str:
     """환경변수를 읽되, 빈 문자열은 기본값으로 친다."""
-    value = os.environ.get(name,"").strip()
+    value = os.environ.get(name, "").strip()
     return default if value == "" else value
 
 
@@ -57,33 +60,49 @@ load_env()
 # tokenizer: 토큰을 세는 쪽. HF 모델은 자기 이름(모델=토크나이저)이고,
 #   OpenAI 모델은 tiktoken 인코딩 이름을 적는다.
 EMBED_PROFILES = {
-    'intfloat/multilingual-e5-small': {
-        'provider': 'st', 'tokenizer': 'intfloat/multilingual-e5-small',
-        'dim': 384, 'max_tokens': 512, 'batch_size': 32,
-        'query_prefix': 'query: ', 'passage_prefix': 'passage: ',
+    "intfloat/multilingual-e5-small": {
+        "provider": "st",
+        "tokenizer": "intfloat/multilingual-e5-small",
+        "dim": 384,
+        "max_tokens": 512,
+        "batch_size": 32,
+        "query_prefix": "query: ",
+        "passage_prefix": "passage: ",
     },
-    'intfloat/multilingual-e5-base': {
-        'provider': 'st', 'tokenizer': 'intfloat/multilingual-e5-base',
-        'dim': 768, 'max_tokens': 512, 'batch_size': 16,
-        'query_prefix': 'query: ', 'passage_prefix': 'passage: ',
+    "intfloat/multilingual-e5-base": {
+        "provider": "st",
+        "tokenizer": "intfloat/multilingual-e5-base",
+        "dim": 768,
+        "max_tokens": 512,
+        "batch_size": 16,
+        "query_prefix": "query: ",
+        "passage_prefix": "passage: ",
     },
-    'BAAI/bge-m3': {
-        'provider': 'st', 'tokenizer': 'BAAI/bge-m3',
-        'dim': 1024, 'max_tokens': 8192, 'batch_size': 8,
-        'query_prefix': '', 'passage_prefix': '',
+    "BAAI/bge-m3": {
+        "provider": "st",
+        "tokenizer": "BAAI/bge-m3",
+        "dim": 1024,
+        "max_tokens": 8192,
+        "batch_size": 8,
+        "query_prefix": "",
+        "passage_prefix": "",
     },
     # batch_size 는 GPU 메모리가 아니라 한 번의 HTTP 요청에 몇 개를 실을지다.
     # API 한도는 요청당 입력 2048개지만, 하나 실패하면 그 묶음을 통째로 다시 보내야 하므로 128로 둔다.
-    'text-embedding-3-small': {
-        'provider': 'openai', 'tokenizer': 'cl100k_base',
-        'dim': 1536, 'max_tokens': 8191, 'batch_size': 128,
-        'query_prefix': '', 'passage_prefix': '',
+    "text-embedding-3-small": {
+        "provider": "openai",
+        "tokenizer": "cl100k_base",
+        "dim": 1536,
+        "max_tokens": 8191,
+        "batch_size": 128,
+        "query_prefix": "",
+        "passage_prefix": "",
     },
 }
 
 # 재색인 없이 실험하려면 셸에서 바꾼다:  $env:EMBED_MODEL = 'BAAI/bge-m3'
 # EMBED_MODEL = env('EMBED_MODEL', 'intfloat/multilingual-e5-small')
-EMBED_MODEL = env('EMBED_MODEL', 'intfloat/multilingual-e5-small')
+EMBED_MODEL = env("EMBED_MODEL", "intfloat/multilingual-e5-small")
 
 if EMBED_MODEL not in EMBED_PROFILES:
     raise SystemExit(f"EMBED_PROFILES 에 없는 모델입니다: {EMBED_MODEL}")
@@ -92,13 +111,13 @@ _profile = EMBED_PROFILES[EMBED_MODEL]
 
 # 토큰화는 임베딩과 반드시 같은 모델이어야 한다 - HF 모델은 모델 이름이 그대로 토크나이저 이름이고,
 # OpenAI 모델만 tiktoken 인코딩 이름이 따로 있어 프로파일에서 읽는다.
-EMBED_PROVIDER = _profile['provider']
-EMBED_TOKENIZER = _profile['tokenizer']
-EMBED_DIM = _profile['dim']
-EMBED_MAX_TOKENS = _profile['max_tokens']
-EMBED_BATCH_SIZE = _profile['batch_size']
-QUERY_PREFIX = _profile['query_prefix']
-PASSAGE_PREFIX = _profile['passage_prefix']
+EMBED_PROVIDER = _profile["provider"]
+EMBED_TOKENIZER = _profile["tokenizer"]
+EMBED_DIM = _profile["dim"]
+EMBED_MAX_TOKENS = _profile["max_tokens"]
+EMBED_BATCH_SIZE = _profile["batch_size"]
+QUERY_PREFIX = _profile["query_prefix"]
+PASSAGE_PREFIX = _profile["passage_prefix"]
 
 # provider='st' 일 때만 쓴다. API 모델은 남의 서버에서 도니 올릴 장치가 없다.
 EMBED_DEVICE = "cpu"
@@ -119,25 +138,29 @@ INDEX_FILTER = """
 """
 
 # 체급 코드(1~5) -> 사람이 쓰는 말. SQL 과 파이썬이 같은 표를 봐야 하므로 여기 하나만 둔다.
-SIZE_LABELS = {1: '초소형', 2: '소형', 3: '중형', 4: '대형', 5: '초대형'}
+SIZE_LABELS = {1: "초소형", 2: "소형", 3: "중형", 4: "대형", 5: "초대형"}
 
 # 위 표에서 SQL CASE 를 만들어 쓴다 - 표를 두 군데 적으면 반드시 어긋난다.
-SIZE_CASE = "CASE pu.size_at_purchase " + " ".join(
-    f"WHEN {code} THEN '{label}'" for code, label in SIZE_LABELS.items()
-) + " END"
+SIZE_CASE = (
+    "CASE pu.size_at_purchase "
+    + " ".join(f"WHEN {code} THEN '{label}'" for code, label in SIZE_LABELS.items())
+    + " END"
+)
 
 
 if not Path(DB_PATH).exists():
     print(f"알림: DB 가 아직 없다 -> {DB_PATH}")
 
 
-USE_API = env("USE_API",0) == "1"
+USE_API = env("USE_API", 0) == "1"
 
 # LLM_PROVIDER는 langchain init_chat_model()의 provider 인자로 그대로 들어간다 (adapters/stores/llm.py).
 # 상용 API를 바꾸고 싶으면 .env의 LLM_PROVIDER/LLM_API_KEY/API_MODEL 세 값만 바꾸면 된다 - 코드 수정 불필요.
 if USE_API:
     LLM_PROVIDER = env("LLM_PROVIDER", "anthropic")
-    LLM_BASE_URL = None  # provider 네이티브 클라이언트는 base_url이 필요 없다 (OpenAI 호환 프록시를 쓸 때만 .env로 지정)
+    LLM_BASE_URL = (
+        None  # provider 네이티브 클라이언트는 base_url이 필요 없다 (OpenAI 호환 프록시를 쓸 때만 .env로 지정)
+    )
     LLM_API_KEY = env("LLM_API_KEY", "")
     LLM_MODEL = env("API_MODEL", "claude-sonnet-5")
     # 답변을 만든 모델이 자기 답을 채점하면 관대해지는 self-evaluation bias가 있다 -
@@ -148,7 +171,9 @@ else:
     LLM_BASE_URL = "http://localhost:11434/v1"
     LLM_API_KEY = "ollama"
     LLM_MODEL = "qwen2.5:3b"
-    VERIFY_MODEL = LLM_MODEL  # ponytail: 로컬은 모델 하나뿐이라 분리 안 함 - Ollama에 두 번째 모델 받으면 나눌 것
+    VERIFY_MODEL = (
+        LLM_MODEL  # ponytail: 로컬은 모델 하나뿐이라 분리 안 함 - Ollama에 두 번째 모델 받으면 나눌 것
+    )
 
 # 채점(eval/*)을 LangSmith 로도 보낼지. 꺼져 있어도 채점은 그대로 돌고 data/eval/runs.jsonl 에는 남는다.
 # 채점용 프로젝트를 서비스 로그와 가르는 이유: 채점은 같은 질문 수십 개를 몰아 던져서,

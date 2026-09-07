@@ -1,4 +1,4 @@
-# Last Updated : 2026-08-30
+# Last Updated : 2026-09-06
 
 """만든 것이 쓸 수 있는 물건인지 재는 검사들 + 눈으로 보지 않는 점수 계산.
 
@@ -23,10 +23,8 @@ from app.domain.embedding_text import product_text
 from pipeline.prep.chunking import count_tokens
 
 
-# 참/거짓을 한 줄로 찍고 실패한 것만 problems 에 쌓는다
 def check(ok: bool, error_msg: str, problems: list[str]) -> bool:
-    # 이 함수는 무엇을 검사하는지 모른다. 이미 판정된 참/거짓만 받는다.
-    # 그래서 검사가 몇 개로 늘어도 이 함수는 안 바뀐다.
+    """참/거짓을 한 줄로 찍고 실패한 것만 problems 에 쌓는다."""
     print(f"  [{'OK  ' if ok else '문제'}] {error_msg}")
     if not ok:
         problems.append(error_msg)
@@ -35,9 +33,7 @@ def check(ok: bool, error_msg: str, problems: list[str]) -> bool:
 
 # 표마다 몇 행인가. 벡터가 빠진 행은 없는가. (1단계)
 def check_table_data(con: sqlite3.Connection, table_names: tuple, problems: list[str]):
-    existing = {row[0] for row in con.execute(
-        "SELECT name FROM sqlite_master WHERE type='table'"
-    )}
+    existing = {row[0] for row in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     ok_count = 0
     counts = {}
     for name in table_names:
@@ -49,9 +45,11 @@ def check_table_data(con: sqlite3.Connection, table_names: tuple, problems: list
     print(f"[1단계] 테이블 {ok_count}/{len(table_names)}개 정상")
 
     if "chunks" in counts and "chunk_vectors" in counts:
-        check(counts["chunk_vectors"] == counts["chunks"],
-              f"모든 조각에 벡터가 있다 ({counts['chunk_vectors']:,}/{counts['chunks']:,})",
-              problems)
+        check(
+            counts["chunk_vectors"] == counts["chunks"],
+            f"모든 조각에 벡터가 있다 ({counts['chunk_vectors']:,}/{counts['chunks']:,})",
+            problems,
+        )
 
     fk_errors = con.execute("PRAGMA foreign_key_check").fetchall()
     check(len(fk_errors) == 0, f"FK 위반 없음 (어긴 행 {len(fk_errors)}개)", problems)
@@ -59,27 +57,33 @@ def check_table_data(con: sqlite3.Connection, table_names: tuple, problems: list
     # 채점의 전제다. hit@k는 숨겨 둔 정답이 상위 k 안에 오나를 세는데,
     # 정답이 없으면 셀 것이 없고 그 자리에서 죽는다.
     if "review" in counts and "user" in counts:
-        holdout = con.execute(
-            "SELECT COUNT(*) FROM review WHERE is_holdout = 1").fetchone()[0]
+        holdout = con.execute("SELECT COUNT(*) FROM review WHERE is_holdout = 1").fetchone()[0]
         customer_count = con.execute("""
             SELECT COUNT(DISTINCT pe.user_id)
             FROM purchase AS pu JOIN pet AS pe ON pe.pet_id = pu.pet_id
         """).fetchone()[0]
-        check(holdout == customer_count,
-              f"채점용 정답이 고객당 1건이다 ({holdout}건 / 고객 {customer_count}명)",
-              problems)
+        check(
+            holdout == customer_count,
+            f"채점용 정답이 고객당 1건이다 ({holdout}건 / 고객 {customer_count}명)",
+            problems,
+        )
 
 
-# 벡터를 되살려 차원 · 모델 · 정규화를 본다. {표 이름: (아이디, 행렬)} 을 돌려준다. (2단계)
-#
-# 저장 형식(BLOB vs JSON 문자열)을 가리지 않고 읽되, retrieve.py/db.load_vectors가
-# 기대하는 형식과 실제 저장 형식이 다르면 problems에 그 사실 자체를 기록한다.
-def check_vector_data(con: sqlite3.Connection, kinds: tuple, expected_dim: int, expected_model: str, problems: list[str]):
+def check_vector_data(
+    con: sqlite3.Connection, kinds: tuple, expected_dim: int, expected_model: str, problems: list[str]
+):
+    """벡터를 되살려 차원 · 모델 · 정규화를 본다. {표 이름: (아이디, 행렬)} 을 돌려준다"""
     meta = dict(con.execute("SELECT key, value FROM embedding_meta"))
-    check(meta.get("model") == expected_model,
-          f"모델이 설정값과 같다 (저장값 '{meta.get('model')}', 설정값 '{expected_model}')", problems)
-    check(meta.get("dim") == str(expected_dim),
-          f"차원이 설정값과 같다 (저장값 {meta.get('dim')}, 설정값 {expected_dim})", problems)
+    check(
+        meta.get("model") == expected_model,
+        f"모델이 설정값과 같다 (저장값 '{meta.get('model')}', 설정값 '{expected_model}')",
+        problems,
+    )
+    check(
+        meta.get("dim") == str(expected_dim),
+        f"차원이 설정값과 같다 (저장값 {meta.get('dim')}, 설정값 {expected_dim})",
+        problems,
+    )
 
     vectors = {}
     for table, id_col in kinds:
@@ -89,56 +93,65 @@ def check_vector_data(con: sqlite3.Connection, kinds: tuple, expected_dim: int, 
 
         ids, mat = [], []
         for row_id, vec in rows:
-            arr = np.frombuffer(vec, dtype=np.float32) if isinstance(vec, bytes) \
+            arr = (
+                np.frombuffer(vec, dtype=np.float32)
+                if isinstance(vec, bytes)
                 else np.array(json.loads(vec), dtype=np.float32)
+            )
             ids.append(row_id)
             mat.append(arr)
         mat = np.array(mat, dtype=np.float32)
 
-        check(mat.shape[1] == expected_dim,
-              f"{table} 차원이 설정값과 같다 (실제 {mat.shape[1]}, 설정값 {expected_dim})", problems)
+        check(
+            mat.shape[1] == expected_dim,
+            f"{table} 차원이 설정값과 같다 (실제 {mat.shape[1]}, 설정값 {expected_dim})",
+            problems,
+        )
         vectors[table] = (ids, mat)
 
     # 아래 5단계 비교가 통째로 이 정규화 위에 서 있다. 길이가 1이면 내적이 곧
     # 코사인이라 나눗셈을 안 해도 된다. 길이가 1이 아닌데 내적을 쓰면 긴 벡터가 무조건 이긴다.
     norms = {table: np.linalg.norm(mat, axis=1) for table, (_, mat) in vectors.items()}
     worst = max(abs(n - 1).max() for n in norms.values())
-    check(worst < 1e-3,
-          f"전부 길이 1로 정규화돼 있다 (제일 어긋난 것도 {worst:.6f})", problems)
+    check(worst < 1e-3, f"전부 길이 1로 정규화돼 있다 (제일 어긋난 것도 {worst:.6f})", problems)
 
     print(f"[2단계] 모델={meta.get('model')}, 차원={meta.get('dim')}")
     return vectors
 
 
-# BLOB 실제 바이트 수와 float32 예상 바이트(dim*4)를 비교한다. (3단계)
-#
-# 벡터 하나가 예상보다 크거나 작으면(잘못된 차원이 섞였거나 저장 형식이 깨졌으면)
-# total_bytes가 expected_bytes와 어긋난다.
-def check_vector_storage(con: sqlite3.Connection, kinds: tuple, vectors: dict, embed_dim: int, problems: list[str]) -> dict:
+def check_vector_storage(
+    con: sqlite3.Connection, kinds: tuple, vectors: dict, embed_dim: int, problems: list[str]
+) -> dict:
+    """BLOB 실제 바이트 수와 float32 예상 바이트(dim*4)를 비교한다. (3단계)
+
+    벡터 하나가 예상보다 크거나 작으면(잘못된 차원이 섞였거나 저장 형식이 깨졌으면)
+    total_bytes가 expected_bytes와 어긋난다."""
     table = kinds[0][0]
     count, one_bytes, total_bytes = con.execute(f"""
         SELECT COUNT(*), length(vector), SUM(length(vector)) FROM {table}
     """).fetchone()
     expected_bytes = count * embed_dim * 4  # float32 = 4바이트
 
-    check(total_bytes == expected_bytes,
-          f"{table} 저장 용량이 예상과 같다 (실제 {total_bytes:,}B, 예상 {expected_bytes:,}B)",
-          problems)
+    check(
+        total_bytes == expected_bytes,
+        f"{table} 저장 용량이 예상과 같다 (실제 {total_bytes:,}B, 예상 {expected_bytes:,}B)",
+        problems,
+    )
 
-    print(f"[3단계] {table} {count:,}개, 벡터 하나당 {one_bytes/1024:.2f}KB, "
-          f"전체 {total_bytes/1024:.2f}KB")
+    print(
+        f"[3단계] {table} {count:,}개, 벡터 하나당 {one_bytes / 1024:.2f}KB, 전체 {total_bytes / 1024:.2f}KB"
+    )
 
     return {"count": count, "total_bytes": total_bytes, "expected_bytes": expected_bytes}
 
 
-# 상한을 넘어 조용히 잘리는 조각이 있는가. (4단계)
 def check_token_sizes(con: sqlite3.Connection, max_tokens: int, problems: list[str]):
-    # 토큰은 글자 수도 낱말 수도 아니고 모델이 글을 나누는 단위다.
-    # 상한을 넘으면 뒤가 잘린 채로 벡터가 되는데 오류는 안 난다.
+    """상한을 넘어 조용히 잘리는 조각이 있는가. (4단계)
+    토큰은 글자 수도 낱말 수도 아니고 모델이 글을 나누는 단위다.
+    상한을 넘으면 뒤가 잘린 채로 벡터가 되는데 오류는 안 난다."""
+
     total = con.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
-    over = con.execute(
-        "SELECT COUNT(*) FROM chunks WHERE n_tokens > ?", (max_tokens,)
-    ).fetchone()[0]
+    over = con.execute("SELECT COUNT(*) FROM chunks WHERE n_tokens > ?", (max_tokens,)).fetchone()[0]
     average = con.execute("SELECT AVG(n_tokens) FROM chunks").fetchone()[0]
 
     check(over == 0, f"상한({max_tokens})을 넘는 조각 {over}개", problems)
@@ -147,17 +160,17 @@ def check_token_sizes(con: sqlite3.Connection, max_tokens: int, problems: list[s
     return {"total": total, "over_limit": over, "average": average}
 
 
-# 상품요약/조각최고점/조각평균 3방식으로 (고객 x 상품) 점수 행렬을 만든다. (5단계)
-#
-# 세 벡터가 전부 정규화돼 있으므로(normalize_embeddings=True) 내적 = 코사인 유사도다.
 def calculate_scores(
-    customer_vectors: NDArray[np.float32],      # (n_customers, dim)
-    product_vectors: NDArray[np.float32],       # (n_products, dim)
-    chunk_vectors: NDArray[np.float32],         # (n_chunks, dim)
-    chunk_ids: list[int],                       # 조각 하나하나가 속한 purchase_id 목록 (product_of 키용)
-    product_ids: list[str],                     # 상품 ID 리스트 (순서 = product_vectors 행 순서)
-    product_of: dict[int, str],                 # purchase_id -> product_id 매핑
-) -> dict[str, NDArray[np.float32]]:            # 3가지 점수 행렬 (n_customers, n_products)
+    customer_vectors: NDArray[np.float32],  # (n_customers, dim)
+    product_vectors: NDArray[np.float32],  # (n_products, dim)
+    chunk_vectors: NDArray[np.float32],  # (n_chunks, dim)
+    chunk_ids: list[int],  # 조각 하나하나가 속한 purchase_id 목록 (product_of 키용)
+    product_ids: list[str],  # 상품 ID 리스트 (순서 = product_vectors 행 순서)
+    product_of: dict[int, str],  # purchase_id -> product_id 매핑
+) -> dict[str, NDArray[np.float32]]:  # 3가지 점수 행렬 (n_customers, n_products)
+    """상품요약/조각최고점/조각평균 3방식으로 (고객 x 상품) 점수 행렬을 만든다. (5단계)
+    세 벡터가 전부 정규화돼 있으므로(normalize_embeddings=True) 내적 = 코사인 유사도다."""
+
     product_index = {pid: i for i, pid in enumerate(product_ids)}
     n_customers = customer_vectors.shape[0]
     n_products = len(product_ids)
@@ -189,15 +202,15 @@ def calculate_scores(
     }
 
 
-# 점수 행렬에서 고객별 정답 상품이 상위 k 안에 들었는지로 hit@k를 계산한다. (5단계)
 def hit_at(
-    scores: NDArray[np.float32],                # (n_customers, n_products)
-    customer_ids: list[str],                    # 고객 ID 리스트 (scores 행 순서)
-    product_ids: list[str],                     # 상품 ID 리스트 (scores 열 순서)
-    bought: dict[str, set[str]],                # customer_id -> 이미 산 상품들 집합
-    answers: dict[str, str],                    # customer_id -> 정답 상품 (holdout)
+    scores: NDArray[np.float32],  # (n_customers, n_products)
+    customer_ids: list[str],  # 고객 ID 리스트 (scores 행 순서)
+    product_ids: list[str],  # 상품 ID 리스트 (scores 열 순서)
+    bought: dict[str, set[str]],  # customer_id -> 이미 산 상품들 집합
+    answers: dict[str, str],  # customer_id -> 정답 상품 (holdout)
     ks: tuple[int, ...] = (1, 3, 5),
-) -> dict[int, float]:                          # {k: hit_rate_percent}
+) -> dict[int, float]:  # {k: hit_rate_percent}
+    """점수 행렬에서 고객별 정답 상품이 상위 k 안에 들었는지로 hit@k를 계산한다. (5단계)"""
     product_index = {pid: i for i, pid in enumerate(product_ids)}
     max_k = max(ks)
     hits = {k: 0 for k in ks}
@@ -229,8 +242,8 @@ def hit_at(
 def compare_recommendations(
     con: sqlite3.Connection,
     vectors: dict[str, tuple[list, NDArray[np.float32]]],  # check_vector_data가 돌려준 것 그대로
-    token_result: dict[str, float],                        # check_token_sizes 반환값
-) -> dict[str, dict[int, float]]:                          # {label: {k: hit%}}
+    token_result: dict[str, float],  # check_token_sizes 반환값
+) -> dict[str, dict[int, float]]:  # {label: {k: hit%}}
     customer_ids, customer_mat = vectors["customer_vectors"]
     product_ids, product_mat = vectors["product_vectors"]
     chunk_ids, chunk_mat = vectors["chunk_vectors"]  # chunk_ids[j] = 그 조각의 purchase_id
@@ -247,21 +260,22 @@ def compare_recommendations(
     """):
         bought[customer_id].add(product_id)
 
-    answers = dict(con.execute("""
+    answers = dict(
+        con.execute("""
         SELECT pe.user_id, pu.product_id
         FROM purchase AS pu
         JOIN pet AS pe ON pe.pet_id = pu.pet_id
         JOIN review AS r ON r.purchase_id = pu.purchase_id
         WHERE r.is_holdout = 1
-    """))
+    """)
+    )
 
     # embed.py/prep_rec.py가 실제로 쓰는 그 함수(product_text)로 다시 문장을 만들어 토큰을 센다.
     # 손으로 다시 조립하면 만들 때와 잴 때가 어긋나도 아무도 모른다.
     cur = con.execute("SELECT * FROM product")
     cols = [d[0] for d in cur.description]
     product_rows = [dict(zip(cols, row)) for row in cur.fetchall()]
-    average_product_tokens = sum(
-        count_tokens(product_text(row)) for row in product_rows) / len(product_rows)
+    average_product_tokens = sum(count_tokens(product_text(row)) for row in product_rows) / len(product_rows)
 
     average_tokens = {
         "상품 요약 벡터 (기준선)": average_product_tokens,
@@ -273,17 +287,20 @@ def compare_recommendations(
     scores = calculate_scores(customer_mat, product_mat, chunk_mat, chunk_ids, product_ids, product_of)
     elapsed = time.perf_counter() - started
 
-    print(f"[5단계] 고객 {len(customer_ids)}명 · 상품 {len(product_ids)}개 · "
-          f"조각 {len(chunk_ids):,}개 전부 비교하는 데 {elapsed * 1000:.0f}ms\n")
-    print(f"[5단계] {'무엇으로 찾나':22s} {'평균 토큰':>10s} "
-          f"{'hit@1':>7s} {'hit@3':>7s} {'hit@5':>7s}")
+    print(
+        f"[5단계] 고객 {len(customer_ids)}명 · 상품 {len(product_ids)}개 · "
+        f"조각 {len(chunk_ids):,}개 전부 비교하는 데 {elapsed * 1000:.0f}ms\n"
+    )
+    print(f"[5단계] {'무엇으로 찾나':22s} {'평균 토큰':>10s} {'hit@1':>7s} {'hit@3':>7s} {'hit@5':>7s}")
 
     results = {}
     for label, mat in scores.items():
         results[label] = hit_at(mat, customer_ids, product_ids, bought, answers)
         hits = results[label]
-        print(f"[5단계] {label:22s} {average_tokens[label]:>10.1f} "
-              f"{hits[1]:>6.1f}% {hits[3]:>6.1f}% {hits[5]:>6.1f}%")
+        print(
+            f"[5단계] {label:22s} {average_tokens[label]:>10.1f} "
+            f"{hits[1]:>6.1f}% {hits[3]:>6.1f}% {hits[5]:>6.1f}%"
+        )
 
     # 읽는 법: 참고파일(docs/measurements.md)은 30명 표본에서 자의 흔들림이 16.7%p
     # 난다고 쟀는데, 그건 그 프로젝트 데이터 얘기라 우리 숫자로 그대로 못 쓴다.
@@ -295,8 +312,8 @@ def compare_recommendations(
     return results
 
 
-# 쌓아 둔 문제를 한 번에 요약한다. 새로 검사하지 않는다
 def print_final_result(problems: list[str]) -> None:
+    """쌓아 둔 문제를 한 번에 요약한다. 새로 검사하지 않는다"""
     print()
     print("=" * 74)
     if problems:

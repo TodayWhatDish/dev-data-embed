@@ -17,26 +17,26 @@ def root_category_name(product_category_id: int) -> str | None:
     mgr = ProductMgr.get_inst()
     node = mgr.get_product_category(product_category_id)
     seen = set()
-    while node and node.get('parent_id') is not None:
-        if node['product_category_id'] in seen:
+    while node and node.get("parent_id") is not None:
+        if node["product_category_id"] in seen:
             # 부모가 순환하면 여기서 영영 못 나온다. DB 가 못 막는 규칙이라 앱이 본다 (docs/docu.md)
             return None
-        seen.add(node['product_category_id'])
-        node = mgr.get_product_category(node['parent_id'])
+        seen.add(node["product_category_id"])
+        node = mgr.get_product_category(node["parent_id"])
     if not node:
         return None
     # 루트 이름이 곧 화면이 쓰는 이름이다 - 시드가 '사료'/'간식' 이라 따로 표를 두면 같은 값이 두 벌 된다
-    return node['name_ko']
+    return node["name_ko"]
 
 
 def attach_product_type(rows: list[dict]) -> list[dict]:
     """구매이력 행에 product_type(사료/간식)을 붙인다. 원본은 안 고친다"""
-    return [{**row, 'product_type': root_category_name(row['product_category_id'])}
-            for row in rows]
+    return [{**row, "product_type": root_category_name(row["product_category_id"])} for row in rows]
 
 
 class ProductMgr:
     _instance = None
+
     def __init__(self):
         pass
 
@@ -51,21 +51,21 @@ class ProductMgr:
         """
 
         # product_category_id를 키로 가지는 카테고리 정보, 하위 카테고리를 가지는 dict 생성
-        nodes = {row['product_category_id']: {**row, 'children': []} for row in rows}
+        nodes = {row["product_category_id"]: {**row, "children": []} for row in rows}
 
         # 최상위 카테고리는 부모가 없기 때문에 roots로 따로 저장
         roots = []
 
         for node in nodes.values():
-            parent = nodes.get(node['parent_id'])
-            if parent: # 부모가 있다면, 부모의 자식으로 노드를 저장
-                parent['children'].append(node)
-            else: # 부모가 없다면, roots에 저장
+            parent = nodes.get(node["parent_id"])
+            if parent:  # 부모가 있다면, 부모의 자식으로 노드를 저장
+                parent["children"].append(node)
+            else:  # 부모가 없다면, roots에 저장
                 roots.append(node)
 
         # product_category_id 로 인덱싱 가능
-        self._product_category_hierarchy = nodes # 카테고리 정보 트리
-        self._product_category_roots = roots # 루트 노드들
+        self._product_category_hierarchy = nodes  # 카테고리 정보 트리
+        self._product_category_roots = roots  # 루트 노드들
 
     def get_all_product_category_hierarchy(self):
         """
@@ -94,7 +94,7 @@ class ProductMgr:
         * k: feeding_purpose_id
         * v: feeding_purpose_info
         """
-        self._feeding_purpose = {row['feeding_purpose_id']: row for row in rows}
+        self._feeding_purpose = {row["feeding_purpose_id"]: row for row in rows}
 
     def get_feeding_purpose(self, feeding_purpose_id: int | None = None):
         """
@@ -117,7 +117,7 @@ class ProductMgr:
         * k: ingredient_id
         * v: ingredient_info
         """
-        self._ingredient = {row['ingredient_id']: row for row in rows}
+        self._ingredient = {row["ingredient_id"]: row for row in rows}
 
     def get_ingredient(self, ingredient_id: int | None = None):
         """
@@ -143,7 +143,7 @@ class ProductMgr:
         """
         mapping = {}
         for row in pairs:
-            mapping.setdefault(row['ingredient_id'], []).append(row['allergen_id'])
+            mapping.setdefault(row["ingredient_id"], []).append(row["allergen_id"])
 
         self._ingredient_allergen = mapping
 
@@ -160,10 +160,7 @@ class ProductMgr:
         return self._ingredient_allergen.get(ingredient_id, [])
 
     @classmethod
-    def get_inst(cls): #싱글턴 패턴을 위한
+    def get_inst(cls):  # 싱글턴 패턴을 위한
         if cls._instance == None:
             cls._instance = ProductMgr()
         return cls._instance
-
-
-

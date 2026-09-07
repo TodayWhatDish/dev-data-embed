@@ -20,6 +20,7 @@ answering.stream() 이 만든 자유 문장은 아무도 안 재고 있었다. �
 심판도 LLM 이라 틀린다. 점수가 낮으면 '우리 답이 나쁜 것'인지 '심판이 헛짚은 것'인지
 부터 가려야 한다 - 그래서 1번(사람이 검산할 수 있는 지표)을 같이 찍는다.
 """
+
 import json
 import sys
 from pathlib import Path
@@ -45,9 +46,8 @@ from app.core.config import EMBED_MODEL, LLM_MODEL, VERIFY_MODEL
 from app.core.embedder import embed_documents, embed_query
 from app.features import answering
 from app.features.searching import candidates as search_candidates
-from pipeline.vector_db import connect
-
 from eval.tracing import banner, detached, eval_run, require_llm, warm_domain
+from pipeline.vector_db import connect
 
 GOLDEN = json.loads((Path(__file__).parent / "qa_golden.json").read_text(encoding="utf-8"))
 
@@ -186,7 +186,9 @@ def main(argv: list[str]) -> int:
         run.record(상품언급=mentioned, 후보밖_언급=invented)
 
         print()
-        print(f"  표본 {len(items)}문항 · 답변 {LLM_MODEL} · 심판 {VERIFY_MODEL} · 임베딩 {EMBED_MODEL} · 근거 {K}개")
+        print(
+            f"  표본 {len(items)}문항 · 답변 {LLM_MODEL} · 심판 {VERIFY_MODEL} · 임베딩 {EMBED_MODEL} · 근거 {K}개"
+        )
         print("  이 숫자를 docs/measurements.md 에 잰 날짜와 함께 옮겨 적는다.")
         print("  점수가 낮으면 1번 표부터 본다. 후보 밖 언급이 0인데 faithfulness 가 낮으면")
         print("  우리 답이 아니라 심판을 의심할 차례다.")

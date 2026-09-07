@@ -14,12 +14,13 @@ A(1행)는 32스레드에서 x0.86 인데 B 는 4스레드에서 이미 x0.19 �
 
     python -m tests.bench.rows
 """
+
 import logging
 
 from app.app_logger.logger import init_logger
 
-init_logger('bench_rows')
-logging.getLogger().setLevel(logging.WARNING)     # 벤치 중 INFO 로그가 측정값에 섞이지 않게
+init_logger("bench_rows")
+logging.getLogger().setLevel(logging.WARNING)  # 벤치 중 INFO 로그가 측정값에 섞이지 않게
 
 from app.core.db import fetch_tuple_one, fetch_tuples
 from app.features.metric.sqlbench import throughput_fn
@@ -32,38 +33,48 @@ def q(sql):
     return lambda: fetch_tuples(sql)
 
 
-if __name__ == '__main__':
-    n, = fetch_tuple_one('SELECT count(*) FROM review')
+if __name__ == "__main__":
+    (n,) = fetch_tuple_one("SELECT count(*) FROM review")
 
     print()
-    print('1. LIMIT 만 바꾼다 - 반환 행이 늘면 무너지는가 (스캔량도 같이 늘어 원인은 못 가림)')
-    throughput_fn({f'{i:>4}행': q(f'SELECT product_id FROM product LIMIT {i}')
-                   for i in (1, 3, 10, 30, 100)}, threads=THREADS)
+    print("1. LIMIT 만 바꾼다 - 반환 행이 늘면 무너지는가 (스캔량도 같이 늘어 원인은 못 가림)")
+    throughput_fn(
+        {f"{i:>4}행": q(f"SELECT product_id FROM product LIMIT {i}") for i in (1, 3, 10, 30, 100)},
+        threads=THREADS,
+    )
 
     print()
-    print(f'2. 스캔량을 {n} 으로 고정하고 반환 행만 바꾼다 - 여기서 원인이 갈린다')
-    got = throughput_fn({
-        'count(*)            반환   1행': q('SELECT count(*) FROM review'),
-        'sum(length(body))   반환   1행': q('SELECT sum(length(body)), avg(rating) FROM review'),
-        f'purchase_id         반환{n}행': q('SELECT purchase_id FROM review'),
-        f'purchase_id + body  반환{n}행': q('SELECT purchase_id, body FROM review'),
-    }, threads=THREADS)
+    print(f"2. 스캔량을 {n} 으로 고정하고 반환 행만 바꾼다 - 여기서 원인이 갈린다")
+    got = throughput_fn(
+        {
+            "count(*)            반환   1행": q("SELECT count(*) FROM review"),
+            "sum(length(body))   반환   1행": q("SELECT sum(length(body)), avg(rating) FROM review"),
+            f"purchase_id         반환{n}행": q("SELECT purchase_id FROM review"),
+            f"purchase_id + body  반환{n}행": q("SELECT purchase_id, body FROM review"),
+        },
+        threads=THREADS,
+    )
 
     for name, _rate, failed in got:
-        assert not failed, f'{name} 이 동시 실행에서 {failed}회 터졌다'
+        assert not failed, f"{name} 이 동시 실행에서 {failed}회 터졌다"
 
     print()
-    print('3. 실제 요청 경로. 위가 합성 쿼리였다면 이건 라우트가 진짜 부르는 함수다')
+    print("3. 실제 요청 경로. 위가 합성 쿼리였다면 이건 라우트가 진짜 부르는 함수다")
     from app.api.lifespan import load_domain_cache, load_schema_cache
     from app.repositories import pet as pet_repo
     from app.repositories import users as users_repo
+
     load_domain_cache()
     load_schema_cache()
     rows = len(users_repo.list_users())
-    throughput_fn({f'list_users        {rows}행 (GET /api/customers)': users_repo.list_users,
-                   'find_pets_by_user   3행 (프로필 조회)': lambda: pet_repo.find_pets_by_user(1)},
-                  threads=THREADS)
+    throughput_fn(
+        {
+            f"list_users        {rows}행 (GET /api/customers)": users_repo.list_users,
+            "find_pets_by_user   3행 (프로필 조회)": lambda: pet_repo.find_pets_by_user(1),
+        },
+        threads=THREADS,
+    )
 
     print()
-    print('  집계(1행 반환)는 스레드를 늘리면 빨라지고, 전행 반환은 무너진다.')
-    print('  일이 sqlite 안에서 끝나면 GIL 이 풀린 채 병렬로 돌기 때문이다.')
+    print("  집계(1행 반환)는 스레드를 늘리면 빨라지고, 전행 반환은 무너진다.")
+    print("  일이 sqlite 안에서 끝나면 GIL 이 풀린 채 병렬로 돌기 때문이다.")

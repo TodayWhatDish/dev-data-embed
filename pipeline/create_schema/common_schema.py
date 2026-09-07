@@ -12,37 +12,36 @@
 """
 
 TABLES = [
-
-# animal_category — 축종 코드표. 컬럼 설명은 docu/schema/common_schema.md#animal_category
-'''
+    # animal_category — 축종 코드표. 컬럼 설명은 docu/schema/common_schema.md#animal_category
+    """
 CREATE TABLE animal_category (
     animal_category_id INTEGER NOT NULL PRIMARY KEY,
     name_ko            TEXT    NOT NULL UNIQUE,
     name_eng           TEXT    NOT NULL UNIQUE
 ) STRICT
-''',
-
-# allergen — 알러지원 마스터. 컬럼 설명은 docu/schema/common_schema.md#allergen
-'''
+""",
+    # allergen — 알러지원 마스터. 컬럼 설명은 docu/schema/common_schema.md#allergen
+    """
 CREATE TABLE allergen (
     allergen_id INTEGER NOT NULL PRIMARY KEY,
     parent_id   INTEGER REFERENCES allergen(allergen_id) ON DELETE RESTRICT,
     name_ko     TEXT    NOT NULL UNIQUE,
     name_eng    TEXT    UNIQUE
 ) STRICT
-''',
-
+""",
 ]
 
 
 INDEXES = [
     # "이 카테고리에 속한 원료 전부" — 계층 조회가 이 방향으로 탄다.
-    'CREATE INDEX idx_allergen_parent      ON allergen(parent_id)',
+    "CREATE INDEX idx_allergen_parent      ON allergen(parent_id)",
 ]
 
 
 # 코드표 초기 데이터 — 스키마의 일부다. 비어 있으면 FK 때문에 breed/pet 에 아무것도 못 넣는다.
 SEEDS = [
-    ("INSERT INTO animal_category(animal_category_id, name_ko, name_eng) VALUES (?, ?, ?)",
-     [(1, '개', 'dog'), (2, '고양이', 'cat')]),
+    (
+        "INSERT INTO animal_category(animal_category_id, name_ko, name_eng) VALUES (?, ?, ?)",
+        [(1, "개", "dog"), (2, "고양이", "cat")],
+    ),
 ]

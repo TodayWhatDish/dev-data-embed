@@ -17,6 +17,7 @@ recommending.recommend() 는 형식이 깨지면 최대 2번까지 다시 부른
 
 LLM 을 부른다. 표본 하나에 조건 수만큼 호출이 나간다.
 """
+
 import json
 import sys
 import time
@@ -29,10 +30,9 @@ from app.adapters.stores.llm import chat
 from app.core.config import LLM_MODEL
 from app.domain.prompting import Recommendation, build_recommend_prompt
 from app.features.searching import candidates as search_candidates
-from pipeline.vector_db import connect
-
 from eval.golden import load_holdout
 from eval.tracing import banner, eval_run, require_llm, warm_domain
+from pipeline.vector_db import connect
 
 N_PICK = 5
 
@@ -40,7 +40,7 @@ N_PICK = 5
 CONDITIONS = [("지시만", False, False), ("예시추가", True, False), ("스키마 강제", True, True)]
 
 EXAMPLE = '\n예: {"picks": [{"product_id": 12, "reason": "관절 목적 사료라 조건에 맞는다"}]}'
-INSTRUCTION = '\npicks 라는 목록에 product_id 와 reason 을 담아 JSON 으로만 답한다. 다른 말은 쓰지 않는다.'
+INSTRUCTION = "\npicks 라는 목록에 product_id 와 reason 을 담아 JSON 으로만 답한다. 다른 말은 쓰지 않는다."
 
 
 def extract_json(text: str) -> str:
@@ -56,7 +56,7 @@ def extract_json(text: str) -> str:
         text = parts[1] if len(parts) > 1 else text
         text = text[4:] if text.startswith("json") else text
     start, end = text.find("{"), text.rfind("}")
-    return text[start:end + 1] if start != -1 and end != -1 else text
+    return text[start : end + 1] if start != -1 and end != -1 else text
 
 
 def ask_once(cands: list[dict], profile: dict, with_example: bool, force_schema: bool) -> str:
@@ -119,7 +119,9 @@ def main(argv: list[str]) -> int:
     finally:
         con.close()
 
-    print(f"모델 {LLM_MODEL} · 표본 {len(sample)}건 · 조건 {len(wanted)}개 ({' / '.join(c[0] for c in wanted)})")
+    print(
+        f"모델 {LLM_MODEL} · 표본 {len(sample)}건 · 조건 {len(wanted)}개 ({' / '.join(c[0] for c in wanted)})"
+    )
     print(f"재시도는 끄고 첫 응답만 본다. 호출 {len(sample) * len(wanted)}번\n")
 
     with eval_run(
@@ -148,7 +150,10 @@ def main(argv: list[str]) -> int:
                 results[label].append(judge(answer, valid_ids))
 
             done = time.perf_counter() - started
-            print(f"  {i}/{len(sample)}  ({done / i:.0f}초/건 · 남은 시간 {(len(sample) - i) * done / i / 60:.0f}분)", end="\r")
+            print(
+                f"  {i}/{len(sample)}  ({done / i:.0f}초/건 · 남은 시간 {(len(sample) - i) * done / i / 60:.0f}분)",
+                end="\r",
+            )
 
         print(" " * 70, end="\r")
         print("=" * 74)
@@ -166,11 +171,13 @@ def main(argv: list[str]) -> int:
                 f" {sum(r['duplicated'] for r in rows):>5}"
                 f" {sum(r['schema_ok'] for r in rows):>8}/{total:<4}   {label}"
             )
-            run.record(**{
-                f"[{label}] JSON 성공률": round(sum(r["json_ok"] for r in rows) / total * 100, 1),
-                f"[{label}] 스키마 통과율": round(sum(r["schema_ok"] for r in rows) / total * 100, 1),
-                f"[{label}] 후보 밖 ID": sum(r["out_of_range"] for r in rows),
-            })
+            run.record(
+                **{
+                    f"[{label}] JSON 성공률": round(sum(r["json_ok"] for r in rows) / total * 100, 1),
+                    f"[{label}] 스키마 통과율": round(sum(r["schema_ok"] for r in rows) / total * 100, 1),
+                    f"[{label}] 후보 밖 ID": sum(r["out_of_range"] for r in rows),
+                }
+            )
 
         print(f"\n총 {time.perf_counter() - started:.0f}초")
         print("이 숫자를 docs/measurements.md 에 잰 날짜·표본과 함께 옮겨 적는다.")

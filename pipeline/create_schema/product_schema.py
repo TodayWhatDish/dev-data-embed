@@ -12,28 +12,25 @@
 """
 
 TABLES = [
-
-# product_category — 제품 분류 코드표. 컬럼 설명은 docu/schema/product_schema.md#product_category
-'''
+    # product_category — 제품 분류 코드표. 컬럼 설명은 docu/schema/product_schema.md#product_category
+    """
 CREATE TABLE product_category (
     product_category_id INTEGER NOT NULL PRIMARY KEY,
     parent_id           INTEGER REFERENCES product_category(product_category_id) ON DELETE RESTRICT,
     name_ko             TEXT    NOT NULL UNIQUE,
     name_eng            TEXT    UNIQUE
 ) STRICT
-''',
-
-# feeding_purpose — 급여목적 코드표. 컬럼 설명은 docu/schema/product_schema.md#feeding_purpose
-'''
+""",
+    # feeding_purpose — 급여목적 코드표. 컬럼 설명은 docu/schema/product_schema.md#feeding_purpose
+    """
 CREATE TABLE feeding_purpose (
     feeding_purpose_id INTEGER NOT NULL PRIMARY KEY,
     name_ko            TEXT    NOT NULL UNIQUE,
     name_eng           TEXT    UNIQUE
 ) STRICT
-''',
-
-# product — 판매 제품. 컬럼 설명은 docu/schema/product_schema.md#product
-'''
+""",
+    # product — 판매 제품. 컬럼 설명은 docu/schema/product_schema.md#product
+    """
 CREATE TABLE product (
     product_id           INTEGER NOT NULL PRIMARY KEY,
     product_category_id  INTEGER NOT NULL
@@ -62,10 +59,9 @@ CREATE TABLE product (
     CHECK (target_size_min <= target_size_max),
     CHECK (target_age_min_month <= target_age_max_month)
 ) STRICT
-''',
-
-# product_animal_category — 제품 ↔ 축종 (다대다). 컬럼 설명은 docu/schema/product_schema.md#product_animal_category
-'''
+""",
+    # product_animal_category — 제품 ↔ 축종 (다대다). 컬럼 설명은 docu/schema/product_schema.md#product_animal_category
+    """
 CREATE TABLE product_animal_category (
     product_id         INTEGER NOT NULL
         REFERENCES product(product_id)                     ON DELETE CASCADE,
@@ -73,10 +69,9 @@ CREATE TABLE product_animal_category (
         REFERENCES animal_category(animal_category_id)    ON DELETE RESTRICT,
     PRIMARY KEY (product_id, animal_category_id)
 ) STRICT, WITHOUT ROWID
-''',
-
-# product_nutrition — 제품 영양성분 (1:1). 컬럼 설명은 docu/schema/product_schema.md#product_nutrition
-'''
+""",
+    # product_nutrition — 제품 영양성분 (1:1). 컬럼 설명은 docu/schema/product_schema.md#product_nutrition
+    """
 CREATE TABLE product_nutrition (
     product_id        INTEGER NOT NULL PRIMARY KEY
         REFERENCES product(product_id) ON DELETE CASCADE,
@@ -89,10 +84,9 @@ CREATE TABLE product_nutrition (
     phosphorus_pct    REAL CHECK (phosphorus_pct    BETWEEN 0 AND 100),
     sodium_pct        REAL CHECK (sodium_pct        BETWEEN 0 AND 100)
 ) STRICT
-''',
-
-# product_feeding_purpose — 제품 ↔ 급여목적 (다대다). 컬럼 설명은 docu/schema/product_schema.md#product_feeding_purpose
-'''
+""",
+    # product_feeding_purpose — 제품 ↔ 급여목적 (다대다). 컬럼 설명은 docu/schema/product_schema.md#product_feeding_purpose
+    """
 CREATE TABLE product_feeding_purpose (
     product_id         INTEGER NOT NULL
         REFERENCES product(product_id)                   ON DELETE CASCADE,
@@ -100,18 +94,16 @@ CREATE TABLE product_feeding_purpose (
         REFERENCES feeding_purpose(feeding_purpose_id)   ON DELETE RESTRICT,
     PRIMARY KEY (product_id, feeding_purpose_id)
 ) STRICT, WITHOUT ROWID
-''',
-
-# ingredient — 원료 마스터. 컬럼 설명은 docu/schema/product_schema.md#ingredient
-'''
+""",
+    # ingredient — 원료 마스터. 컬럼 설명은 docu/schema/product_schema.md#ingredient
+    """
 CREATE TABLE ingredient (
     ingredient_id INTEGER NOT NULL PRIMARY KEY,
     name_ko       TEXT    NOT NULL UNIQUE
 ) STRICT
-''',
-
-# ingredient_allergen — 원료 ↔ 알러지원 (다대다). 컬럼 설명은 docu/schema/product_schema.md#ingredient_allergen
-'''
+""",
+    # ingredient_allergen — 원료 ↔ 알러지원 (다대다). 컬럼 설명은 docu/schema/product_schema.md#ingredient_allergen
+    """
 CREATE TABLE ingredient_allergen (
     ingredient_id INTEGER NOT NULL
         REFERENCES ingredient(ingredient_id) ON DELETE CASCADE,
@@ -119,10 +111,9 @@ CREATE TABLE ingredient_allergen (
         REFERENCES allergen(allergen_id)     ON DELETE RESTRICT,
     PRIMARY KEY (ingredient_id, allergen_id)
 ) STRICT, WITHOUT ROWID
-''',
-
-# product_ingredient — 제품 ↔ 원료 (다대다). 컬럼 설명은 docu/schema/product_schema.md#product_ingredient
-'''
+""",
+    # product_ingredient — 제품 ↔ 원료 (다대다). 컬럼 설명은 docu/schema/product_schema.md#product_ingredient
+    """
 CREATE TABLE product_ingredient (
     product_id    INTEGER NOT NULL
         REFERENCES product(product_id)         ON DELETE CASCADE,
@@ -130,15 +121,13 @@ CREATE TABLE product_ingredient (
         REFERENCES ingredient(ingredient_id)   ON DELETE RESTRICT,
     PRIMARY KEY (product_id, ingredient_id)
 ) STRICT, WITHOUT ROWID
-''',
-
+""",
 ]
 
 
 INDEXES = [
     # "이 대분류의 소분류 전부" — 분류 트리를 앱이 통째로 읽을 때 탄다.
-    'CREATE INDEX idx_product_category_parent ON product_category(parent_id)',
-
+    "CREATE INDEX idx_product_category_parent ON product_category(parent_id)",
     # 후보군 1차 필터. product_category_id 가 선두인 것이 핵심이다 —
     # "간식만 보여줘" 처럼 카테고리 단독으로 거르는 조회(추천 경로를 안 타는 제품 목록)가
     # 그대로 SEARCH 로 붙는다. is_active 를 선두에 두면 이 조회가 풀스캔이 된다.
@@ -147,17 +136,15 @@ INDEXES = [
     # 두 컬럼 모두 등호로 오는 후보군 필터는 순서와 무관하게 동일하게 탄다.
     # 잃는 것은 is_active 단독 조회뿐인데, 그건 활성 제품 전부를 뽑는 것이라 인덱스가 무의미하다.
     # 선두 컬럼이 FK 라 product_category 부모행 삭제 검사도 이 인덱스가 겸한다.
-    'CREATE INDEX idx_product_filter       ON product(product_category_id, is_active)',
-
+    "CREATE INDEX idx_product_filter       ON product(product_category_id, is_active)",
     # 역방향 조회: "이 축종에게 줄 수 있는 제품 전부" — 후보군 필터가 이 방향으로 탄다.
     # 정방향("이 제품의 대상 축종들")은 복합 PK 의 선두 컬럼이 그대로 처리한다.
-    'CREATE INDEX idx_prod_ac_category     ON product_animal_category(animal_category_id)',
-
+    "CREATE INDEX idx_prod_ac_category     ON product_animal_category(animal_category_id)",
     # -- 역방향 조회: "이 알러지원을 가진 제품 전부" (배제 필터가 이 방향으로 탄다) --
     # 정방향("이 제품의 원료들")은 복합 PK 의 선두 컬럼이 그대로 처리한다.
-    'CREATE INDEX idx_ing_allergen_allergen ON ingredient_allergen(allergen_id)',
-    'CREATE INDEX idx_prod_ing_ingredient  ON product_ingredient(ingredient_id)',
-    'CREATE INDEX idx_prod_fp_purpose      ON product_feeding_purpose(feeding_purpose_id)',
+    "CREATE INDEX idx_ing_allergen_allergen ON ingredient_allergen(allergen_id)",
+    "CREATE INDEX idx_prod_ing_ingredient  ON product_ingredient(ingredient_id)",
+    "CREATE INDEX idx_prod_fp_purpose      ON product_feeding_purpose(feeding_purpose_id)",
 ]
 
 
@@ -165,28 +152,34 @@ SEEDS = [
     # 대분류만 시드로 고정한다. 소분류는 관리자가 채운다 —
     # 사료의 소분류('건식사료'/'퍼피사료')는 food_form 과 target_age_* 가 이미 담고 있어
     # 여기에 또 만들면 같은 사실이 두 군데에 앉는다. 소분류가 의미를 갖는 쪽은 간식이다.
-    ("INSERT INTO product_category(product_category_id, parent_id, name_ko, name_eng) VALUES (?, ?, ?, ?)",
-     [(1, None, '사료',   'food'),
-      (2, None, '간식',   'treat'),
-      (3, 2,    '덴탈껌', 'dental chew'),
-      (4, 2,    '트릿',   'training treat'),
-      (5, 2,    '수제간식', 'handmade treat')]),
-
-    ("INSERT INTO feeding_purpose(feeding_purpose_id, name_ko, name_eng) VALUES (?, ?, ?)",
-     [(1, '관절',     'joint'),
-      (2, '다이어트', 'diet'),
-      (3, '피부',     'skin'),
-      (4, '치아',     'dental'),
-      (5, '신장',     'renal'),
-      (6, '소화',     'digestion')]),
+    (
+        "INSERT INTO product_category(product_category_id, parent_id, name_ko, name_eng) VALUES (?, ?, ?, ?)",
+        [
+            (1, None, "사료", "food"),
+            (2, None, "간식", "treat"),
+            (3, 2, "덴탈껌", "dental chew"),
+            (4, 2, "트릿", "training treat"),
+            (5, 2, "수제간식", "handmade treat"),
+        ],
+    ),
+    (
+        "INSERT INTO feeding_purpose(feeding_purpose_id, name_ko, name_eng) VALUES (?, ?, ?)",
+        [
+            (1, "관절", "joint"),
+            (2, "다이어트", "diet"),
+            (3, "피부", "skin"),
+            (4, "치아", "dental"),
+            (5, "신장", "renal"),
+            (6, "소화", "digestion"),
+        ],
+    ),
 ]
 
 
 VIEWS = [
-
     # v_product_safety — 반려동물 × 제품 알러지 판정. 추천 파이프라인의 첫 단계.
     # 판정 로직이 있는 곳은 여기 한 군데다. 설명은 docu/schema/product_schema.md#v_product_safety
-    '''
+    """
 CREATE VIEW v_product_safety AS
 SELECT
     pt.pet_id,
@@ -215,15 +208,14 @@ ON pac.animal_category_id = pt.animal_category_id -- pet에 맞는 물품들 joi
 JOIN product AS pr
 ON pr.product_id = pac.product_id -- 2. 종에 맞는 물품 디테일 정보
 WHERE pr.is_active = 1 AND pt.inactive_at IS NULL -- 3. 판매 물품 + 활성화 펫
-''',
-
+""",
     # v_safe_products — 추천 후보군. '판정불가'를 통과시키는 정책으로 바꾸려면 이 뷰만 고친다.
-    '''
+    """
 CREATE VIEW v_safe_products AS
 SELECT pet_id, product_id
 FROM v_product_safety
 WHERE verdict = 'Safe'
-''',
+""",
 ]
 
 # 뷰를 두지 않는다 (2026-08-25). 알러지 판정은 src/safe_products.py 의

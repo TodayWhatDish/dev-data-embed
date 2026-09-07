@@ -1,11 +1,11 @@
 # Last updated: 2026-09-03
 # Last Updated : 2026-09-02
 
-import jwt
-import secrets
-from fastapi import HTTPException, Header, status
 
-from app.core.config import JWT_SECRET, JWT_ALGORITHM
+import jwt
+from fastapi import Header, HTTPException, status
+
+from app.core.config import JWT_ALGORITHM, JWT_SECRET
 
 
 def _decode_token(authorization: str, expected_role: str) -> dict:

@@ -53,9 +53,12 @@ SQL 로 내려면 `julianday` 차이를 `30.44`(평균 일수)로 나눠야 하�
 조회할 때마다 계산하지 않는다. 저장해두면 행마다 시점이 다른 집계에서도 SQL 은 컬럼을 읽기만 한다.
 
 ```python
-from petcalc import age_months          # 애완동물 나이 계산
-con.execute("INSERT INTO purchase(..., age_month_at_purchase) VALUES (..., ?)",
-            (..., age_months(pet_birth_date, purchased_at)))
+from petcalc import age_months  # 애완동물 나이 계산
+
+con.execute(
+    "INSERT INTO purchase(..., age_month_at_purchase) VALUES (..., ?)",
+    (..., age_months(pet_birth_date, purchased_at)),
+)
 ```
 
 필터는 여전히 SQL 이 한다 — 계산만 앱으로 온 것이다:

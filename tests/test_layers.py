@@ -7,26 +7,34 @@ CLAUDE.md 가 글로 적어둔 두 줄이 전부다 -
 사람 눈으로만 지키다 보면 급할 때 도메인에서 repo 를 한 번 부르고 그게 굳는다.
 그러면 도메인 자체검증에 DB 가 필요해지고, 그 시점엔 이미 되돌리기 비싸다.
 """
+
 import ast
 from pathlib import Path
 
 import pytest
 
-APP = Path(__file__).resolve().parent.parent / 'app'
+APP = Path(__file__).resolve().parent.parent / "app"
 
-# 기동 때 마스터를 한 번 올리는 자리. 도메인에서 repo 를 부르는 것이 여기 하나뿐이라는 게 규칙이다
-DOMAIN_EXEMPT = {'domain_init.py'}
+DOMAIN_EXEMPT = {"domain_init.py"}
+# API 부트스트랩(app.state.con) 자리 하나만 pipeline.connect()를 직접 쓴다 - lifespan.py 독스트링에 그 이유가 적혀있다
+API_PIPELINE_EXEMPT = {"lifespan.py"}
+# candidates()가 con 없이 단독 호출될 때(CLI/eval)의 fallback 하나만 예외
+FEATURES_PIPELINE_EXEMPT = {"searching.py"}
 
 RULES = [
-    ('domain', ('app.repositories', 'sqlite3'), DOMAIN_EXEMPT),
-    ('repositories', ('app.domain', 'app.features'), set()),
+    ("domain", ("app.repositories", "sqlite3"), DOMAIN_EXEMPT),
+    ("repositories", ("app.domain", "app.features"), set()),
+    ("core", ("app.repositories", "app.adapters", "app.features", "app.api", "pipeline"), set()),
+    ("adapters", ("app.features", "app.api", "pipeline"), set()),
+    ("features", ("app.api", "pipeline"), FEATURES_PIPELINE_EXEMPT),
+    ("api", ("pipeline",), API_PIPELINE_EXEMPT),
 ]
 
 
 def imports_of(path: Path) -> list[str]:
     """그 파일이 끌어오는 모듈 이름들. from X import y 는 X 만 본다"""
     names = []
-    for node in ast.walk(ast.parse(path.read_text(encoding='utf-8'))):
+    for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
         if isinstance(node, ast.Import):
             names += [a.name for a in node.names]
         elif isinstance(node, ast.ImportFrom) and node.module:
@@ -36,12 +44,12 @@ def imports_of(path: Path) -> list[str]:
 
 def cases():
     for layer, banned, exempt in RULES:
-        for path in sorted((APP / layer).glob('*.py')):
+        for path in sorted((APP / layer).rglob("*.py")):
             if path.name not in exempt:
-                yield pytest.param(path, banned, id=f'{layer}/{path.name}')
+                yield pytest.param(path, banned, id=f"{layer}/{path.name}")
 
 
-@pytest.mark.parametrize('path, banned', list(cases()))
+@pytest.mark.parametrize("path, banned", list(cases()))
 def test_layer_imports(path, banned):
     hit = [m for m in imports_of(path) if m.startswith(banned)]
-    assert not hit, f'{path.name} 이 {hit} 를 끌어온다'
+    assert not hit, f"{path.name} 이 {hit} 를 끌어온다"

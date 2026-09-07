@@ -1,7 +1,8 @@
+import sqlite3
+
+from app.core.config import DB_PATH
 from app.core.embedder import get_embeddings
 from app.domain.embedding_text import product_text
-import sqlite3
-from app.core.config import DB_PATH
 
 con = sqlite3.connect(DB_PATH)
 con.row_factory = sqlite3.Row

@@ -4,11 +4,12 @@ execute 를 거치니 제약 위반(IntegrityError)이 QueryError('constraint_*'
 그래서 여기서 나오는 QueryError 는 두 갈래다 — 우리가 SQL 을 안 만든 것(500)과 DB 가 거절한 것(400/409).
 가르는 기준은 db.QueryError 독스트링에 있다.
 """
-from app.core.db import execute, QueryError
+
+from app.core.db import QueryError, execute
 from app.repositories.general_query.columns import ColumnMgr
 
 
-def insert_query(table : str, insert_val : dict) -> int:
+def insert_query(table: str, insert_val: dict) -> int:
     """
     # summary
     * 범용적인 INSERT 쿼리 (한 행)
@@ -47,5 +48,6 @@ def insert_query(table : str, insert_val : dict) -> int:
     names = ", ".join(insert_val)
     # 값 자리는 전부 ? 다. 개수가 컬럼 수와 어긋나면 sqlite 가 실행 전에 잡는다
     marks = ", ".join("?" for _ in insert_val)
-    return execute(f"INSERT INTO {table} ({names}) VALUES ({marks})",
-                   tuple(insert_val.values()), table).lastrowid
+    return execute(
+        f"INSERT INTO {table} ({names}) VALUES ({marks})", tuple(insert_val.values()), table
+    ).lastrowid

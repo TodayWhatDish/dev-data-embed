@@ -13,14 +13,19 @@
 주의 — 이 파일의 재수출이 패키지 속성을 덮어쓴다. general_query.select 는 select 모듈이 아니라
 select 함수다. 모듈을 직접 잡아야 하면 from ...general_query.select import ... 로 가져와라.
 """
-from app.repositories.general_query.columns import get_all_table_names, ColumnMgr
-from app.repositories.general_query.select import select_all, select, select_range
+
+from app.repositories.general_query.columns import ColumnMgr, get_all_table_names
 from app.repositories.general_query.insert import insert_query
+from app.repositories.general_query.select import select, select_all, select_range
 from app.repositories.general_query.update import update_query, update_query_all
 
 __all__ = [
-    'get_all_table_names', 'ColumnMgr',
-    'select_all', 'select', 'select_range',
-    'insert_query',
-    'update_query', 'update_query_all',
+    "get_all_table_names",
+    "ColumnMgr",
+    "select_all",
+    "select",
+    "select_range",
+    "insert_query",
+    "update_query",
+    "update_query_all",
 ]

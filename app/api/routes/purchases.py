@@ -30,8 +30,9 @@ def buy_route(payload: BuyRequest, user_id: int = Depends(get_current_user)) -> 
 
 
 @router.post("/me/purchases/{purchase_id}/review", status_code=201)
-def write_review_route(purchase_id: int, payload: ReviewRequest,
-                        user_id: int = Depends(get_current_user)) -> dict:
+def write_review_route(
+    purchase_id: int, payload: ReviewRequest, user_id: int = Depends(get_current_user)
+) -> dict:
     """본인 구매 건에 리뷰를 남긴다. 남의 구매거나 이미 리뷰가 있으면 409."""
     try:
         write_review(user_id, purchase_id, payload.rating, payload.body)

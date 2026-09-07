@@ -29,8 +29,14 @@ problems = []
 
 # 검사할 테이블 이름. 지금 DB에 실제로 있는 8개.
 TABLE_NAMES = (
-    "user", "product", "pet", "purchase", "review",
-    "chunks", "chunk_vectors", "embedding_meta",
+    "user",
+    "product",
+    "pet",
+    "purchase",
+    "review",
+    "chunks",
+    "chunk_vectors",
+    "embedding_meta",
 )
 
 # 벡터 세 벌과 각 표의 열쇠 컬럼. 여기서 한 줄을 빠뜨리면 점검이 두 벌만 보고
@@ -79,8 +85,7 @@ inspect(con, "customer", ["민감성 피부인 사람"], top_k=2)
 # '교환·반품' 으로만 적혀 있었는데, 우리 데이터는 어떤지 직접 세어본다.
 print()
 for word in ("환불", "반품", "교환"):
-    n = con.execute("SELECT COUNT(*) FROM chunks WHERE body LIKE ?",
-                    (f"%{word}%",)).fetchone()[0]
+    n = con.execute("SELECT COUNT(*) FROM chunks WHERE body LIKE ?", (f"%{word}%",)).fetchone()[0]
     print(f"  '{word}' 이 들어간 조각: {n:,}개")
 print(f"  지금 임베딩은 {EMBED_MODEL} 이다. 어느 낱말을 쓰든 벡터 검색만 믿으면 안 된다.")
 

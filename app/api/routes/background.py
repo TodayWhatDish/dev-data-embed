@@ -3,8 +3,8 @@
 
 """고객 페이지 배경 이미지용 Unsplash 프록시.
 
-    Access Key는 서버 .env에만 두고, 프론트는 이 엔드포인트만 부른다
-    (정적 페이지라 키를 프론트 JS에 두면 그대로 git에 커밋되고 view-source로도 노출된다).
+Access Key는 서버 .env에만 두고, 프론트는 이 엔드포인트만 부른다
+(정적 페이지라 키를 프론트 JS에 두면 그대로 git에 커밋되고 view-source로도 노출된다).
 """
 
 import requests

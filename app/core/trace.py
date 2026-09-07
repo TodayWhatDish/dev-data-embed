@@ -1,13 +1,14 @@
 # Last updated: 2026-09-03
 # Last Updated : 2026-09-03
 
-""" LLM 호출 하나하나를 logs/query_log.jsonl 에 한 줄씩 남기는 LangChain 콜백.
+"""LLM 호출 하나하나를 logs/query_log.jsonl 에 한 줄씩 남기는 LangChain 콜백.
 
-    app/adapters/stores/llm.py 가 chat/chat_answer 를 만들 때 이 tracer 를 꽂아 두면,
-    features/* 가 어떤 프로바이더를 부르든(anthropic/openai 호환) 호출마다 자동으로
-    걸린 시간·토큰 수·성공 여부가 남는다. 지금까지는 app/query.py(CLI)만 수동으로
-    로그를 남겨서, API 경로(ask.py/recommend.py)로 들어온 호출은 기록이 전혀 없었다.
+app/adapters/stores/llm.py 가 chat/chat_answer 를 만들 때 이 tracer 를 꽂아 두면,
+features/* 가 어떤 프로바이더를 부르든(anthropic/openai 호환) 호출마다 자동으로
+걸린 시간·토큰 수·성공 여부가 남는다. 지금까지는 app/query.py(CLI)만 수동으로
+로그를 남겨서, API 경로(ask.py/recommend.py)로 들어온 호출은 기록이 전혀 없었다.
 """
+
 import json
 import time
 from datetime import datetime
@@ -45,13 +46,18 @@ class JsonlTracer(BaseCallbackHandler):
     def on_llm_end(self, response, *, run_id, **kwargs) -> None:
         started = self.started.pop(run_id, None)
         in_tokens, out_tokens, model = _tokens_of(response)
-        self._write({
-            "type": "llm_call", "ok": True,
-            "time": datetime.now().isoformat(timespec="seconds"),
-            "run_id": str(run_id), "model": model,
-            "seconds": round(time.perf_counter() - started, 2) if started else None,
-            "prompt_tokens": in_tokens, "completion_tokens": out_tokens,
-        })
+        self._write(
+            {
+                "type": "llm_call",
+                "ok": True,
+                "time": datetime.now().isoformat(timespec="seconds"),
+                "run_id": str(run_id),
+                "model": model,
+                "seconds": round(time.perf_counter() - started, 2) if started else None,
+                "prompt_tokens": in_tokens,
+                "completion_tokens": out_tokens,
+            }
+        )
 
     def on_llm_error(self, error, *, run_id, **kwargs) -> None:
         started = self.started.pop(run_id, None)
@@ -63,14 +69,17 @@ class JsonlTracer(BaseCallbackHandler):
         while cur is not None and len(chain) < 5:
             chain.append(repr(cur)[:200])
             cur = getattr(cur, "__cause__", None)
-        self._write({
-            "type": "llm_call", "ok": False,
-            "time": datetime.now().isoformat(timespec="seconds"),
-            "run_id": str(run_id),
-            "seconds": round(time.perf_counter() - started, 2) if started else None,
-            "error": str(error)[:200],
-            "cause_chain": chain,
-        })
+        self._write(
+            {
+                "type": "llm_call",
+                "ok": False,
+                "time": datetime.now().isoformat(timespec="seconds"),
+                "run_id": str(run_id),
+                "seconds": round(time.perf_counter() - started, 2) if started else None,
+                "error": str(error)[:200],
+                "cause_chain": chain,
+            }
+        )
 
     def _write(self, row: dict) -> None:
         # ponytail: query_log.jsonl이 무한정 커진다 - 회전이 필요해지면
@@ -82,21 +91,44 @@ class JsonlTracer(BaseCallbackHandler):
 tracer = JsonlTracer()
 
 
-def log_customer_question(*, user_id: int | None, pet_id: int | None, user_query: str,
-                           matches: list[dict], answer: str, ok: bool,
-                           error: str | None = None, path=LOG_PATH) -> None:
+def log_customer_question(
+    *,
+    user_id: int | None,
+    pet_id: int | None,
+    user_query: str,
+    matches: list[dict],
+    answer: str,
+    ok: bool,
+    error: str | None = None,
+    path=LOG_PATH,
+) -> None:
     """/ask, /ask/me 로 들어온 질문 한 건을 남긴다. 관리자 대시보드 '질문' 탭이 이 줄들을 읽는다."""
     with open(path, "a", encoding="utf-8") as f:
-        f.write(json.dumps({
-            "type": "customer_question",
-            "time": datetime.now().isoformat(timespec="seconds"),
-            "user_id": user_id, "pet_id": pet_id,
-            "user_query": user_query,
-            "matched": [{"product_id": m["product_id"], "name": m["name"],
-                         "product_type": m.get("product_type"), "score": m["score"]}
-                        for m in matches],
-            "answer": answer, "ok": ok, "error": error,
-        }, ensure_ascii=False) + "\n")
+        f.write(
+            json.dumps(
+                {
+                    "type": "customer_question",
+                    "time": datetime.now().isoformat(timespec="seconds"),
+                    "user_id": user_id,
+                    "pet_id": pet_id,
+                    "user_query": user_query,
+                    "matched": [
+                        {
+                            "product_id": m["product_id"],
+                            "name": m["name"],
+                            "product_type": m.get("product_type"),
+                            "score": m["score"],
+                        }
+                        for m in matches
+                    ],
+                    "answer": answer,
+                    "ok": ok,
+                    "error": error,
+                },
+                ensure_ascii=False,
+            )
+            + "\n"
+        )
 
 
 def read_customer_questions(limit: int = 50, path=LOG_PATH) -> list[dict]:
@@ -132,7 +164,10 @@ def _demo() -> None:
         test_tracer = JsonlTracer(path=tmp.name)
 
     class FakeResponse:
-        llm_output = {"token_usage": {"prompt_tokens": 10, "completion_tokens": 5}, "model_name": "test-model"}
+        llm_output = {
+            "token_usage": {"prompt_tokens": 10, "completion_tokens": 5},
+            "model_name": "test-model",
+        }
         generations = []
 
     test_tracer.on_chat_model_start({}, [], run_id="run-1")
@@ -152,9 +187,15 @@ def _demo() -> None:
 
     with tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False) as tmp2:
         q_path = tmp2.name
-    log_customer_question(user_id=1, pet_id=2, user_query="사료 추천해줘",
-                           matches=[{"product_id": 9, "name": "테스트사료", "product_type": "사료", "score": 0.9}],
-                           answer="테스트사료 추천합니다.", ok=True, path=q_path)
+    log_customer_question(
+        user_id=1,
+        pet_id=2,
+        user_query="사료 추천해줘",
+        matches=[{"product_id": 9, "name": "테스트사료", "product_type": "사료", "score": 0.9}],
+        answer="테스트사료 추천합니다.",
+        ok=True,
+        path=q_path,
+    )
     rows = read_customer_questions(path=q_path)
     assert len(rows) == 1 and rows[0]["user_query"] == "사료 추천해줘"
     assert rows[0]["matched"][0]["product_type"] == "사료"

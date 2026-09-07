@@ -10,6 +10,7 @@ DB 밖(data/eval/runs.jsonl)에 한 줄씩 덧붙인다.
 LangSmith 는 켜져 있고 패키지가 깔려 있을 때만 함께 보낸다. 없으면 조용히 통과한다 -
 추적이 안 된다고 채점이 멈추면 안 된다. 채점기가 추적보다 위에 있다.
 """
+
 import contextlib
 import datetime
 import json
@@ -100,7 +101,7 @@ def banner(title: str) -> None:
     if tracing_on():
         print(f"  LangSmith 켜짐 · 프로젝트 '{LANGSMITH_EVAL_PROJECT}'")
     elif LANGSMITH_TRACING:
-        print("  LangSmith 켜 달랬지만 langsmith 패키지가 없다.  pip install -e \".[trace]\"")
+        print('  LangSmith 켜 달랬지만 langsmith 패키지가 없다.  pip install -e ".[trace]"')
     else:
         print(f"  기록     {RUNS_PATH} (LangSmith 는 꺼짐)")
     print()

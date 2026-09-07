@@ -14,24 +14,26 @@
 (searching.candidates -> recommending.recommend)로 LLM이 고른 추천에 정답이
 있는지와 재시도/실패 횟수를 추가로 잰다. N을 생략하면 홀드아웃 전체를 돈다.
 """
-import time
+
 import json
 import random
 import sqlite3
 import sys
+import time
 
-from app.features.retrieve import build_where  # 프로필 딕셔너리 -> SQL where절 변환
-from app.features.searching import candidates as search_candidates
+from app.core.config import EMBED_DIM, EMBED_MODEL, EVAL_DIR, SIZE_CASE
 from app.features.recommending import recommend
-from app.core.config import DB_PATH, SIZE_CASE, EVAL_DIR, EMBED_MODEL, EMBED_DIM
-from pipeline.vector_db import search,connect
-
+from app.features.retrieve import build_where
+from app.features.searching import candidates as search_candidates
 from eval.tracing import banner, eval_run, require_llm, warm_domain
+from pipeline.vector_db import connect
 
 
-def load_product_map(con: sqlite3.Connection)->dict[int,int]:
+def load_product_map(con: sqlite3.Connection) -> dict[int, int]:
     """purchase_id -> product_id 사전을 만든다 검색 결과(purchase_id)를 상품으로 해석할 때 쓴다."""
-    rows = con.execute('SELECT purchase_id, product_id FROM purchase').fetchall()  # 전체 구매의 (purchase_id, product_id) 쌍을 가져옴
+    rows = con.execute(
+        "SELECT purchase_id, product_id FROM purchase"
+    ).fetchall()  # 전체 구매의 (purchase_id, product_id) 쌍을 가져옴
     return dict(rows)  # {purchase_id, product_id}
 
 
@@ -56,10 +58,12 @@ def load_holdout(con: sqlite3.Connection):
         AND TRIM(r.body) <> ''
     """).fetchall()
 
+
 def load_product_names(con: sqlite3.Connection) -> dict[int, str]:
     """product_id -> 상품명 사전. 결과를 사람이 읽을 수 있게 찍을 때 쓴다."""
-    rows = con.execute('SELECT product_id, name FROM product').fetchall()
+    rows = con.execute("SELECT product_id, name FROM product").fetchall()
     return dict(rows)
+
 
 def inspect_misses(con: sqlite3.Connection, runs: list[tuple], n: int = 5) -> None:
     """미스 케이스 n건을 골라, 정답과 실제 상위 결과를 나란히 찍는다."""
@@ -84,6 +88,7 @@ def inspect_misses(con: sqlite3.Connection, runs: list[tuple], n: int = 5) -> No
         if shown == n:
             break
 
+
 def is_allergy_contaminated(con: sqlite3.Connection, product_id: int, allergy: str) -> bool:
     """정답 상품에 그 pet의 등록 알레르기 원료가 실제로 들어있는지.
 
@@ -92,13 +97,17 @@ def is_allergy_contaminated(con: sqlite3.Connection, product_id: int, allergy: s
     """
     if not allergy:
         return False
-    row = con.execute("""
+    row = con.execute(
+        """
         SELECT 1 FROM product_ingredient AS pi
         JOIN ingredient_allergen AS ia ON ia.ingredient_id = pi.ingredient_id
         JOIN allergen AS al ON al.allergen_id = ia.allergen_id
         WHERE pi.product_id = ? AND al.name_ko = ?
-    """, (product_id, allergy)).fetchone()
+    """,
+        (product_id, allergy),
+    ).fetchone()
     return row is not None
+
 
 def count_allergy_contamination(con: sqlite3.Connection, runs: list[tuple]) -> None:
     """top50 미스 중 알레르기 필터가 정답 자체를 걸러낸 오염 건수를 센다."""
@@ -112,17 +121,21 @@ def count_allergy_contamination(con: sqlite3.Connection, runs: list[tuple]) -> N
         if is_allergy_contaminated(con, product_id, allergy):
             contaminated += 1
     rate = contaminated / n_miss if n_miss else 0.0
-    print(f'top50 미스 {n_miss}건 중 알레르기 오염(정답이 필터에 걸림) {contaminated}건 ({rate:.1%})')
+    print(f"top50 미스 {n_miss}건 중 알레르기 오염(정답이 필터에 걸림) {contaminated}건 ({rate:.1%})")
+
 
 def run_holdout_search(con: sqlite3.Connection, top_k_wide: int = 50) -> list[tuple]:
     """홀드아웃 66건을 한 번씩만 검색해서, 이후 지표 계산 함수들이 재사용하게 한다."""
     holdout = load_holdout(con)
     runs = []
     for purchase_id, product_id, animal_category, size, allergy, review in holdout:
-        where, params = build_where({'animal_category': animal_category, 'size_category': size, 'allergy': allergy})
+        where, params = build_where(
+            {"animal_category": animal_category, "size_category": size, "allergy": allergy}
+        )
         results = search(con, review, where=where, params=params, top_k=top_k_wide)
         runs.append((purchase_id, product_id, allergy, review, results))
     return runs
+
 
 def rank_of_answer(product_of: dict[int, int], product_id: int, results: list[tuple]) -> int | None:
     """정답 상품이 검색 결과의 몇 번째에 나왔는지(1부터). 없으면 None.
@@ -139,9 +152,11 @@ def score_runs(con: sqlite3.Connection, runs: list[tuple]) -> list[dict]:
     """검색 결과를 표본별 한 줄 기록으로 압축한다. 모델 비교는 이 기록끼리 한다."""
     product_of = load_product_map(con)
     return [
-        {'purchase_id': purchase_id,
-         'product_id': product_id,
-         'rank': rank_of_answer(product_of, product_id, results)}
+        {
+            "purchase_id": purchase_id,
+            "product_id": product_id,
+            "rank": rank_of_answer(product_of, product_id, results),
+        }
         for purchase_id, product_id, allergy, review, results in runs
     ]
 
@@ -152,11 +167,11 @@ def summarize(records: list[dict], ks: tuple = (1, 3, 10)) -> dict:
     recall@k 하나만 보면 k 경계에서 우연히 갈린 표본에 결론이 휘둘린다.
     MRR 은 순위를 통째로 반영해서(1위=1.0, 5위=0.2) 그 흔들림이 덜하다.
     """
-    ranks = [record['rank'] for record in records]
+    ranks = [record["rank"] for record in records]
     n = len(ranks)
-    metrics = {f'recall@{k}': sum(1 for r in ranks if r is not None and r <= k) / n for k in ks}
-    metrics['mrr'] = sum(1 / r for r in ranks if r is not None) / n
-    metrics['n'] = n
+    metrics = {f"recall@{k}": sum(1 for r in ranks if r is not None and r <= k) / n for k in ks}
+    metrics["mrr"] = sum(1 / r for r in ranks if r is not None) / n
+    metrics["n"] = n
     return metrics
 
 
@@ -166,11 +181,12 @@ def noise_band(records: list[dict], k: int = 3, trials: int = 2000, seed: int = 
     표본이 66건뿐이라 1건 = 1.5%p 다. 이 폭 안의 모델 간 차이는 '차이'가 아니라
     어느 리뷰가 홀드아웃으로 뽑혔느냐의 운이다. 모델을 고르기 전에 이 폭부터 안다.
     """
-    hits = [1 if (r['rank'] is not None and r['rank'] <= k) else 0 for r in records]
+    hits = [1 if (r["rank"] is not None and r["rank"] <= k) else 0 for r in records]
     n = len(hits)
     rng = random.Random(seed)
     rates = sorted(sum(rng.choice(hits) for _ in range(n)) / n for _ in range(trials))
     return rates[int(trials * 0.025)], rates[int(trials * 0.975)]
+
 
 def measure_query_latency(n: int = 30) -> float:
     """질의 1건을 벡터로 만드는 평균 시간(ms).
@@ -179,11 +195,13 @@ def measure_query_latency(n: int = 30) -> float:
     비용은 이쪽이고, 품질이 노이즈 안에서 뭉칠 때 결정을 가르는 축이 된다.
     """
     from app.core.embedder import embed_query
-    embed_query('워밍업')  # 첫 호출엔 모델 로딩이 섞여서 지표로 못 쓴다
+
+    embed_query("워밍업")  # 첫 호출엔 모델 로딩이 섞여서 지표로 못 쓴다
     start = time.perf_counter()
     for i in range(n):
-        embed_query(f'피부가 예민한 아이에게 줄 사료를 찾고 있어요 {i}')
+        embed_query(f"피부가 예민한 아이에게 줄 사료를 찾고 있어요 {i}")
     return (time.perf_counter() - start) / n * 1000
+
 
 def score_llm(holdout: list[tuple], n_pick: int = 5, limit: int | None = None) -> dict:
     """holdout 표본에 실제 배포 경로(searching.candidates -> recommending.recommend)를 그대로 태워
@@ -192,12 +210,13 @@ def score_llm(holdout: list[tuple], n_pick: int = 5, limit: int | None = None) -
     위 지표들은 pipeline.vector_db.search()를 직접 부르지만, 여기는 서버가 실제로 타는
     함수를 그대로 불러야 배포된 것과 같은 걸 재는 의미가 있다.
     """
-    
 
     sample = holdout[:limit] if limit else holdout
     hits = n_retry = n_fail = 0
     started = time.perf_counter()
-    for i, (purchase_id, product_id, animal_category, size_category, allergy, review) in enumerate(sample, start=1):
+    for i, (purchase_id, product_id, animal_category, size_category, allergy, review) in enumerate(
+        sample, start=1
+    ):
         profile = {"animal_category": animal_category, "size_category": size_category, "allergy": allergy}
         cands = search_candidates(profile, review)
         picks, retries, error = recommend(cands, profile, n_pick)
@@ -206,11 +225,11 @@ def score_llm(holdout: list[tuple], n_pick: int = 5, limit: int | None = None) -
             n_fail += 1
         elif product_id in {p["product_id"] for p in picks}:
             hits += 1
-        print(f'  {i}/{len(sample)} 처리중 ({time.perf_counter() - started:.0f}초 경과)', end='\r')
+        print(f"  {i}/{len(sample)} 처리중 ({time.perf_counter() - started:.0f}초 경과)", end="\r")
 
-    print(' ' * 40, end='\r')
+    print(" " * 40, end="\r")
     n = len(sample)
-    return {'n': n, f'hit@{n_pick}': hits / n if n else 0.0, 'n_retry': n_retry, 'n_fail': n_fail}
+    return {"n": n, f"hit@{n_pick}": hits / n if n else 0.0, "n_retry": n_retry, "n_fail": n_fail}
 
 
 def save_run(records: list[dict], metrics: dict) -> None:
@@ -222,43 +241,51 @@ def save_run(records: list[dict], metrics: dict) -> None:
     EVAL_DIR.mkdir(parents=True, exist_ok=True)
     path = EVAL_DIR / f"{EMBED_MODEL.replace('/', '__')}.json"
     path.write_text(
-        json.dumps({'model': EMBED_MODEL, 'dim': EMBED_DIM,
-                    'metrics': metrics, 'records': records},
-                   ensure_ascii=False, indent=2),
-        encoding='utf-8')
-    print(f'결과 저장: {path}')
+        json.dumps(
+            {"model": EMBED_MODEL, "dim": EMBED_DIM, "metrics": metrics, "records": records},
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    print(f"결과 저장: {path}")
 
-if __name__ == '__main__':
-    banner('추천 품질 (golden)')
+
+if __name__ == "__main__":
+    banner("추천 품질 (golden)")
 
     con = connect()
     # save_run() 은 모델별 결과 파일 하나를 매번 덮어쓴다(모델 비교용). eval_run() 은
     # 실행마다 한 줄씩 쌓는다(시간에 따른 추이용). 묻는 게 달라서 둘 다 남긴다.
-    with eval_run('golden', inputs={'홀드아웃': len(load_holdout(con)), 'top_k': 50}) as run:
+    with eval_run("golden", inputs={"홀드아웃": len(load_holdout(con)), "top_k": 50}) as run:
         runs = run_holdout_search(con)
         records = score_runs(con, runs)
         metrics = summarize(records)
-        metrics['query_ms'] = measure_query_latency()
+        metrics["query_ms"] = measure_query_latency()
 
-        print(f'모델: {EMBED_MODEL} ({EMBED_DIM}차원)')
+        print(f"모델: {EMBED_MODEL} ({EMBED_DIM}차원)")
         for name, value in metrics.items():
-            print(f'  {name:<12} {value:.3f}' if isinstance(value, float) else f'  {name:<12} {value}')
+            print(f"  {name:<12} {value:.3f}" if isinstance(value, float) else f"  {name:<12} {value}")
 
         low, high = noise_band(records, k=3)
-        print(f'  recall@3 95% 구간 {low:.1%} ~ {high:.1%} - 이 폭 안의 차이는 무시한다')
+        print(f"  recall@3 95% 구간 {low:.1%} ~ {high:.1%} - 이 폭 안의 차이는 무시한다")
 
         save_run(records, metrics)
         count_allergy_contamination(con, runs)
         inspect_misses(con, runs)
 
-        run.record(**{k: round(v, 3) if isinstance(v, float) else v for k, v in metrics.items()},
-                   흔들림폭=round((high - low) * 100, 1))
+        run.record(
+            **{k: round(v, 3) if isinstance(v, float) else v for k, v in metrics.items()},
+            흔들림폭=round((high - low) * 100, 1),
+        )
 
-        if '--llm' in sys.argv:
-            at = sys.argv.index('--llm') + 1
+        if "--llm" in sys.argv:
+            at = sys.argv.index("--llm") + 1
             limit = int(sys.argv[at]) if len(sys.argv) > at and sys.argv[at].isdigit() else None
             print()
-            print(f'LLM 추천까지: searching.candidates() -> recommending.recommend() (표본 {limit or "전체"}건)')
+            print(
+                f"LLM 추천까지: searching.candidates() -> recommending.recommend() (표본 {limit or '전체'}건)"
+            )
 
             # 서버라면 lifespan 이 해 뒀을 마스터 캐시를 여기서 올린다 - 이게 없으면
             # 검색 결과를 상품으로 바꾸는 순간 ProductMgr 이 비어 있어 터진다.
@@ -268,7 +295,7 @@ if __name__ == '__main__':
 
             llm_metrics = score_llm(load_holdout(con), limit=limit)
             for name, value in llm_metrics.items():
-                print(f'  {name:<10} {value:.3f}' if isinstance(value, float) else f'  {name:<10} {value}')
-            run.record(**{f'LLM_{k}': v for k, v in llm_metrics.items()})
+                print(f"  {name:<10} {value:.3f}" if isinstance(value, float) else f"  {name:<10} {value}")
+            run.record(**{f"LLM_{k}": v for k, v in llm_metrics.items()})
 
     con.close()

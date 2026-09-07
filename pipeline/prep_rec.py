@@ -3,8 +3,8 @@
 """5단계 검증에 필요한 데이터를 만든다: holdout 지정 + product_vectors + customer_vectors."""
 
 import sqlite3
-from collections import defaultdict
 import sys
+from collections import defaultdict
 
 import numpy as np
 import sqlite_vec

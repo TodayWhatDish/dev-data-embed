@@ -1,10 +1,10 @@
-# Last Updated : 2026-08-31
+# Last Updated : 2026-09-06
 """데이터베이스에 닿는 자리를 여기 하나로 모은다."""
 
 import sqlite3
-import json
 import threading
-from app.core.config import DB_PATH, INDEX_FILTER
+
+from app.core.config import DB_PATH
 
 # 스레드마다 자기 커넥션을 쓴다. 전에는 모듈 전역 커넥션 하나를 check_same_thread=False 로 열어
 # 다 같이 썼는데, 라우트가 전부 def(= async 아님)라 FastAPI 가 스레드풀에서 돌린다.
@@ -45,6 +45,7 @@ class QueryError(Exception):
     * table: 어느 테이블에서 났는지. 모르면 None
     * detail: 어떤 컬럼이 틀렸는지 등 사람이 볼 부연
     """
+
     def __init__(self, reason, table=None, detail=None):
         super().__init__(f"{reason}: table={table}, detail={detail}")
         self.reason = reason
@@ -54,11 +55,11 @@ class QueryError(Exception):
 
 # sqlite 제약 위반 이름 -> reason. 메시지 문자열을 파싱하지 않으려고 errorname 을 쓴다
 CONSTRAINT_REASON = {
-    'SQLITE_CONSTRAINT_UNIQUE':     'constraint_unique',
-    'SQLITE_CONSTRAINT_PRIMARYKEY': 'constraint_unique',
-    'SQLITE_CONSTRAINT_CHECK':      'constraint_check',
-    'SQLITE_CONSTRAINT_FOREIGNKEY': 'constraint_fk',
-    'SQLITE_CONSTRAINT_NOTNULL':    'constraint_notnull',
+    "SQLITE_CONSTRAINT_UNIQUE": "constraint_unique",
+    "SQLITE_CONSTRAINT_PRIMARYKEY": "constraint_unique",
+    "SQLITE_CONSTRAINT_CHECK": "constraint_check",
+    "SQLITE_CONSTRAINT_FOREIGNKEY": "constraint_fk",
+    "SQLITE_CONSTRAINT_NOTNULL": "constraint_notnull",
 }
 
 
@@ -75,8 +76,9 @@ def execute(sql, params=(), table=None) -> sqlite3.Cursor:
         con.commit()
         return cur
     except sqlite3.IntegrityError as e:
-        raise QueryError(CONSTRAINT_REASON.get(getattr(e, 'sqlite_errorname', ''), 'constraint_other'),
-                         table, str(e)) from e
+        raise QueryError(
+            CONSTRAINT_REASON.get(getattr(e, "sqlite_errorname", ""), "constraint_other"), table, str(e)
+        ) from e
 
 
 def fetch(sql, params=()) -> list[dict]:
@@ -115,22 +117,3 @@ def fetch_tuple_one(sql, params=()) -> tuple | None:
     fetch_tuples 와 철자가 겹치지 않게 _one 을 붙였다. tuple / tuples 한 글자 차이는 못 본다.
     """
     return get_con().execute(sql, params).fetchone()
-
-def load_vectors(table, key, connection=None):
-    """문자로 넣어둔 백터정보를 Numpy 행렬로 숫자화해서 되살리는 함수"""
-    import numpy as np
-
-    # 만약 해당 함수를 호출하는 파일에 con접속객체가 있으면 그걸 재활용하고 없으면 새로 만들어서 전달
-    active_con = connection if connection is not None else get_con()
-
-    # DB에 가지고온 id값과 벡터 좌표값을 담을 빈 리스트 2개 생성
-    ids, rows = [], []
-
-    # 인수로 전달된 테이블에서 ID열과 vector 열을 한 행씩 가져옴
-    for row_id, vector in active_con.execute(f"SELECT {key}, vector FROM {table}"):
-        ids.append(row_id)
-        # 리스트에 따옴표가 붙어있어서 통짜로 문자화되어 있는 데이터를 json객체형태로 변경
-        rows.append(json.loads(vector))
-
-    # 객체안쪽에 있는 vector안쪽의 좌표값을 다시 숫자형태로 변경
-    return ids, np.array(rows, dtype="float32")

@@ -16,31 +16,43 @@ A/B 까지 전 그룹을 훑는 건 master_join_workers.py 다. 여기는 C 그�
 
 py(3.14) 는 fastapi 가 없어서 못 돈다. python(3.12) 으로 돌린다.
 """
-from app.features.metric.sqlbench import throughput_fn
-from tests.bench.master_join import (c_cached, c_cached_one, c_join_subquery,
-                                     load_domain_cache, load_schema_cache)
+
 from app.core.db import fetch_tuple_one
+from app.features.metric.sqlbench import throughput_fn
+from tests.bench.master_join import (
+    c_cached,
+    c_cached_one,
+    c_join_subquery,
+    load_domain_cache,
+    load_schema_cache,
+)
 
 THREADS = (1, 3, 4, 5, 6, 8, 12, 14, 16, 20, 32)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     load_domain_cache()
     load_schema_cache()
 
     user_id, pet_n = fetch_tuple_one(
-        'SELECT user_id, count(*) FROM pet WHERE inactive_at IS NULL'
-        ' GROUP BY user_id ORDER BY 2 DESC LIMIT 1')
+        "SELECT user_id, count(*) FROM pet WHERE inactive_at IS NULL GROUP BY user_id ORDER BY 2 DESC LIMIT 1"
+    )
 
-    print(f'\n펫 목록 + 알레르기 (user {user_id}, 펫 {pet_n}마리)')
-    got = throughput_fn({'C1 조인 1방': lambda: c_join_subquery(user_id),
-                         'C4 캐시 1방': lambda: c_cached_one(user_id),
-                         'C3 캐시 SELECT 2방': lambda: c_cached(user_id)}, threads=THREADS, seconds = 1.0)
+    print(f"\n펫 목록 + 알레르기 (user {user_id}, 펫 {pet_n}마리)")
+    got = throughput_fn(
+        {
+            "C1 조인 1방": lambda: c_join_subquery(user_id),
+            "C4 캐시 1방": lambda: c_cached_one(user_id),
+            "C3 캐시 SELECT 2방": lambda: c_cached(user_id),
+        },
+        threads=THREADS,
+        seconds=1.0,
+    )
 
     # 동시성 버그는 느려지는 게 아니라 예외로 나온다. 하나라도 있으면 위 숫자는 볼 것도 없다
     for name, _rate, failed in got:
-        assert not failed, f'{name} 이 동시 실행에서 {failed}회 터졌다'
-    print('\nok - 실패 0')
+        assert not failed, f"{name} 이 동시 실행에서 {failed}회 터졌다"
+    print("\nok - 실패 0")
 
 """
 # test 1

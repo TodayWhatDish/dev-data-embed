@@ -5,9 +5,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.auth import get_current_admin
+from app.features.customers import customer_detail
 from app.features.searching import similar_reviews_for
 from app.features.strategy import generate_strategy
-from app.features.customers import customer_detail
 from app.repositories import users as users_repo
 
 router = APIRouter(dependencies=[Depends(get_current_admin)])

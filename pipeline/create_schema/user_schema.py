@@ -11,9 +11,8 @@
 """
 
 TABLES = [
-
-# user — 보호자 계정. 컬럼 설명은 docu/schema/user_schema.md#user
-'''
+    # user — 보호자 계정. 컬럼 설명은 docu/schema/user_schema.md#user
+    """
 CREATE TABLE user (
     user_id       INTEGER NOT NULL PRIMARY KEY,
     auth_provider TEXT    NOT NULL DEFAULT 'local'
@@ -29,8 +28,7 @@ CREATE TABLE user (
     created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
     updated_at    TEXT    NOT NULL DEFAULT (datetime('now'))
 ) STRICT
-''',
-
+""",
 ]
 
 
@@ -38,5 +36,5 @@ CREATE TABLE user (
 # 로그인 처리는 이 인덱스를 그대로 타는 조회 하나로 끝난다:
 #   SELECT user_id FROM user WHERE auth_provider = ? AND auth_uid = ?
 UNIQUE_INDEXES = [
-    'CREATE UNIQUE INDEX uq_user_auth      ON user(auth_provider, auth_uid)',
+    "CREATE UNIQUE INDEX uq_user_auth      ON user(auth_provider, auth_uid)",
 ]

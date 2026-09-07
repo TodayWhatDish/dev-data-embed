@@ -12,8 +12,8 @@ main.py 는 앱을 조립하고 라우터를 등록하는 일만 한다(그 파�
 """
 
 import logging
-
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
 from app.domain.domain_init import init_from_db
@@ -31,6 +31,7 @@ def load_domain_cache():
     """
     init_from_db()
 
+
 def load_schema_cache():
     """테이블·컬럼 이름을 ColumnMgr 에 담고 몇 개를 담았는지 남긴다.
 
@@ -40,8 +41,9 @@ def load_schema_cache():
     """
     col_mgr = ColumnMgr.get_inst()
     tables = get_all_table_names()
-    logger.info(f'Cached schema: table={len(tables)}, '
-                f'column={sum(len(col_mgr.get_col_names(t)) for t in tables)}')
+    logger.info(
+        f"Cached schema: table={len(tables)}, column={sum(len(col_mgr.get_col_names(t)) for t in tables)}"
+    )
     return tables
 
 
@@ -56,11 +58,11 @@ async def lifespan(app: FastAPI):
         # 실패 사유와 트레이스백은 아래 층(repositories)이 이미 찍었다. 여기서 남기는 건
         # '그래서 서버가 안 떴다' 는 사실이다 - 예외를 삼키지 않아 uvicorn 이 기동을 멈춘다.
         # 캐시가 빈 채로 요청을 받으면 첫 호출에서야 죽는데, 그때는 원인이 훨씬 멀어져 있다
-        logger.critical('기동 실패 - 캐시를 못 채웠습니다. 서버를 띄우지 않습니다')
+        logger.critical("기동 실패 - 캐시를 못 채웠습니다. 서버를 띄우지 않습니다")
         raise
 
-    logger.info('Lifespan startup done')
+    logger.info("Lifespan startup done")
     yield
 
     app.state.con.close()
-    logger.info('Lifespan shutdown done')
+    logger.info("Lifespan shutdown done")

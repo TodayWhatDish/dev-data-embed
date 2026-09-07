@@ -17,8 +17,9 @@ def fingerprint(text: str, model: str = EMBED_MODEL) -> str:
     return source_hash(f"{model}\n{text}")
 
 
-def sync(con, kind: str, ids: list[str], texts: list[str], *,
-         full: bool = False, model: str = EMBED_MODEL) -> dict:
+def sync(
+    con, kind: str, ids: list[str], texts: list[str], *, full: bool = False, model: str = EMBED_MODEL
+) -> dict:
     """ids/texts 를 저장소와 맞춘다. 바뀐 것만 임베딩하고 없어진 것은 지운다.
 
     ids[i] 와 texts[i] 가 같은 조각을 가리킨다는 것이 이 함수의 유일한 전제다.
@@ -33,14 +34,12 @@ def sync(con, kind: str, ids: list[str], texts: list[str], *,
         known = {}
 
     # 처음 보는 id 는 known.get() 이 None 이라 자동으로 '다름'이 된다.
-    todo = [i for i, (item_id, mark) in enumerate(zip(ids, marks))
-            if known.get(item_id) != mark]
+    todo = [i for i, (item_id, mark) in enumerate(zip(ids, marks)) if known.get(item_id) != mark]
 
     # 돈과 시간이 드는 자리는 여기 하나뿐이다. 고른 것만 모델에 넘긴다.
     if todo:
         vectors = embed_documents([texts[i] for i in todo])
-        store.upsert(kind, [ids[i] for i in todo], vectors,
-                     model=model, hashes=[marks[i] for i in todo])
+        store.upsert(kind, [ids[i] for i in todo], vectors, model=model, hashes=[marks[i] for i in todo])
 
     # 저장소엔 있는데 지금 목록엔 없는 것 = 원본에서 사라진 조각.
     alive = set(ids)
