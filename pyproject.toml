@@ -23,6 +23,8 @@ dependencies = [
     # app/core/embedder.py 와 pipeline/prep/chunking.py 가 직접 import 하므로 명시해 둔다.
     "openai",
     "tiktoken",
+    "sqlalchemy",
+
 ]
 
 # 테스트에서만 쓰는 것들. 배포에 pytest 가 끼면 안 되니 dependencies 와 갈라 둔다.
