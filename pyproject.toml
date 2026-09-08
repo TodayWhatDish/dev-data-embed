@@ -22,6 +22,14 @@ dependencies = [
     "openai",
     "tiktoken",
     "sqlalchemy",
+    # app/core/embedder.py 가 정규화에 직접 쓴다. 지금까지 torch/transformers 가 끌고 오는 것에
+    # 얹혀 있었는데, 배포 이미지에서 그 둘을 빼자 ModuleNotFoundError 로 드러났다.
+    "numpy",
+    # 스키마 모델이 직접 import 한다. fastapi 가 항상 끌고 오지만 위와 같은 이유로 명시한다.
+    "pydantic",
+
+]
+
 
 ]
 
