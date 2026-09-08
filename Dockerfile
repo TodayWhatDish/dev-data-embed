@@ -23,6 +23,10 @@ COPY app/ ./app/
 COPY pipeline/ ./pipeline/
 COPY data/master/ ./data/master/
 
+# app/core/trace.py 가 logs/query_log.jsonl 을 append 로 여는데 디렉터리는 만들지 않는다.
+# .dockerignore 로 logs/ 를 뺐으므로 여기서 만들어 둔다 - 없으면 첫 /ask 가 FileNotFoundError 로 죽는다.
+RUN mkdir -p logs
+
 EXPOSE 8000
 
 # --host 0.0.0.0 필수. 기본값 127.0.0.1 이면 컨테이너 안에서만 들리고 -p 로 뚫어도 안 닿는다.
