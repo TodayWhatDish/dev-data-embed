@@ -1,7 +1,7 @@
 # Last Updated : 2026-09-04
 
 """임베딩 모델 싱글톤. 색인(pipeline)과 검색(app)이 같은 인스턴스를 공유해 벡터 공간 일관성 보장.
-core/에 두는 이유: features/ 순환 import 방지, 앱 배포 시 pipeline 없이도 떠야 하므로 app/ 측 기반 레이어에 배치.
+core/에 두는 이유: services/ 순환 import 방지, 앱 배포 시 pipeline 없이도 떠야 하므로 app/ 측 기반 레이어에 배치.
 
 모델이 로컬(sentence-transformers)이냐 API(OpenAI)냐는 config 의 EMBED_PROFILES 가 정하고,
 여기서 그 provider 칸만 보고 갈라진다. 부르는 쪽은 embed_documents/embed_query 두 개만 알면 된다 -

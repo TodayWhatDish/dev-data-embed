@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>배포 스펙 · 오늘 뭐먹냥 (dev-data-embed + dev-web)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root {
+  --paper:#F1F3F4; --card:#FBFCFC; --ink:#17212B; --muted:#5A6672;
+  --rule:#D3D9DD; --rule-soft:#E4E9EB;
+  --oxide:#B4501E; --oxide-soft:#F5E6DC;
+  --teal:#16697A; --teal-soft:#DDEBED;
+  --ok:#2E7D32; --ok-soft:#E3F1E4;
+  --todo:#9A6B00; --todo-soft:#FBF0DC;
+  --risk:#B4501E; --risk-soft:#F5E6DC;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper:#131A20; --card:#1B242C; --ink:#E4E9EC; --muted:#93A1AC;
+    --rule:#2C3842; --rule-soft:#232E37;
+    --oxide:#E08A55; --oxide-soft:#3A2418;
+    --teal:#63B0C0; --teal-soft:#16303A;
+    --ok:#7BC47F; --ok-soft:#1B2E1D;
+    --todo:#E0B355; --todo-soft:#2E260F;
+    --risk:#E08A55; --risk-soft:#3A2418;
+  }
+}
+* { box-sizing:border-box; }
+body {
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:"IBM Plex Sans KR", "Apple SD Gothic Neo", system-ui, sans-serif;
+  line-height:1.7; -webkit-font-smoothing:antialiased;
+}
+main { max-width:920px; margin:0 auto; padding:56px 24px 120px; }
+h1 { font-size:clamp(1.8rem,4vw,2.4rem); margin:0 0 8px; letter-spacing:-.01em; }
+h2 { font-size:1.4rem; margin:56px 0 6px; padding-top:16px; border-top:1px solid var(--rule); }
+h2 .no { font-family:ui-monospace,monospace; color:var(--muted); font-weight:500; margin-right:8px; }
+h3 { font-size:1.05rem; margin:24px 0 8px; color:var(--teal); }
+p.lead { color:var(--muted); font-size:1.05rem; max-width:64ch; }
+p { max-width:70ch; }
+code { font-family:ui-monospace,"SF Mono",monospace; background:var(--rule-soft); padding:1px 5px; border-radius:4px; font-size:.92em; }
+.badge { display:inline-block; font-size:.72rem; font-weight:600; letter-spacing:.04em;
+  padding:2px 8px; border-radius:999px; text-transform:uppercase; margin-left:8px; vertical-align:middle; }
+.badge.ok   { background:var(--ok-soft);   color:var(--ok); }
+.badge.todo { background:var(--todo-soft); color:var(--todo); }
+.badge.risk { background:var(--risk-soft); color:var(--risk); }
+table { width:100%; border-collapse:collapse; margin:16px 0; font-size:.95rem; }
+th, td { text-align:left; padding:9px 10px; border-bottom:1px solid var(--rule); vertical-align:top; }
+th { color:var(--muted); font-weight:600; font-size:.82rem; text-transform:uppercase; letter-spacing:.04em; }
+.card { background:var(--card); border:1px solid var(--rule); border-radius:10px; padding:18px 20px; margin:14px 0; }
+.grid4 { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px; margin:16px 0; }
+.step { display:flex; gap:12px; align-items:flex-start; margin:10px 0; }
+.step .n { font-family:ui-monospace,monospace; color:var(--muted); min-width:22px; }
+.note { border-left:3px solid var(--oxide); background:var(--oxide-soft); padding:10px 14px; border-radius:0 6px 6px 0; margin:16px 0; font-size:.95rem; }
+ul { padding-left:20px; }
+li { margin:4px 0; }
+.tag { font-family:ui-monospace,monospace; font-size:.82rem; color:var(--muted); }
+</style>
+</head>
+<body>
+<main>
+
+<h1>배포 스펙 &middot; 오늘 뭐먹냥</h1>
+<p class="lead">
+  <code>dev-data-embed</code>(백엔드/파이프라인)와 <code>dev-web</code>(프론트) 두 저장소를
+  Vercel · Render · Supabase · Docker 위에 올리기 위한 계획서. 아직 아무것도 배포되지 않은
+  상태에서 <b>무엇을, 어떤 순서로, 왜</b> 붙이는지 정리한 문서이며 이 문서 자체는 설정 파일을
+  대신하지 않는다 — 실제 <code>render.yaml</code>, <code>vercel.json</code> 등은 각 단계에서
+  사용자 확인 후 별도로 만든다.
+</p>
+
+<h2><span class="no">00</span>지금 상태</h2>
+<table>
+<tr><th>항목</th><th>현재</th><th>상태</th></tr>
+<tr><td>백엔드 컨테이너화</td><td><code>dev-data-embed/Dockerfile</code> (python:3.12-slim, CPU torch)</td><td><span class="badge ok">있음</span></td></tr>
+<tr><td>백엔드 DB</td><td>SQLite + sqlite-vec, 파일 하나(<code>data/pet_reco.db</code>)</td><td><span class="badge risk">이전 필요</span></td></tr>
+<tr><td>프론트</td><td><code>dev-web/frontend/public/*.html</code> 정적 HTML + JS (Next.js 아님)</td><td><span class="badge risk">골격부터</span></td></tr>
+<tr><td>인증</td><td>FastAPI + JWT (dev-web AGENTS.md에 "추후 Supabase" 명시)</td><td><span class="badge todo">계획됨</span></td></tr>
+<tr><td>배포 설정 파일</td><td>vercel.json / render.yaml / docker-compose 전무</td><td><span class="badge todo">없음</span></td></tr>
+</table>
+<div class="note">
+  즉 이번 작업은 "이미 돌아가는 배포를 정리"가 아니라 <b>처음 올리는 것</b>이다.
+  가장 리스크 큰 단계(SQLite → Supabase Postgres 이전)를 먼저 계획해두지 않으면
+  나중에 벡터 검색(recall@k)이 조용히 깨질 수 있다.
+</div>
+
+<h2><span class="no">01</span>왜 이 네 개인가</h2>
+<div class="grid4">
+  <div class="card">
+    <h3>Vercel</h3>
+    <p style="font-size:.92rem">프론트(Next.js) 전용 호스팅. 프리뷰 URL이 PR마다 자동 생성돼
+    이력서/포트폴리오에서 "링크로 바로 확인" 가능.</p>
+  </div>
+  <div class="card">
+    <h3>Render</h3>
+    <p style="font-size:.92rem">이미 있는 Dockerfile을 그대로 올릴 수 있는 백엔드 호스팅.
+    FastAPI + torch(CPU) 컨테이너처럼 무거운 이미지도 서버리스보다 안정적으로 상시 구동.</p>
+  </div>
+  <div class="card">
+    <h3>Supabase</h3>
+    <p style="font-size:.92rem">Postgres + pgvector로 SQLite/sqlite-vec을 대체하고,
+    JWT 자체 구현 대신 Auth를 붙여 "직접 만든 인증"에서 "관리형 인증"으로 스펙을 올린다.</p>
+  </div>
+  <div class="card">
+    <h3>Docker</h3>
+    <p style="font-size:.92rem">로컬 개발 = Render 운영 이미지를 동일하게 유지하는 축.
+    새 팀원이 <code>docker compose up</code> 한 줄로 백엔드+DB를 띄우게 한다.</p>
+  </div>
+</div>
+
+<h2><span class="no">02</span>서비스별 체크리스트</h2>
+
+<h3>Render — 백엔드 (<code>dev-data-embed</code>)</h3>
+<ul>
+  <li><code>render.yaml</code> 추가: <span class="tag">dockerfilePath: ./Dockerfile</span>, healthCheckPath <code>/health</code> (이미 <code>app/api/routes/health.py</code> 존재 여부 확인)</li>
+  <li>환경변수: <code>.env</code>에 있는 키 전부 Render 대시보드로 이전 (API 키는 절대 커밋 금지 — AGENTS.md Security 규칙)</li>
+  <li>DB 접속 문자열을 <code>app/core/config.py</code>에서 env로 뺀 상태인지 확인 (Supabase 이전 후 필수)</li>
+</ul>
+
+<h3>Supabase — DB + Auth</h3>
+<ul>
+  <li>스키마 이전: <code>data/master/*.csv</code>, <code>data/seed/*.csv</code> 적재 로직(<code>pipeline.load_csv</code>)을 Postgres 대상으로 재사용 가능한지 확인</li>
+  <li>벡터: <code>sqlite-vec</code> BLOB(<code>chunk_vectors</code>) → <code>pgvector</code> 컬럼. 차원 수·거리 함수(cosine)를 <code>eval golden</code>으로 이전 전/후 recall@k 비교해서 회귀 없는지 검증</li>
+  <li>인증: dev-web의 자체 JWT → Supabase Auth. <code>app/core/auth.py</code>의 토큰 검증 로직 교체 지점 확인</li>
+</ul>
+
+<h3>Vercel — 프론트 (<code>dev-web</code>)</h3>
+<ul>
+  <li>선행 조건: <code>frontend/public/*.html</code> 정적 페이지 → Next.js(App Router) 골격으로 전환 (dev-web/docs/DESIGN.md에 이미 FSD 레이어 설계 있음, 이번 리팩토링 대상)</li>
+  <li><code>NEXT_PUBLIC_API_BASE</code> 같은 env로 Render 백엔드 URL 주입 (CORS는 <code>rag-project-cleanup</code> 참고 — REFERENCES.md 2번 항목)</li>
+  <li>Supabase 브라우저 클라이언트는 <code>shared/api/</code>에 한 곳으로 모음 (DESIGN.md 규칙 그대로)</li>
+</ul>
+
+<h3>Docker — 로컬 개발</h3>
+<ul>
+  <li><code>docker-compose.yml</code>: backend(FastAPI) + (선택) Supabase CLI 로컬 스택</li>
+  <li>기존 <code>Dockerfile</code>은 그대로 두고 compose에서만 새로 추가 — 운영 이미지 변경 최소화</li>
+</ul>
+
+<h2><span class="no">03</span>진행 순서</h2>
+<p class="lead">리스크가 큰 것(데이터가 걸린 것)을 먼저 검증하고, 되돌리기 쉬운 것(프론트 호스팅)을 나중에 붙인다.</p>
+<div class="step"><span class="n">1</span><div><b>계층 구조 통일</b> — dev-data-embed / dev-web 리팩토링 먼저 마무리 (코드가 안정된 뒤에 배포 설정을 얹어야 재작업이 없다)</div></div>
+<div class="step"><span class="n">2</span><div><b>Supabase 스키마 이전 + recall@k 회귀 검증</b> — 가장 되돌리기 어려운 단계. <code>eval golden</code>으로 이전 전후 비교</div></div>
+<div class="step"><span class="n">3</span><div><b>Render에 기존 Dockerfile 그대로 배포</b> — 이미 있는 이미지라 새 코드 작성 없이 설정만 추가</div></div>
+<div class="step"><span class="n">4</span><div><b>dev-web을 Next.js 골격으로 전환</b> — DESIGN.md의 FSD 레이어를 실제 코드로 세움</div></div>
+<div class="step"><span class="n">5</span><div><b>Vercel에 프론트 배포, Render API 연결</b> — 마지막, 가장 위험 낮은 단계</div></div>
+
+<h2><span class="no">04</span>진행 전 확인이 필요한 결정</h2>
+<div class="note">
+  아래는 임의로 정하지 않고 다음 세션에서 하나씩 확인받을 사항.
+  <ul>
+    <li>SQLite → Postgres 이전을 <b>완전 전환</b>할지, 로컬 개발은 SQLite 유지하고 배포만 Postgres로 나눌지</li>
+    <li>Supabase Auth 도입 시점 — dev-web AGENTS.md의 "현재는 JWT" 상태를 이번에 같이 바꿀지, 별도 스텝으로 미룰지</li>
+    <li>docs/REFERENCES.md의 1번 참고 프로젝트(<code>rag-project-cleanup</code>) 기준과 이번에 새로 지정한 참고(RAG-learn)가 계층 이름에서 갈리는 부분 — 어느 쪽을 최종 기준으로 REFERENCES.md에 기록할지</li>
+  </ul>
+</div>
+
+</main>
+</body>
+</html>

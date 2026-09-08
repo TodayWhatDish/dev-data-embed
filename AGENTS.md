@@ -28,7 +28,7 @@ DB가 두 갈래로 나뉜다: pet_reco.db (실제 데이터가 적재되고 파
 > python -m eval all                     # 채점기 전부 (요금 드는 것 제외)
 > python -m eval golden                  # 홀드아웃 리뷰로 recall@1/3/10 · MRR 측정
 > python -m pipeline.verify              # 데이터 개수·FK, 벡터 차원·모델명, 토큰 초과, recall, 샘플 질의까지 한 번에 점검
-> python -m app.query                    # 프로필+질문 받아 유사 리뷰 찾는 대화형 CLI (검색 로직 자체는 app/features/retrieve.py, pipeline/vector_db.py)
+> python -m app.query                    # 프로필+질문 받아 유사 리뷰 찾는 대화형 CLI (검색 로직 자체는 app/services/retrieve.py, pipeline/vector_db.py)
 > uvicorn app.main:app --reload          # FastAPI 서버 기동
 <!-- 빌드·실행·테스트 명령어. CLAUDE.md의 Commands 섹션을 여기로 옮길지 검토. -->
 
@@ -70,11 +70,11 @@ API, Key 등 민감정보가 포함된 데이터는 .env폴더에서 별도로 �
 
 ## Architecture
 
-> data/*.csv → load_db.py → pet_reco.db → check_data.py(검증) → prepare.py(청킹) → build_index.py(임베딩) → chunk_vectors/review_vectors 테이블 → query.py/app/features/retrieve.py(검색). app/core/db.py가 DB 접근을 전부 모아둠 — 다른 파일은 from app.core.db import query, one, dicts로만 접근.
+> data/*.csv → load_db.py → pet_reco.db → check_data.py(검증) → prepare.py(청킹) → build_index.py(임베딩) → chunk_vectors/review_vectors 테이블 → query.py/app/services/retrieve.py(검색). app/core/db.py가 DB 접근을 전부 모아둠 — 다른 파일은 from app.core.db import query, one, dicts로만 접근.
 
 > app 구조
 - api(컨트롤러): HTTP 관련 일만 담당 — 요청 받기, 인증(caller), 쿼터 체크(guard), 404/429 같은 상태 코드 결정. SQL이나 비즈니스 로직은 모른다.
-- features(서비스): 실제 업무 로직 — "고객 목록에 구매 건수를 붙인다", "추천은 몇 개까지 고른다" 같은 규칙. HTTP도 모르고 SQL도 모른다.
+- services(서비스): 실제 업무 로직 — "고객 목록에 구매 건수를 붙인다", "추천은 몇 개까지 고른다" 같은 규칙. HTTP도 모르고 SQL도 모른다.
 - repositories: DB 접근만 담당 — 실제 SQL 쿼리. 비즈니스 규칙은 모른다.
 
 ## Logging

@@ -44,8 +44,8 @@ from langchain_core.embeddings import Embeddings
 from app.adapters.stores.llm import chat_verify
 from app.core.config import EMBED_MODEL, LLM_MODEL, VERIFY_MODEL
 from app.core.embedder import embed_documents, embed_query
-from app.features import answering
-from app.features.searching import candidates as search_candidates
+from app.services import answering
+from app.services.searching import candidates as search_candidates
 from eval.tracing import banner, detached, eval_run, require_llm, warm_domain
 from pipeline.vector_db import connect
 

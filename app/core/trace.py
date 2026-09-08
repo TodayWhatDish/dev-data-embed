@@ -4,7 +4,7 @@
 """LLM 호출 하나하나를 logs/query_log.jsonl 에 한 줄씩 남기는 LangChain 콜백.
 
 app/adapters/stores/llm.py 가 chat/chat_answer 를 만들 때 이 tracer 를 꽂아 두면,
-features/* 가 어떤 프로바이더를 부르든(anthropic/openai 호환) 호출마다 자동으로
+services/* 가 어떤 프로바이더를 부르든(anthropic/openai 호환) 호출마다 자동으로
 걸린 시간·토큰 수·성공 여부가 남는다. 지금까지는 app/query.py(CLI)만 수동으로
 로그를 남겨서, API 경로(ask.py/recommend.py)로 들어온 호출은 기록이 전혀 없었다.
 """

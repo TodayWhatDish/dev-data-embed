@@ -7,7 +7,7 @@
 한 파일에 두면 자른 결과만 확인하고 싶을 때도 임베딩을 통째로 다시 만들게 된다.
 
 이 파일은 지휘만 한다.
-무엇을 다시 만들지 고르는 일은 features/embedding_sync.py 가 알고,
+무엇을 다시 만들지 고르는 일은 services/embedding_sync.py 가 알고,
 어디에 어떤 모양으로 넣는지는 adapters/stores/sqlite_store.py 가 안다.
 여기는 chunks 를 읽어 (id, 텍스트) 목록으로 만들어 넘길 뿐이다.
 
@@ -21,7 +21,7 @@ import sys
 
 from app.adapters.stores.sqlite_store import chunk_id
 from app.core.config import DB_PATH, EMBED_MODEL
-from app.features.embedding_sync import sync
+from app.services.embedding_sync import sync
 
 
 def fetch_chunks(cur: sqlite3.Cursor) -> list[sqlite3.Row]:

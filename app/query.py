@@ -8,8 +8,8 @@ import json
 from datetime import datetime
 
 from app.core.config import LOG_PATH, PASSAGE_PREFIX, SIZE_LABELS
-from app.features.profile import list_pets, pet_profile
-from app.features.retrieve import build_where, fmt_purchase_id, search
+from app.services.profile import list_pets, pet_profile
+from app.services.retrieve import build_where, fmt_purchase_id, search
 from pipeline.vector_db import connect
 
 

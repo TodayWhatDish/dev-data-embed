@@ -61,7 +61,7 @@ class CommonMgr:
         """
         # Summary
         * 등록된 알러지원 이름(name_ko) 전체를 반환
-        * 자유 텍스트에서 알러지 이름을 찾을 때 사용 (features/profile.py)
+        * 자유 텍스트에서 알러지 이름을 찾을 때 사용 (services/profile.py)
         """
         return [node["name_ko"] for node in self._allergen_hierarchy.values()]
 

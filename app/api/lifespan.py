@@ -26,7 +26,7 @@ logger = logging.getLogger()
 def load_domain_cache():
     """도메인 마스터 테이블을 싱글턴에 얹는다.
 
-    이게 없으면 CommonMgr 이 빈 채로 남아 features.profile.resolve_allergy() 가
+    이게 없으면 CommonMgr 이 빈 채로 남아 services.profile.resolve_allergy() 가
     첫 요청에서 AttributeError 로 죽는다. 지금까지 fake_main.py 만 이걸 불렀다.
     """
     init_from_db()

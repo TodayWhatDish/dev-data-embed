@@ -1,29 +1,29 @@
-"""features 층이 실제로 도는지 한 번에 훑는다.
+"""services 층이 실제로 도는지 한 번에 훑는다.
 
 관리자 UI 도 로그인도 안 거치고 feature 함수를 직접 부른다. 라우트를 안 타므로 HTTP 상태는
 안 본다 — 그건 웹으로 확인할 몫이고, 여기서 보는 건 하나다:
-**features 함수가 repositories 를 거쳐 DB 까지 갔다 오는가.**
+**services 함수가 repositories 를 거쳐 DB 까지 갔다 오는가.**
 
 읽기만 하는 게 대부분이고, 쓰는 구간(4번)은 만든 행을 finally 에서 반드시 지운다.
 끝에 DB 가 시작 때와 같은지 대조해서, 테스트가 흔적을 남기지 않았는지 확인한다.
 
 느린 건 마지막 5번뿐이다 (임베딩 모델을 올린다). 앞이 깨지면 거기서 먼저 멈춘다.
 
-    py -m tests.features.smoke
+    py -m tests.services.smoke
 """
 
 import logging
 
 from app.app_logger.logger import init_logger
 
-init_logger("test_features")
+init_logger("test_services")
 
 from app.api.lifespan import load_domain_cache, load_schema_cache
 from app.core.db import execute, fetch_tuple_one
-from app.features import products as product_feat
-from app.features import profile, retrieve, searching
-from app.features.metric.sqlbench import elapsed_time
-from app.features.products import ProductError
+from app.services import products as product_feat
+from app.services import profile, retrieve, searching
+from app.services.metric.sqlbench import elapsed_time
+from app.services.products import ProductError
 from app.repositories import products as product_repo
 
 logger = logging.getLogger()
@@ -33,7 +33,7 @@ def raises(kind, fn, *args):
     """그 kind 로 ProductError 가 나는지 본다. 통과했거나 kind 가 다르면 실패다.
 
     '터졌다' 만 보면 엉뚱한 이유로 터져도 통과해버린다. kind 까지 봐야 의미가 있다
-    (tests/features/products.py 의 rejects 와 같은 이유, 예외 종류만 다르다).
+    (tests/services/products.py 의 rejects 와 같은 이유, 예외 종류만 다르다).
     """
     try:
         fn(*args)
@@ -45,7 +45,7 @@ def raises(kind, fn, *args):
 
 
 def timed(label, fn):
-    """부르고 걸린 시간을 남긴다. features 호출 인터페이스를 재는 게 metric/sqlbench 의 목적이다."""
+    """부르고 걸린 시간을 남긴다. services 호출 인터페이스를 재는 게 metric/sqlbench 의 목적이다."""
     with elapsed_time(quiet=True) as t:
         got = fn()
     logger.info(f"\t{label:34} {t.ms:7.2f} ms")
@@ -149,7 +149,7 @@ if __name__ == "__main__":
         rows, after_update = product_feat.update_after_select_product(product_id, {"price_krw": 2000})
         assert rows == 1 and after_update["price_krw"] == 2000, after_update
 
-        # 빈 바디 PATCH 는 'SET  WHERE' 라는 깨진 SQL 이 되므로 features 에서 막는다
+        # 빈 바디 PATCH 는 'SET  WHERE' 라는 깨진 SQL 이 되므로 services 에서 막는다
         raises("params_error", product_feat.update_product, product_id, {})
 
         # DB CHECK 위반은 sqlite3 예외가 아니라 ProductError 로 번역돼 올라온다
@@ -163,7 +163,7 @@ if __name__ == "__main__":
 
     finally:
         # 삭제는 행을 지우지 않고 is_active 를 내린다. 끝의 행 수 대조를 맞추려면 실제로
-        # 지워야 해서, 비활성화까지 features 로 확인한 뒤 여기서만 SQL 을 직접 쓴다
+        # 지워야 해서, 비활성화까지 services 로 확인한 뒤 여기서만 SQL 을 직접 쓴다
         if product_id is not None:
             product_feat.delete_product(product_id)
             assert product_feat.get_product(product_id)["is_active"] == 0

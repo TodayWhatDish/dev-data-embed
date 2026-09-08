@@ -47,7 +47,7 @@ def warm_domain() -> None:
     """마스터 캐시(분류·급여목적·원료·알러지)를 올린다. 채점기는 이걸 직접 해야 한다.
 
     서버는 기동할 때 lifespan 이 init_from_db() 를 부르지만(api/lifespan.py:32) 채점기는
-    서버를 안 띄운다. 안 부르고 features/products.py 를 타면 ProductMgr 이 아직 비어 있어
+    서버를 안 띄운다. 안 부르고 services/products.py 를 타면 ProductMgr 이 아직 비어 있어
     '_product_category_hierarchy 가 없다'는 AttributeError 로 죽는다 - 검색 결과를 상품으로
     바꾸는 순간에야 터지므로, 앞의 자가검증은 다 통과한 뒤에 죽는다.
 

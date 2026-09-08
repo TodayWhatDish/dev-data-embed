@@ -5,7 +5,7 @@
 안 두면 입력 파싱을 두 함수가 각자 다르게 하게 됨.
 
 DB 에는 repositories/pet.py 를 통해서만 닿는다. 여기에 SQL 이 있으면 스키마가 바뀔 때
-고칠 곳이 features 와 repositories 로 흩어지고, 같은 조인을 두 곳이 다르게 쓰게 된다.
+고칠 곳이 services 와 repositories 로 흩어지고, 같은 조인을 두 곳이 다르게 쓰게 된다.
 """
 
 import logging
@@ -53,7 +53,7 @@ def build_profile(raw: dict[str, Any]) -> dict[str, Any]:
 
 def list_pets(user_id: int) -> list[dict]:
     """한 사용자의 (비활성 아닌) 펫 목록. 선택지를 보여줄 때 쓴다."""
-    # repo 가 id 를 주고 domain 이 캐시로 이름을 붙인다. features 는 둘을 엮기만 한다
+    # repo 가 id 를 주고 domain 이 캐시로 이름을 붙인다. services 는 둘을 엮기만 한다
     pets = pet_domain.attach_names(pet_repo.find_pets_by_user(user_id))
 
     # 펫이 없는 것은 에러가 아니다. 다만 '선택지가 왜 비었나' 를 물어볼 때 근거가 있어야 한다
