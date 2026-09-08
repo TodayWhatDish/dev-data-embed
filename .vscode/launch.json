@@ -15,6 +15,22 @@
         // 출력에 em-dash 가 있어 cp949 콘솔에서 UnicodeEncodeError 가 난다.
         "PYTHONIOENCODING": "utf-8"
       }
+    },
+    {
+      // --reload 는 뺐다 - 리로더가 워커를 별 프로세스로 띄워서 그쪽엔 디버거가 안 붙는다.
+      // 코드 고칠 때마다 이 설정으로 다시 시작(F5)하면 된다.
+      "name": "FastAPI (uvicorn)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["app.main:app", "--port", "8000"],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "PYTHONIOENCODING": "utf-8"
+      }
     }
   ]
 }
