@@ -27,10 +27,6 @@ dependencies = [
     "numpy",
     # 스키마 모델이 직접 import 한다. fastapi 가 항상 끌고 오지만 위와 같은 이유로 명시한다.
     "pydantic",
-
-]
-
-
 ]
 
 # 테스트에서만 쓰는 것들. 배포에 pytest 가 끼면 안 되니 dependencies 와 갈라 둔다.
