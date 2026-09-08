@@ -8,16 +8,14 @@ version = "1.1.0"
 dependencies = [
     "fastapi",
     "uvicorn[standard]",
-    "sqlite-vec",
-    "sentence-transformers",
+    "sqlite-vec",    
     "pyjwt",
     "requests",
     "langchain",
     "langchain-core",
     "langchain-openai",
     "langchain-anthropic",
-    "langchain-text-splitters",
-    "transformers",
+    "langchain-text-splitters",    
     "bcrypt",
     # EMBED_PROFILES 의 provider='openai' 프로파일용. langchain-openai 가 둘 다 끌고 오지만,
     # app/core/embedder.py 와 pipeline/prep/chunking.py 가 직접 import 하므로 명시해 둔다.
@@ -30,6 +28,14 @@ dependencies = [
 # 테스트에서만 쓰는 것들. 배포에 pytest 가 끼면 안 되니 dependencies 와 갈라 둔다.
 # httpx 는 tests/bench/http.py 가 쓴다 - 지금까지 langchain 이 딸려 오는 것에 얹혀 있었다
 [project.optional-dependencies]
+# 로컬 임베딩(provider='st')과 색인 파이프라인에만 필요하다. torch 를 2GB 넘게 끌고 오므로
+# 서버 배포 이미지에는 넣지 않는다 - provider='openai' 로 도는 서버는 하나도 안 쓴다.
+# pipeline/chunk.py, pipeline/prep/chunking.py 를 돌리려면 이 그룹을 깔아야 한다.
+local = [
+    "sentence-transformers",
+    "transformers",
+]
+
 dev = [
     "pytest",
     "httpx",
