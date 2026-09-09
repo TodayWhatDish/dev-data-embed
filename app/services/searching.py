@@ -4,7 +4,7 @@
 이게 없으면 LLM에 상품 전체를 넘기게 돼서 토큰 낭비 + 축종/알러지 안 맞는 후보까지 섞여 들어감.
 
 DB 에는 repositories 를 통해서만 닿는다. 여기서 테이블 이름을 알 필요가 없다 —
-features/products.py 가 이미 그 모양이라 결을 맞춘다.
+services/products.py 가 이미 그 모양이라 결을 맞춘다.
 """
 
 import logging
@@ -13,9 +13,9 @@ from typing import Any
 
 from app.core.config import PASSAGE_PREFIX
 from app.domain.products import root_category_name
-from app.features.customers import customer_detail
-from app.features.profile import pet_profile
-from app.features.retrieve import build_where, search
+from app.services.customers import customer_detail
+from app.services.profile import pet_profile
+from app.services.retrieve import build_where, search
 from app.repositories import purchases as purchase_repo
 from pipeline.vector_db import connect
 

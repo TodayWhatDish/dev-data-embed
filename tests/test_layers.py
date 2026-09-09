@@ -1,8 +1,9 @@
+# Last updated: 2026-09-08
 """계층 의존 방향을 강제한다. import 문만 읽으므로 DB 도 모델도 안 띄운다.
 
 CLAUDE.md 가 글로 적어둔 두 줄이 전부다 -
   * "도메인은 SQL 을 모른다" (domain -> repositories/sqlite3 금지)
-  * repositories 는 SELECT 만 한다 (repositories -> domain/features 금지)
+  * repositories 는 SELECT 만 한다 (repositories -> domain/services 금지)
 
 사람 눈으로만 지키다 보면 급할 때 도메인에서 repo 를 한 번 부르고 그게 굳는다.
 그러면 도메인 자체검증에 DB 가 필요해지고, 그 시점엔 이미 되돌리기 비싸다.
@@ -19,14 +20,14 @@ DOMAIN_EXEMPT = {"domain_init.py"}
 # API 부트스트랩(app.state.con) 자리 하나만 pipeline.connect()를 직접 쓴다 - lifespan.py 독스트링에 그 이유가 적혀있다
 API_PIPELINE_EXEMPT = {"lifespan.py"}
 # candidates()가 con 없이 단독 호출될 때(CLI/eval)의 fallback 하나만 예외
-FEATURES_PIPELINE_EXEMPT = {"searching.py"}
+SERVICES_PIPELINE_EXEMPT = {"searching.py"}
 
 RULES = [
     ("domain", ("app.repositories", "sqlite3"), DOMAIN_EXEMPT),
-    ("repositories", ("app.domain", "app.features"), set()),
-    ("core", ("app.repositories", "app.adapters", "app.features", "app.api", "pipeline"), set()),
-    ("adapters", ("app.features", "app.api", "pipeline"), set()),
-    ("features", ("app.api", "pipeline"), FEATURES_PIPELINE_EXEMPT),
+    ("repositories", ("app.domain", "app.services"), set()),
+    ("core", ("app.repositories", "app.adapters", "app.services", "app.api", "pipeline"), set()),
+    ("adapters", ("app.services", "app.api", "pipeline"), set()),
+    ("services", ("app.api", "pipeline"), SERVICES_PIPELINE_EXEMPT),
     ("api", ("pipeline",), API_PIPELINE_EXEMPT),
 ]
 

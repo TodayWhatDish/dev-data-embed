@@ -58,7 +58,7 @@ if __name__ == "__main__":
     assert len(first) == 5, len(first)
     assert not ({p["product_id"] for p in first} & {p["product_id"] for p in second})
 
-    # 3. 없는 id 는 예외가 아니라 None - features 가 이 None 을 보고 404 를 만든다
+    # 3. 없는 id 는 예외가 아니라 None - services 가 이 None 을 보고 404 를 만든다
     assert product_repo.find_by_id(-1) is None
 
     # 4. 전체 UPDATE 는 확인 인자가 없으면 수행되지 않는다

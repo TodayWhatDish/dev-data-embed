@@ -1797,3 +1797,55 @@ Docker 가 만든 버그가 아니라 **원래 있던 미선언 의존성을 깨
   나뉜 비용이다. 배포 단계에서 각각 별도 서비스로 올릴지, 한쪽에 합칠지 정해야 한다.
 - **배포처 미정.** CONTENT SIZE 109MB 로 무료 티어 후보가 넓어졌다. 메모리 요구를 실측해서
   고를 것.
+## 작업일지
+> 로드맵 회의 — 코드 변경 없음, 결정만.
+> Figma에 플로우차트 두 장을 그리다가, "지금 구조가 langgraph를 안 써도 되는 구조인데
+> langgraph로 바꿔달라"는 요청이 나와서 "왜 필요한가"부터 되짚었다. 그러다 SNS 로그인·배포
+> 인프라·프론트 마이그레이션까지 한 번에 걸린 걸 확인하고 순서를 정했다.
+
+### 1. RAG-learn 구조 대조 — `REFERENCES.md` #4 기준 어디까지 왔나
+
+`features` → `services` 개명은 끝났다. 나머지 세분화(`models/`·`app/ai/`·`app/rag/`·
+`app/schemas/`)는 아직 안 했다 — `domain/`·`services/`·`api/schemas.py` 한 파일에 그대로 있다.
+`tools/`·`graph/`(LangGraph 자리)는 REFERENCES.md에 "필요한 기능이 없어서 안 만듦(YAGNI)"이라고
+적혀 있던 그대로다.
+
+### 2. langchain → langgraph, 지금 그래프로 옮길 게 있나
+
+`api/routes/ask.py`의 `_stream_answer`(profile → search → answer → verify)와
+`recommending.py`의 수동 재시도 루프(`for attempt in range(...)`)는 이미 그래프 모양의 로직을
+파이썬 함수 호출로 손으로 짠 것 — LangGraph의 conditional edge가 대신할 수 있는 자리는 있다.
+다만 "langgraph가 필요해지는 구조"를 목표로 삼기로 해서, 기존 흐름 재배선에 그치지 않고
+RAG-learn의 `plan`(도구 호출 vs RAG 라우팅) 패턴처럼 실제로 그래프가 필요한 기능을 새로
+설계하기로 함 — 다음 세션에서 도메인 데이터를 보고 같이 정한다.
+
+### 3. 오늘 정한 로드맵과 순서
+
+```
+A. Supabase(Postgres+pgvector) 이관     — DB까지 이관하기로 확정. core/db.py(스레드로컬 sqlite3),
+                                           adapters/stores/sqlite_store.py(VectorStore 구현체),
+                                           INSERT OR REPLACE/IGNORE(12곳)·AUTOINCREMENT·PRAGMA
+                                           같은 SQLite 전용 문법이 대상. 로컬 개발도 SQLite
+                                           fallback 없이 Supabase 하나로 통일하기로 함.
+B. Render / Vercel 배포 배선            — A가 먼저인 이유: Render 기본 플랜은 재배포마다
+                                           디스크가 초기화돼서 SQLite 파일로는 못 버틴다.
+C. 랜딩페이지                           — D 착수할 때 같이 (index.html이 지금 customer.html로
+                                           리다이렉트만 하는 자리, dev-web/CLAUDE.md 참고)
+D. Next.js 마이그레이션                 — dev-web에 미리 파둔 FSD 폴더 채우기. "같이 이해하면서"
+                                           진행하기로 함 — 통째로 생성하지 않고 단계별로.
+E. SNS 로그인 (Supabase Auth)           — dev-web/AGENTS.md·config.py 주석에 이미 "추후 Supabase로
+                                           이관" 계획이 적혀 있던 부분. A로 유저 테이블이
+                                           Postgres에 있어야 자연스럽게 연결됨.
+F. LangGraph 기능                       — A 이후 최종 스키마 보고 도메인 데이터 같이 설계.
+```
+
+### 4. 곁가지 — docs 폴더 정리
+
+같은 세션에서 `docs/` 정리도 했다. `.DS_Store`(git에 잡혀 있던 것) 삭제 + `.gitignore`에 추가,
+고아 상태였던 `docs/SKILL.md`(실제 스킬은 `.claude/skills/pet-reco/SKILL.md`) 삭제, `docu.md`를
+`schema/TODO.md`로 이동(스키마 보완용 TODO라 그 폴더가 맞는 자리), `DATAINFO.md`/`DATAISSUE.md`/
+`design/DESIGN.md`/`design/GOAL.md`에 남아 있던 옛 폴더명(`docu/...`) 경로를 `docs/...` 기준으로
+고쳤다. `WORK.md`(이 파일) 자체에 있는 `docu/` 기록은 일부러 안 고쳤다 — 작업일지는 그 시점 기록이라.
+색인은 `docs/README.md`에 새로 만들었다.
+
+**다음 스텝**: A(Supabase 이관)의 A1 — Supabase 프로젝트 생성 + connection string 발급부터.

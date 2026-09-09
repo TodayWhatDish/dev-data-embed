@@ -23,7 +23,7 @@ init_logger("bench_rows")
 logging.getLogger().setLevel(logging.WARNING)  # 벤치 중 INFO 로그가 측정값에 섞이지 않게
 
 from app.core.db import fetch_tuple_one, fetch_tuples
-from app.features.metric.sqlbench import throughput_fn
+from app.services.metric.sqlbench import throughput_fn
 
 THREADS = (1, 4, 8)
 

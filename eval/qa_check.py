@@ -19,7 +19,7 @@ from pathlib import Path
 
 sys.stdout.reconfigure(errors="replace")
 
-from app.features.searching import candidates as search_candidates
+from app.services.searching import candidates as search_candidates
 from eval.tracing import banner, eval_run, warm_domain
 from pipeline.vector_db import connect
 

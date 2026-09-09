@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.schemas import AdminLoginRequest, AuthResponse
 from app.core.auth import get_current_admin
-from app.features.admin_auth import login
+from app.services.admin_auth import login
 
 router = APIRouter()
 

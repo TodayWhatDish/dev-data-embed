@@ -23,9 +23,9 @@ from app.api.schemas import AskMeRequest, AskRequest
 from app.core.auth import get_current_admin, get_current_user
 from app.core.trace import log_customer_question
 from app.domain.prompting import build_customer_context
-from app.features import answering
-from app.features.profile import build_profile, pet_profile
-from app.features.searching import candidates
+from app.services import answering
+from app.services.profile import build_profile, pet_profile
+from app.services.searching import candidates
 from app.repositories import users as users_repo
 from app.repositories.pet import find_pets_by_user
 

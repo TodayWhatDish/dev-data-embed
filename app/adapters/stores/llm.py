@@ -5,11 +5,11 @@
 
 init_chat_model()이 LLM_PROVIDER 값만 보고 알맞은 LangChain 클라이언트(ChatOpenAI/
 ChatAnthropic/...)를 골라준다. 로컬(Ollama)과 상용의 분기는 core/config.py 한 곳에만
-있고, 여기와 부르는 쪽(features/*)은 프로바이더가 뭐든 안 바뀐다 - .env에서
+있고, 여기와 부르는 쪽(services/*)은 프로바이더가 뭐든 안 바뀐다 - .env에서
 LLM_PROVIDER/LLM_API_KEY/API_MODEL만 바꾸면 상용 API가 통째로 바뀐다.
 
 프롬프트 자체를 조립하는 일은 domain/prompting 이 진행하며, 무엇을 어떤 순서로
-시키는지는 app/features 쪽이 담당한다.
+시키는지는 app/services 쪽이 담당한다.
 """
 
 from langchain.chat_models import init_chat_model

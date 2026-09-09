@@ -31,7 +31,7 @@ logging.getLogger().setLevel(logging.WARNING)
 from app.api.lifespan import load_domain_cache, load_schema_cache
 from app.core.db import fetch, fetch_tuple_one, fetch_tuples
 from app.domain.common import CommonMgr
-from app.features.metric.sqlbench import compare_fn
+from app.services.metric.sqlbench import compare_fn
 from app.repositories.general_query import select
 
 PET_COLS = ["pet_id", "name", "animal_category_id", "size", "inactive_at"]

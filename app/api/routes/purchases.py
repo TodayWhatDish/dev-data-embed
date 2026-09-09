@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.schemas import BuyRequest, ReviewRequest
 from app.core.auth import get_current_user
-from app.features.purchases import buy, my_purchases, write_review
+from app.services.purchases import buy, my_purchases, write_review
 
 router = APIRouter()
 

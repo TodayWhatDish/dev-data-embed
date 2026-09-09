@@ -8,7 +8,7 @@
 **혼자 눌러보면 절대 안 나오는 종류의 버그다.** 그래서 자체검증으로 남긴다.
 읽기만 하므로 DB 를 안 건드린다.
 
-    py -m tests.features.db_threads
+    py -m tests.services.db_threads
 """
 
 import threading

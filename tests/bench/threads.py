@@ -18,7 +18,7 @@ py(3.14) 는 fastapi 가 없어서 못 돈다. python(3.12) 으로 돌린다.
 """
 
 from app.core.db import fetch_tuple_one
-from app.features.metric.sqlbench import throughput_fn
+from app.services.metric.sqlbench import throughput_fn
 from tests.bench.master_join import (
     c_cached,
     c_cached_one,
