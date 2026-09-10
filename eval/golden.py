@@ -23,7 +23,7 @@ import time
 
 from app.core.config import EMBED_DIM, EMBED_MODEL, EVAL_DIR, SIZE_CASE
 from app.services.recommending import recommend
-from app.services.retrieve import build_where
+from app.services.retrieve import build_where, search
 from app.services.searching import candidates as search_candidates
 from eval.tracing import banner, eval_run, require_llm, warm_domain
 from pipeline.vector_db import connect

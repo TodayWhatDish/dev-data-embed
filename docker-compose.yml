@@ -1,0 +1,18 @@
+# 두 저장소를 한 번에 띄운다. 저장소 루트(dev-data-embed)에서 실행한다.
+services:
+  api:
+    build: .
+    env_file: .env          # docker run --env-file .env 와 같은 일
+    volumes:
+      - ./data:/app/data    # docker run -v "${PWD}/data:/app/data" 와 같은 일
+    ports:
+      - "8000:8000"         # 디버깅용. 프록시가 안정되면 expose 로 바꿔 밖에서 막는다
+    restart: unless-stopped
+
+  web:
+    build: ../dev-web/dev-web/frontend
+    ports:
+      - "8080:80"           # 브라우저는 여기로만 들어온다
+    depends_on:
+      - api
+    restart: unless-stopped

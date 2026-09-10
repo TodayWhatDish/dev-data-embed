@@ -1665,6 +1665,138 @@ CSV 가 2,000행 / holdout 182 → 색인대상 1,818 로 바뀐 뒤 `load_csv` 
   이제 증분 기준으로 고쳐야 한다.
 
 ## 2026-09-08
+
+### 컨테이너로 옮겼다 — 배포를 위해 환경을 이미지로 굳혔다
+
+포트폴리오 배포를 위해 `dev-data-embed`(API)와 `dev-web`(정적 프론트)을 컨테이너로 묶었다.
+만든 파일은 넷이다.
+
+    dev-data-embed/Dockerfile           API 이미지
+    dev-data-embed/.dockerignore        빌드 컨텍스트에서 뺄 것
+    dev-data-embed/docker-compose.yml   두 서비스를 한 번에
+    dev-web/frontend/Dockerfile         nginx 이미지
+    dev-web/frontend/nginx.conf         정적 서빙 + /api 프록시
+
+베이스는 `python:3.12-slim` 이다. `alpine` 을 쓸 수 없는 이유가 이 저장소에 있다 —
+`pipeline/vector_db.py` 의 `sqlite_vec.load(con)` 은 컴파일된 확장을 SQLite 에 꽂는데,
+alpine 은 glibc 가 아니라 musl 이라 그 바이너리가 없다. 가장 작은 이미지를 못 고르는
+근거가 우리 코드에 있는 셈이다.
+
+### `.env` 와 `pet_reco.db` 는 이미지에 넣지 않는다
+
+둘 다 `.gitignore` 에 있고 `.dockerignore` 에도 넣었다. 이유가 서로 다르다.
+
+`.env` 는 **레이어가 불변이기 때문**이다. 이미지에 한 번 들어가면 나중 레이어에서 `rm` 해도
+앞 레이어에 그대로 남아 `docker save` 로 꺼낼 수 있다. git 히스토리와 같은 구조다.
+그래서 런타임 주입(`--env-file`)으로만 넘긴다. 이미지에는 흔적이 남지 않는다.
+
+이게 `app/core/config.py:38` 의 `os.environ.setdefault(k, v)` 와 정확히 맞물린다.
+환경변수가 이미 있으면 `.env` 값을 무시하므로 주입한 값이 항상 이긴다. 그리고
+`load_env()` 는 파일이 없으면 조용히 넘어간다 — **파일 없이 환경변수만으로 뜨는 조건**이
+이미 갖춰져 있었다.
+
+`pet_reco.db` 는 17MB 산출물이라 볼륨으로 붙인다. `-v ./data:/app/data` 가 맞아떨어지는 건
+`config.py:13` 의 `ROOT` 가 `WORKDIR /app` 기준으로 `/app` 이 되기 때문이다.
+
+컨테이너 안에 `logs/` 가 없어 첫 `/ask` 가 죽는 문제를 하나 잡았다. `app/core/trace.py:106`
+이 append 모드로 여는데 디렉터리는 만들지 않는다. `app/app_logger/logger.py:81` 의 `log/` 는
+`Path.mkdir(exist_ok=True)` 로 스스로 만들어 문제가 없었다 — `logs/` 만 안전장치가 없었다.
+Dockerfile 에 `RUN mkdir -p logs` 를 넣었다.
+
+### 리버스 프록시로 CORS 를 없앴다
+
+nginx 가 앞에 서서 정적 파일은 직접 주고 `/api/` 만 API 컨테이너로 넘긴다.
+브라우저 입장에서 페이지와 API 가 같은 오리진(`localhost:8080`)이 되므로 **CORS 검사 자체가
+일어나지 않는다.** `app/main.py:37` 의 `allow_origins` 를 배포 도메인마다 고칠 필요가 없어졌다.
+
+두 가지가 함정이었다.
+
+`proxy_pass http://api:8000/;` 의 **끝 슬래시**. 이게 있어야 `/api` 접두어를 떼고 넘긴다.
+백엔드 라우트가 `/ask`, `/login` 처럼 접두어 없이 정의돼 있어 슬래시가 필수다.
+프론트가 이미 부르던 `${API}/api/customers` 도 `/api/api/customers` → `/api/customers` 로
+맞아떨어진다.
+
+**`localhost` 가 아니라 서비스 이름 `api`**. 컨테이너는 각자 자기 네트워크 공간을 가지므로
+nginx 안에서 `localhost` 는 nginx 자신이다. compose 네트워크의 DNS 가 `api` 를 IP 로 바꿔준다.
+이 경로에는 `-p` 가 필요 없다 — 포트를 밖으로 뚫지 않아도 컨테이너끼리는 통한다.
+
+프론트는 `admin.js:6` / `customer.js:6` 의 `const API` 를 포트로 갈랐다.
+`.vscode/tasks.json` 의 3000번 개발 서버를 안 깨뜨리려고 남긴 다리다.
+
+    const API = location.port === "3000" ? "http://localhost:8000" : "/api";
+
+### 상용 임베딩으로 갈아타고 이미지를 4분의 1로 줄였다
+
+`config.py:105` 의 기본값을 `text-embedding-3-small` 로 바꿨다. 처음엔 이걸로 이미지가
+줄 줄 알았는데 **하나도 안 줄었다.** 빌드 타임과 런타임이 다른 시점이기 때문이다 —
+`EMBED_MODEL` 은 "무엇을 쓸지"만 정하고, "무엇을 설치할지"는 `pyproject.toml` 이 정한다.
+설치된 채로 안 쓰이기만 하는 상태였다.
+
+실제로 줄이려면 의존성을 빼야 하는데, 걸림돌은 `app/core/embedder.py:11` 한 줄이었다.
+
+    from sentence_transformers import SentenceTransformer
+
+이 파일 독스트링은 "앱 배포 시 pipeline 없이도 떠야 하므로"라고 적어두고 있었는데
+11행이 그 의도를 스스로 깨고 있었다. 게다가 `get_embeddings()` 안(48행)에서 **또** import
+하고 있어서, 최상단 import 는 27행 타입 힌트 하나 때문에 남아 있던 것이었다.
+`TYPE_CHECKING` 으로 옮기고 반환 힌트를 문자열(`-> "SentenceTransformer"`)로 바꿨다.
+따옴표가 핵심이다 — 파이썬은 어노테이션을 정의 시점에 평가해서 `NameError` 를 낸다.
+
+`pipeline/chunk.py` 와 `pipeline/prep/chunking.py` 도 `transformers` 를 최상단에서 물지만
+**서버는 이 모듈들을 import 하지 않는다.** `app/` 이 `pipeline` 에서 쓰는 건
+`vector_db.connect` 하나뿐이고, 파이썬은 실제로 import 된 모듈만 로드한다.
+
+`sentence-transformers` / `transformers` 를 `[project.optional-dependencies]` 의 `local`
+그룹으로 내리고 Dockerfile 의 torch 설치 줄을 지웠다. 결과:
+
+    DISK USAGE    2.16GB  ->  503MB   (-77%)
+    CONTENT SIZE   460MB  ->  109MB   (-76%)
+
+CONTENT SIZE 가 배포에서 오가는 압축 크기다. 109MB 면 무료 티어에 들어간다.
+
+### `numpy` 가 남의 의존성에 얹혀 있었다
+
+경량 이미지에서 `/ready` 는 통과하는데 실제 질문이 500 으로 죽었다.
+
+    File "/app/app/core/embedder.py", line 84, in _embed_openai
+        import numpy as np
+    ModuleNotFoundError: No module named 'numpy'
+
+`embedder.py` 가 정규화에 직접 쓰는데 `pyproject.toml` 에 선언이 없었다. 지금까지
+`torch`/`transformers` 가 끌고 오는 것에 얹혀 있었고, 그 둘을 빼자 드러났다.
+Docker 가 만든 버그가 아니라 **원래 있던 미선언 의존성을 깨끗한 환경이 드러낸 것**이다.
+
+`pyproject.toml:20-21` 에 이미 같은 상황을 겪고 적어둔 원칙이 있었다 —
+"langchain-openai 가 둘 다 끌고 오지만, 직접 import 하므로 명시해 둔다".
+`numpy` 에는 그 원칙을 적용하지 않았을 뿐이다. `numpy` 와 `pydantic` 을 명시했다.
+
+`app/` 이 import 하는 외부 모듈을 전부 훑어 대조했고, 빠진 건 이 둘뿐이었다.
+
+### `/ready` 가 초록불이어도 앱은 죽어 있을 수 있다
+
+위 사고의 진짜 교훈은 이쪽이다. `app/api/routes/health.py` 의 `/ready` 는 DB 와 캐시만 보고
+**임베딩 경로를 한 번도 타지 않는다.** `embedder.py` 가 지연 import 라 첫 검색에서야
+`ModuleNotFoundError` 가 나온다.
+
+지연 import 는 "쓰지 않으면 없어도 된다"를 만들어주지만, 그 대가로 **없는 것이 늦게 드러난다.**
+배포 플랫폼이 `/ready` 로 살아있음을 판정하게 되므로 이 한계를 알고 있어야 한다.
+
+같은 이유로, `EMBED_MODEL` 을 로컬 모델로 되돌린 채 이 경량 이미지를 띄우면 서버는 뜨고
+`/ready` 도 통과하지만 첫 검색에서 `sentence_transformers` 로 똑같이 죽는다.
+
+### 남은 과제
+
+- **`compose` 의 api `ports: "8000:8000"` 제거.** 디버깅용으로 열어뒀지만 프록시가
+  안정됐으므로 `expose` 로 바꿔 밖에서 못 들어오게 해야 한다. 컨테이너끼리는 그대로 통한다.
+- **컨테이너 안에서 색인이 불가능하다.** `transformers` 를 뺐으므로 `python -m pipeline.chunk`
+  가 안 돈다. 색인은 로컬에서 `pip install -e ".[local]"` 로 하고 완성된 DB 를 볼륨으로 넣는
+  구조다. 의도한 분리지만 문서에 남겨둔다.
+- **`/ready` 가 임베딩 호출을 검증하지 않는다.** 배포 헬스체크로 쓰려면 임베딩 한 번을
+  포함하는 판정이 필요한지 재고할 것. 매 헬스체크마다 API 요금이 나가므로 트레이드오프가 있다.
+- **`docker-compose.yml` 이 `../dev-web/dev-web/frontend` 를 참조한다.** 저장소가 둘로
+  나뉜 비용이다. 배포 단계에서 각각 별도 서비스로 올릴지, 한쪽에 합칠지 정해야 한다.
+- **배포처 미정.** CONTENT SIZE 109MB 로 무료 티어 후보가 넓어졌다. 메모리 요구를 실측해서
+  고를 것.
 ## 작업일지
 > 로드맵 회의 — 코드 변경 없음, 결정만.
 > Figma에 플로우차트 두 장을 그리다가, "지금 구조가 langgraph를 안 써도 되는 구조인데

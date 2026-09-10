@@ -102,7 +102,7 @@ EMBED_PROFILES = {
 
 # 재색인 없이 실험하려면 셸에서 바꾼다:  $env:EMBED_MODEL = 'BAAI/bge-m3'
 # EMBED_MODEL = env('EMBED_MODEL', 'intfloat/multilingual-e5-small')
-EMBED_MODEL = env("EMBED_MODEL", "intfloat/multilingual-e5-small")
+EMBED_MODEL = env("EMBED_MODEL", "text-embedding-3-small")
 
 if EMBED_MODEL not in EMBED_PROFILES:
     raise SystemExit(f"EMBED_PROFILES 에 없는 모델입니다: {EMBED_MODEL}")
@@ -152,7 +152,7 @@ if not Path(DB_PATH).exists():
     print(f"알림: DB 가 아직 없다 -> {DB_PATH}")
 
 
-USE_API = env("USE_API", 0) == "1"
+USE_API = env("USE_API", 1) == "1"
 
 # LLM_PROVIDER는 langchain init_chat_model()의 provider 인자로 그대로 들어간다 (adapters/stores/llm.py).
 # 상용 API를 바꾸고 싶으면 .env의 LLM_PROVIDER/LLM_API_KEY/API_MODEL 세 값만 바꾸면 된다 - 코드 수정 불필요.
