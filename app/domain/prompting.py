@@ -9,6 +9,8 @@ from typing import Any
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 
+from app.domain.masking import mask
+
 
 class Pick(BaseModel):
     product_id: int = Field(description="후보 목록에 있는 product_id 중 하나")
@@ -42,7 +44,7 @@ def build_customer_context(detail: dict[str, Any] | None) -> str:
     if not detail or not detail["purchases"]:
         return "구매 이력 없음"
     lines = [
-        f"-{p['product_name']} | 평점: {p.get('rating')} | 리뷰: {p.get('review_body') or '(리뷰 없음)'}"
+        f"-{p['product_name']} | 평점: {p.get('rating')} | 리뷰: {mask(p.get('review_body')) or '(리뷰 없음)'}"
         for p in detail["purchases"]
     ]
     return f"총 {len(detail['purchases'])}건 구매\n" + "\n".join(lines)
@@ -52,7 +54,7 @@ def build_recommend_prompt(candidate: list[dict[str, Any]], profile: dict[str, A
     """LLM이 후보 중에서만 n_pick개를 고르도록 프롬프트를 조립한다.
     후보 밖 product_id를 지어내지 못하게 후보를 전부 나열해서 넘긴다."""
     lines = [
-        f"-product_id = {c['product_id']} | {c['name']} | {c['price_krw']}원 | 리뷰: {c['review']}"
+        f"-product_id = {c['product_id']} | {c['name']} | {c['price_krw']}원 | 리뷰: {mask(c['review'])}"
         for c in candidate
     ]
     return (
@@ -76,7 +78,7 @@ def build_strategy_prompt(detail: dict[str, Any]) -> str:
     """구매이력+리뷰를 근거자료로 묶어 전략 생성 프롬프트를 조립한다.
     citation을 후보 밖 purchase_id로 지어내지 못하게 실제 구매 목록을 전부 나열해서 넘긴다."""
     lines = [
-        f"-purchase_id = {p['purchase_id']} | {p['product_name']} | 평점: {p.get('rating')} | 리뷰: {p.get('review_body') or '(리뷰 없음)'}"
+        f"-purchase_id = {p['purchase_id']} | {p['product_name']} | 평점: {p.get('rating')} | 리뷰: {mask(p.get('review_body')) or '(리뷰 없음)'}"
         for p in detail["purchases"]
     ]
     return (
@@ -109,7 +111,7 @@ def build_factcheck_prompt(customer_context: str, answer: str) -> str:
 def build_answer_context(candidates: list[dict[str, Any]]) -> str:
     """searching.candidates()가 찾아준 후보 리뷰들을 답변용 '자료' 텍스트로 묶는다."""
     lines = [
-        f"-product_id = {c['product_id']} | {c['name']} | {c['price_krw']}원 | 리뷰: {c['review']}"
+        f"-product_id = {c['product_id']} | {c['name']} | {c['price_krw']}원 | 리뷰: {mask(c['review'])}"
         for c in candidates
     ]
     return "\n".join(lines)
