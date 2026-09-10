@@ -24,12 +24,15 @@ services:
         sync: false
       - key: API_MODEL
         value: claude-sonnet-5
+      - key: VERIFY_PROVIDER
+        value: openai
       - key: VERIFY_MODEL
-        value: claude-haiku-4-5-20251001
+        value: gpt-4o-mini
       - key: UNSPLASH_ACCESS_KEY
         sync: false
-      # EMBED_MODEL 기본값(text-embedding-3-small)이 OpenAI 호출이라 이 키가 없으면 검색이 죽는다.
-      - key: EMBED_API_KEY
+      # EMBED_MODEL(text-embedding-3-small)과 VERIFY_MODEL(gpt-4o-mini) 둘 다 이 키 하나를 공용으로 쓴다
+      # (config.py의 EMBED_API_KEY/VERIFY_API_KEY가 각각 OPENAI_API_KEY로 폴백) - 없으면 검색/반증이 죽는다.
+      - key: OPENAI_API_KEY
         sync: false
       # Vercel 배포 도메인. 실제 값은 대시보드에서 넣는다 (예: https://xxx.vercel.app).
       - key: FRONTEND_ORIGINS

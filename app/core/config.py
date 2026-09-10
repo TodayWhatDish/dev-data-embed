@@ -47,7 +47,12 @@ def env(name: str, default: str) -> str:
 # 아래 설정값이 전부 env() 를 거치므로 .env 는 그것들보다 먼저 올라와야 한다.
 # 정의만 해두고 부르지 않으면 .env 전체가 조용히 무시된다 - 값이 안 읽혀도
 # 에러가 안 나고 기본값으로 굴러가기 때문에 알아채기 어렵다.
-
+#
+# .env 는 키 이름만 있고 값은 비운 채로 git에 커밋한다(어떤 값이 필요한지 문서 역할).
+# 실제 비밀값은 .env.local(gitignore)에 넣는다. setdefault()는 먼저 채워진 값을 안 덮으므로
+# .env.local을 반드시 .env보다 먼저 읽어야 한다 - 순서가 바뀌면 .env의 빈 값이 먼저 자리를
+# 차지해 .env.local의 실제 값이 조용히 무시된다.
+load_env(ROOT / ".env.local")
 load_env()
 
 # query_prefix/passage_prefix: e5 계열은 필수, bge 계열은 붙이면 오히려 성능이 떨어진다.
@@ -165,15 +170,22 @@ if USE_API:
     LLM_MODEL = env("API_MODEL", "claude-sonnet-5")
     # 답변을 만든 모델이 자기 답을 채점하면 관대해지는 self-evaluation bias가 있다 -
     # 반증(verify)은 이 모델을 대신 쓴다 (참고: https://mjforge.tistory.com/30).
-    VERIFY_MODEL = env("VERIFY_MODEL", "claude-haiku-4-5-20251001")
+    # provider까지 LLM_PROVIDER와 다르게 두면(anthropic 답변 -> openai 채점) bias를 더 확실히 피한다.
+    VERIFY_PROVIDER = env("VERIFY_PROVIDER", "openai")
+    VERIFY_MODEL = env("VERIFY_MODEL", "gpt-4o-mini")
+    VERIFY_API_KEY = env("VERIFY_API_KEY", env("OPENAI_API_KEY", ""))
 else:
     LLM_PROVIDER = "openai"  # Ollama가 OpenAI 호환 엔드포인트를 흉내내므로 provider는 openai로 두고 base_url만 로컬로 돌린다
     LLM_BASE_URL = "http://localhost:11434/v1"
     LLM_API_KEY = "ollama"
     LLM_MODEL = "qwen2.5:3b"
-    VERIFY_MODEL = (
-        LLM_MODEL  # ponytail: 로컬은 모델 하나뿐이라 분리 안 함 - Ollama에 두 번째 모델 받으면 나눌 것
-    )
+    # ponytail: 로컬은 모델 하나뿐이라 분리 안 함 - Ollama에 두 번째 모델 받으면 나눌 것
+    VERIFY_PROVIDER = LLM_PROVIDER
+    VERIFY_MODEL = LLM_MODEL
+    VERIFY_API_KEY = LLM_API_KEY
+
+# VERIFY_PROVIDER가 openai(실제 API)일 땐 base_url이 필요 없다 - Ollama일 때만 로컬 엔드포인트를 재사용한다.
+VERIFY_BASE_URL = LLM_BASE_URL if VERIFY_PROVIDER == LLM_PROVIDER else None
 
 # 채점(eval/*)을 LangSmith 로도 보낼지. 꺼져 있어도 채점은 그대로 돌고 data/eval/runs.jsonl 에는 남는다.
 # 채점용 프로젝트를 서비스 로그와 가르는 이유: 채점은 같은 질문 수십 개를 몰아 던져서,

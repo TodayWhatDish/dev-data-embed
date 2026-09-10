@@ -14,7 +14,16 @@ LLM_PROVIDER/LLM_API_KEY/API_MODEL만 바꾸면 상용 API가 통째로 바뀐�
 
 from langchain.chat_models import init_chat_model
 
-from app.core.config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, LLM_PROVIDER, VERIFY_MODEL
+from app.core.config import (
+    LLM_API_KEY,
+    LLM_BASE_URL,
+    LLM_MODEL,
+    LLM_PROVIDER,
+    VERIFY_API_KEY,
+    VERIFY_BASE_URL,
+    VERIFY_MODEL,
+    VERIFY_PROVIDER,
+)
 from app.core.trace import tracer
 
 # httpx.Timeout(connect=..., read=..., write=..., pool=...)로 세분화하고 싶었지만
@@ -49,5 +58,16 @@ chat_answer = init_chat_model(
 )
 
 # 반증(answering.verify)용 - chat_answer가 만든 답을 같은 모델(chat)로 채점하면 자기 답을
-# 관대하게 채점하는 self-evaluation bias가 생긴다. model만 다르게, 나머지 설정은 그대로 재사용한다.
-chat_verify = init_chat_model(**_temps, **{**_common, "model": VERIFY_MODEL})
+# 관대하게 채점하는 self-evaluation bias가 생긴다. provider/api_key까지 VERIFY_*로 따로 두어
+# (기본값: anthropic 답변 -> openai 채점) _common을 그대로 재사용할 수 없다.
+_verify_common = {
+    "model": VERIFY_MODEL,
+    "model_provider": VERIFY_PROVIDER,
+    "api_key": VERIFY_API_KEY,
+    "timeout": TIMEOUT,
+    "callbacks": [tracer],
+}
+if VERIFY_BASE_URL:
+    _verify_common["base_url"] = VERIFY_BASE_URL
+_verify_temps = {} if VERIFY_PROVIDER == "anthropic" else {"temperature": 0}
+chat_verify = init_chat_model(**_verify_temps, **_verify_common)
