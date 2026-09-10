@@ -1,0 +1,40 @@
+# Render Blueprint. Render 대시보드에서 "New > Blueprint"로 이 저장소를 연결하면 이 파일대로 서비스를 만든다.
+# 기존 Dockerfile을 그대로 쓴다 - 여기서는 배포 설정(디스크, env)만 얹는다.
+services:
+  - type: web
+    name: dev-data-embed
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      # Dockerfile이 8000번으로 uvicorn을 띄운다 - Render 자동 감지에 맡기지 않고 고정한다.
+      - key: PORT
+        value: 8000
+      # data/*.db는 .dockerignore로 이미지에 안 들어간다 - 디스크가 없으면 재배포마다 DB가 사라진다.
+      - key: JWT_SECRET
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: USE_API
+        value: 1
+      - key: LLM_PROVIDER
+        value: anthropic
+      - key: LLM_API_KEY
+        sync: false
+      - key: API_MODEL
+        value: claude-sonnet-5
+      - key: VERIFY_MODEL
+        value: claude-haiku-4-5-20251001
+      - key: UNSPLASH_ACCESS_KEY
+        sync: false
+      # EMBED_MODEL 기본값(text-embedding-3-small)이 OpenAI 호출이라 이 키가 없으면 검색이 죽는다.
+      - key: EMBED_API_KEY
+        sync: false
+      # Vercel 배포 도메인. 실제 값은 대시보드에서 넣는다 (예: https://xxx.vercel.app).
+      - key: FRONTEND_ORIGINS
+        sync: false
+    disk:
+      name: pet-reco-data
+      mountPath: /app/data
+      sizeGB: 1

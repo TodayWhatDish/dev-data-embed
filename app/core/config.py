@@ -192,3 +192,8 @@ ADMIN_PASSWORD = env("ADMIN_PASSWORD", "")
 
 # 고객 페이지 배경 이미지용 (app/api/routes/background.py)
 UNSPLASH_ACCESS_KEY = env("UNSPLASH_ACCESS_KEY", "")
+
+# dev-web(Next.js)이 배포되는 오리진. CORS 허용 목록 - main.py가 이 값을 쓴다.
+# 로컬 개발은 기본값(localhost:3000)으로 충분하고, 배포 도메인은 .env/플랫폼 환경변수로 넣는다.
+# 여러 개면 콤마로 구분: "https://foo.vercel.app,https://bar.com"
+FRONTEND_ORIGINS = [o.strip() for o in env("FRONTEND_ORIGINS", "http://localhost:3000").split(",") if o.strip()]
