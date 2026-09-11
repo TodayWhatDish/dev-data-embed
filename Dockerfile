@@ -32,7 +32,10 @@ COPY data/seed/ ./_seed/seed/
 # .dockerignore 로 logs/ 를 뺐으므로 여기서 만들어 둔다 - 없으면 첫 /ask 가 FileNotFoundError 로 죽는다.
 RUN mkdir -p logs
 
+# 시드 복사 + (디스크가 비어있으면) DB 파이프라인 초기화 후 uvicorn을 띄운다 - entrypoint.sh 참고.
+COPY entrypoint.sh ./
+RUN chmod +x entrypoint.sh
+
 EXPOSE 8000
 
-# --host 0.0.0.0 필수. 기본값 127.0.0.1 이면 컨테이너 안에서만 들리고 -p 로 뚫어도 안 닿는다.
-CMD ["sh", "-c", "[ -d data/master ] || cp -r _seed/master data/master; [ -d data/seed ] || cp -r _seed/seed data/seed; exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+CMD ["./entrypoint.sh"]
