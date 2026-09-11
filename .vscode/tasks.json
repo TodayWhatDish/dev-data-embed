@@ -73,7 +73,7 @@
             // chunk 가 실패해도 embed 가 낡은 chunks 를 그대로 임베딩해 조용히 오염된
             // 비교 결과가 남는다. 그래서 $LASTEXITCODE 로 앞 단계 성공을 직접 확인한다.
             // $py: 인터프리터 경로에 공백이 있을 수 있어 & (호출 연산자)로 부른다.
-            "command": "$py = '${command:python.interpreterPath}'; & $py -m pipeline.chunk; if ($LASTEXITCODE -eq 0) { & $py -m pipeline.embed }; if ($LASTEXITCODE -eq 0) { & $py -m pipeline.eval.eval }",
+            "command": "$py = '${command:python.interpreterPath}'; & $py -m pipeline.chunk; if ($LASTEXITCODE -eq 0) { & $py -m pipeline.embed }; if ($LASTEXITCODE -eq 0) { & $py -m eval golden }",
             "options": {
                 "env": {
                     "EMBED_MODEL": "${input:embedModel}"

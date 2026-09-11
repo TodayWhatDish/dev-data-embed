@@ -4,11 +4,11 @@
 
 프로필 키를 기준으로 조각 점수를 반환하며, 사용자 쿼리 호출시 사용된다.
 
-DB 에는 repositories/embedding.py 를 통해서만 닿는다. features 에 SQL 이 있으면
+DB 에는 repositories/embedding.py 를 통해서만 닿는다. services 에 SQL 이 있으면
 스키마가 바뀔 때 고칠 곳이 두 층으로 흩어진다.
 
 FILTERS 의 조건절은 SQL 조각이지만 여기 남는다. 실행하는 게 아니라 벡터 검색에
-넘길 WHERE 를 조립하는 것이고, 무엇으로 거를지는 검색 정책이라 features 의 일이다.
+넘길 WHERE 를 조립하는 것이고, 무엇으로 거를지는 검색 정책이라 services 의 일이다.
 """
 
 import logging

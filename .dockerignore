@@ -1,0 +1,29 @@
+# .dockerignore
+# 빌드 컨텍스트에서 제외할 것들. Docker 는 .gitignore 를 보지 않으므로 따로 적는다.
+
+# 비밀값 - 이미지에 절대 굽지 않는다. 런타임에 환경변수로 주입한다.
+.env
+
+# 산출물 - 볼륨으로 붙이거나 컨테이너 안에서 재생성한다
+data/*.db
+data/*.db-journal
+logs/
+log/
+
+# 이미지 안에서 쓸 일이 없는 것
+.git/
+.github/
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+docs/
+tests/
+eval/
+.vscode/
+.serena/
+.claude/
+sqlite3.exe
+*.zip

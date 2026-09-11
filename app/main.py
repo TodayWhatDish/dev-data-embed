@@ -14,6 +14,11 @@ FAST API 코드자체는 요청에 따른 함수 콜백만 정의할 뿐, 소켓
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+# jwt(PyJWT의 cryptography 백엔드)가 torch(sentence-transformers)보다 먼저 로드되면
+# 같은 프로세스에서 네이티브 라이브러리끼리 충돌해 임포트 시점에 세그폴트(exit 139)가 난다 -
+# 어떤 라우터가 jwt를 먼저 물기 전에 torch를 먼저 로드해 둔다.
+import app.core.embedder  # noqa: F401
+
 from app.api.routes.admin_auth import router as admin_auth_router
 from app.api.routes.ask import router as ask_router
 from app.api.routes.auth import router as auth_router

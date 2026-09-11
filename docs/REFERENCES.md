@@ -16,7 +16,8 @@
 
 - **경로**: `/Users/jaeseong/rag-project-cleanup`
 - **무엇**: 화장품 관리자 대시보드 RAG 서비스. 2번을 계층 분리 기준으로 리팩터링한 버전.
-- **왜 여기를 보나**: 이 저장소와 **계층 구성이 같고**(`app/{domain,core,repositories,adapters,features,api}` + `pipeline/`),
+- **왜 여기를 보나**: 이 저장소와 **계층 구성이 같고**(`app/{domain,core,repositories,adapters,services,api}` + `pipeline/`
+  — 저쪽 폴더명은 아직 `features`다, 2026-09-08에 이 저장소만 `services`로 개명했다. 4번 참고),
   이 저장소에 아직 없는 API 계층이 완성돼 있다.
 
 ### 무엇을 볼 것인가
@@ -107,7 +108,7 @@
 - **추적 도구**: 저쪽은 LangSmith 가 있어야 기록이 남는다. 이쪽은 `eval/tracing.py` 가
   **항상** `data/eval/runs.jsonl` 에 한 줄씩 쌓고 LangSmith 는 켜져 있을 때만 함께 보낸다.
   가입 없이도 추이를 볼 수 있어야 하기 때문이다.
-- **마스터 캐시**: 저쪽 채점기는 그냥 `app.features` 를 부르면 된다. 이쪽은 `ProductMgr`
+- **마스터 캐시**: 저쪽 채점기는 그냥 `app.features`(이쪽 이름으로는 `app.services`) 를 부르면 된다. 이쪽은 `ProductMgr`
   같은 도메인 싱글턴을 서버 기동 때 `lifespan` 이 채운다(`api/lifespan.py:32`). 채점기는
   서버를 안 띄우므로 `warm_domain()` 을 직접 불러야 한다 — 안 부르면 검색 결과를 상품으로
   바꾸는 **마지막 순간에** AttributeError 로 죽는다. 새 채점기를 만들면 이걸 잊지 않는다.
@@ -115,3 +116,36 @@
   import 하는데 `langchain-community 0.4.x` 에서 그 모듈이 없어졌다. `pyproject.toml` 의
   `eval` 엑스트라가 `~=0.3.31` 로 묶는 이유다. 이쪽 `app/` 은 `langchain_community` 를
   한 군데도 안 써서 내려도 서버에 영향이 없다.
+
+---
+
+## 4. RAG-learn (계층 이름 전환 기준, 2026-09-08 추가)
+
+- **경로**: `/Users/jaeseong/RAG-learn`
+- **무엇**: 화장품 AI 관리자 실습용 샌드박스. SQLAlchemy + `api → services → repositories` 5계층으로
+  가르치는 교육용 뼈대다.
+- **왜 여기를 보나**: 1번(`rag-project-cleanup`)이 API 엔지니어링(의존성 주입, 예외 변환, lifespan,
+  스레드-로컬 DB, 저장소 팩토리)의 기준이라면, 여기는 **폴더 이름과 모듈 쪼개는 기준**이다.
+  이 저장소는 2026-09-08부터 이 이름 체계를 따른다: `features` → `services`,
+  `domain` → 순수 데이터클래스는 `models/`·비즈니스 규칙은 `domain/` 그대로,
+  임베딩·마스킹·프롬프트는 `app/ai/`, 검색·리랭킹은 `app/rag/`, API 요청/응답 스키마는 `app/schemas/`.
+- **가져오지 않는 것**: `app/db.py`를 SQLAlchemy ORM으로 새로 짜는 것. 이쪽은 이미
+  스레드-로컬 `sqlite3` + `sqlite-vec` 벡터 컬럼(BLOB)으로 굳어 있고, 1번 참고 프로젝트의
+  DB 접근 방식과도 같다. SQLAlchemy 전환은 별개 결정이지 이번 이름 정리의 범위가 아니다.
+- **인증·에러 변환·lifespan**: 여기 없음. 계속 1번 기준을 따른다.
+
+### 무엇을 볼 것인가
+
+| 주제 | 파일 | 핵심 |
+|---|---|---|
+| 폴더 구성 | `app/{ai,api,models,repositories,rag,schemas,services}` | `services`가 업무 로직, `models`가 순수 데이터클래스, `schemas`가 pydantic 요청/응답 |
+| 임베딩·마스킹·프롬프트 묶음 | `app/ai/{embedder,masking,prompts,vector_store}.py` | 검색에 쓰이기 전 텍스트를 다듬는 것들을 한 폴더에 |
+| 검색 전용 폴더 | `app/rag/{retriever,reranker}.py` | "SQL로 후보를 거른다"가 아니라 "벡터로 찾고 재정렬한다"에만 쓰는 이름 |
+
+### 이 저장소와 다른 점 (그대로 옮기면 안 되는 것)
+
+- **규모**: 저쪽은 상품 3개 테이블짜리 실습 샌드박스라 `services/` 파일이 3개뿐이다.
+  이쪽 `app/services/`는 이미 10개가 넘고 `metric/` 하위 폴더도 있다 — 폴더 이름만 맞추고
+  파일을 억지로 3개로 합치지 않는다.
+- **`tools/`, `graph/`**: 에이전트 도구 호출·LangGraph용 자리인데 이쪽엔 아직 그런 기능이 없다.
+  없는 기능을 위해 빈 폴더를 미리 만들지 않는다(YAGNI) — 필요해지면 그때 추가.

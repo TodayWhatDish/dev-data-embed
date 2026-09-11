@@ -1,14 +1,16 @@
 # Last Updated : 2026-09-04
 
 """임베딩 모델 싱글톤. 색인(pipeline)과 검색(app)이 같은 인스턴스를 공유해 벡터 공간 일관성 보장.
-core/에 두는 이유: features/ 순환 import 방지, 앱 배포 시 pipeline 없이도 떠야 하므로 app/ 측 기반 레이어에 배치.
+core/에 두는 이유: services/ 순환 import 방지, 앱 배포 시 pipeline 없이도 떠야 하므로 app/ 측 기반 레이어에 배치.
 
 모델이 로컬(sentence-transformers)이냐 API(OpenAI)냐는 config 의 EMBED_PROFILES 가 정하고,
 여기서 그 provider 칸만 보고 갈라진다. 부르는 쪽은 embed_documents/embed_query 두 개만 알면 된다 -
 get_embeddings() 가 돌려주는 SentenceTransformer 를 직접 .encode() 하면 API 모델에서 그대로 깨진다.
 """
 
-from sentence_transformers import SentenceTransformer
+# provider='openai' 로 배포할 때는 sentence-transformers 가 설치조차 안 된다.
+# 최상단에서 import 하면 그것만으로 서버가 못 뜬다 - 실제로 필요한 자리(get_embeddings 안)에서만 부른다.
+from typing import TYPE_CHECKING
 
 from app.core.config import (
     EMBED_API_KEY,
@@ -20,11 +22,15 @@ from app.core.config import (
     QUERY_PREFIX,
 )
 
+if TYPE_CHECKING:  # 타입 검사기만 본다. 런타임에는 실행되지 않는다.
+    from sentence_transformers import SentenceTransformer
+
+
 _embeddings = None
 _client = None
 
 
-def get_embeddings() -> SentenceTransformer:
+def get_embeddings() -> "SentenceTransformer":
     """로컬 임베딩 모델 인스턴스 반환. 최초 호출 시 로드.
 
     provider='openai' 프로파일에는 올릴 가중치가 없다 - 그 경우 부르면 안 되고,

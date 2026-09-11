@@ -80,7 +80,7 @@ def create_purchase(pet_id: int, product_id: int, quantity: int, unit_price_krw:
 
 def create_review(purchase_id: int, rating: int, body: str) -> None:
     """구매 건에 리뷰를 남긴다. purchase_id가 review의 PK라 이미 리뷰가 있으면
-    QueryError('constraint_unique')가 난다 - 부르는 쪽(features)이 잡는다."""
+    QueryError('constraint_unique')가 난다 - 부르는 쪽(services)이 잡는다."""
     insert_query(
         "review",
         {

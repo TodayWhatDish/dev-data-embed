@@ -102,7 +102,7 @@ EMBED_PROFILES = {
 
 # 재색인 없이 실험하려면 셸에서 바꾼다:  $env:EMBED_MODEL = 'BAAI/bge-m3'
 # EMBED_MODEL = env('EMBED_MODEL', 'intfloat/multilingual-e5-small')
-EMBED_MODEL = env("EMBED_MODEL", "intfloat/multilingual-e5-small")
+EMBED_MODEL = env("EMBED_MODEL", "text-embedding-3-small")
 
 if EMBED_MODEL not in EMBED_PROFILES:
     raise SystemExit(f"EMBED_PROFILES 에 없는 모델입니다: {EMBED_MODEL}")
@@ -152,7 +152,7 @@ if not Path(DB_PATH).exists():
     print(f"알림: DB 가 아직 없다 -> {DB_PATH}")
 
 
-USE_API = env("USE_API", 0) == "1"
+USE_API = env("USE_API", 1) == "1"
 
 # LLM_PROVIDER는 langchain init_chat_model()의 provider 인자로 그대로 들어간다 (adapters/stores/llm.py).
 # 상용 API를 바꾸고 싶으면 .env의 LLM_PROVIDER/LLM_API_KEY/API_MODEL 세 값만 바꾸면 된다 - 코드 수정 불필요.
@@ -183,8 +183,8 @@ LANGSMITH_EVAL_PROJECT = env("LANGSMITH_EVAL_PROJECT", "pet-reco-eval")
 
 # 관리자 로그인 / 서버 세션 토큰 만드는 데 필요한 설정값.
 # 관리자 로그인 전용 JWT 설정. 사용자 인증은 Supabase 로 이관 중이라 구글 로그인과
-# 함께 걷어냈지만, 관리자 인증(features/admin_auth.py)은 공용 비밀번호 + 자체 JWT 라
-# 그 이관과 무관하다. core/auth.py 와 features/admin_auth.py 가 이 세 값을 import 한다.
+# 함께 걷어냈지만, 관리자 인증(services/admin_auth.py)은 공용 비밀번호 + 자체 JWT 라
+# 그 이관과 무관하다. core/auth.py 와 services/admin_auth.py 가 이 세 값을 import 한다.
 JWT_SECRET = env("JWT_SECRET", "")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = 60 * 24 * 7  # 7일

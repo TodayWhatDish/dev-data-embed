@@ -29,7 +29,7 @@ from pydantic import ValidationError
 from app.adapters.stores.llm import chat
 from app.core.config import LLM_MODEL
 from app.domain.prompting import Recommendation, build_recommend_prompt
-from app.features.searching import candidates as search_candidates
+from app.services.searching import candidates as search_candidates
 from eval.golden import load_holdout
 from eval.tracing import banner, eval_run, require_llm, warm_domain
 from pipeline.vector_db import connect

@@ -11,7 +11,7 @@ from typing import Any
 
 from app.adapters.stores.llm import chat
 from app.domain.prompting import Strategy, build_strategy_prompt
-from app.features.customers import customer_detail
+from app.services.customers import customer_detail
 
 
 def generate_strategy(user_id: int) -> dict[str, Any] | None:

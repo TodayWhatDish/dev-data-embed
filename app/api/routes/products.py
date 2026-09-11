@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends
 from app.api.errors import product_http
 from app.api.schemas import Product, ProductCreate, ProductUpdate
 from app.core.auth import get_current_admin
-from app.features import products
+from app.services import products
 
 router = APIRouter(prefix="/admin/products", tags=["관리자-상품"], dependencies=[Depends(get_current_admin)])
 

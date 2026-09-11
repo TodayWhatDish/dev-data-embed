@@ -5,7 +5,7 @@ from app.repositories.general_query import insert_query, select, select_all, sel
 
 # 단일 테이블 + = 조건인 쿼리는 general_query 로 간다. SQL 을 손으로 쓰지 않는 것보다,
 # 컬럼 이름이 틀렸을 때 QueryError('unknown_column') 로 통일되는 게 크다 —
-# features/products.py 의 CLIENT_FAULT 표가 reason 을 보고 HTTP 상태를 정하기 때문이다.
+# services/products.py 의 CLIENT_FAULT 표가 reason 을 보고 HTTP 상태를 정하기 때문이다.
 # 조인·집계는 general_query 가 못 만들어서 아래에도 SQL 이 그대로 남아 있다.
 
 # def get_product_detail_info():
@@ -84,7 +84,7 @@ def find_page(page: int, size: int) -> list[dict]:
     try:
         products = select_range("product", {}, size, offset, [("product_id", "ASC")])
     except QueryError as e:
-        # 거절 사유와 실제로 계산된 offset 을 아는 건 여기다. features 는 page/size 만 안다
+        # 거절 사유와 실제로 계산된 offset 을 아는 건 여기다. services 는 page/size 만 안다
         logging.getLogger().warning(
             f"Reject find_page: reason={e.reason}, page={page}, size={size}, offset={offset}, detail={e.detail}"
         )
