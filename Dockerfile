@@ -21,7 +21,11 @@ RUN pip install --no-cache-dir .
 # --- 코드 레이어 (자주 바뀌므로 맨 뒤) ---
 COPY app/ ./app/
 COPY pipeline/ ./pipeline/
-COPY data/master/ ./data/master/
+# render.yaml 의 persistent disk 가 /app/data 에 마운트된다 - 마운트는 기존 디렉터리를
+# 덮어쓰는 게 아니라 통째로 가리므로, data/master 를 여기 구워넣어도 런타임엔 안 보인다.
+# 그래서 마운트 경로 밖(/app/_seed_master)에 구워두고, 컨테이너 시작 시 디스크가 비어있으면
+# 거기서 한 번만 복사해온다 (디스크는 영속적이라 이후 재시작부턴 안 건드림).
+COPY data/master/ ./_seed_master/
 
 # app/core/trace.py 가 logs/query_log.jsonl 을 append 로 여는데 디렉터리는 만들지 않는다.
 # .dockerignore 로 logs/ 를 뺐으므로 여기서 만들어 둔다 - 없으면 첫 /ask 가 FileNotFoundError 로 죽는다.
@@ -30,4 +34,4 @@ RUN mkdir -p logs
 EXPOSE 8000
 
 # --host 0.0.0.0 필수. 기본값 127.0.0.1 이면 컨테이너 안에서만 들리고 -p 로 뚫어도 안 닿는다.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "[ -d data/master ] || cp -r _seed_master data/master; exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]

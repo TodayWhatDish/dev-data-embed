@@ -22,7 +22,6 @@ from app.core.config import FRONTEND_ORIGINS
 import app.core.embedder  # noqa: F401
 
 from app.api.routes.admin_auth import router as admin_auth_router
-from app.api.routes.admin_db import router as admin_db_router
 from app.api.routes.ask import router as ask_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.background import router as background_router
@@ -54,7 +53,6 @@ app.include_router(recommend_router)
 app.include_router(ask_router)
 app.include_router(health_router)
 app.include_router(admin_auth_router)
-app.include_router(admin_db_router)
 app.include_router(auth_router)
 app.include_router(products_router)
 app.include_router(customers_router)
