@@ -14,6 +14,13 @@ FAST API 코드자체는 요청에 따른 함수 콜백만 정의할 뿐, 소켓
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.core.config import FRONTEND_ORIGINS
+
+# jwt(PyJWT의 cryptography 백엔드)가 torch(sentence-transformers)보다 먼저 로드되면
+# 같은 프로세스에서 네이티브 라이브러리끼리 충돌해 임포트 시점에 세그폴트(exit 139)가 난다 -
+# 어떤 라우터가 jwt를 먼저 물기 전에 torch를 먼저 로드해 둔다.
+import app.core.embedder  # noqa: F401
+
 from app.api.routes.admin_auth import router as admin_auth_router
 from app.api.routes.ask import router as ask_router
 from app.api.routes.auth import router as auth_router
@@ -31,10 +38,12 @@ from app.api.routes.recommend import router as recommend_router
 
 app = FastAPI(lifespan=lifespan)
 
-# dev-web(Next.js, 별도 저장소)이 다른 오리진에서 API를 부른다 - 배포 도메인 정해지면 추가.
+# dev-web(Next.js, 별도 저장소)이 다른 오리진에서 API를 부른다.
+# 허용 오리진은 app.core.config.FRONTEND_ORIGINS(env FRONTEND_ORIGINS)에서 온다 -
+# 배포 도메인은 코드가 아니라 배포 플랫폼의 환경변수로 넣는다.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=FRONTEND_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
