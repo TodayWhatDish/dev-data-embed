@@ -11,8 +11,18 @@ set -e
 [ -d data/master ] || cp -r _seed/master data/master
 [ -d data/seed ] || cp -r _seed/seed data/seed
 
-if [ ! -f data/pet_reco.db ]; then
-    echo "[entrypoint] pet_reco.db 없음 - 파이프라인으로 새로 만든다"
+# data/pet_reco.db 파일이 있어도 못 믿는다 - 예전에 앱이 sqlite3.connect()만 하고 죽으면서
+# 생긴 빈 파일일 수 있다(app/core/db.py가 connect 시점에 빈 파일을 만든다). 그래서 파일
+# 존재가 아니라 앱이 부팅 때 바로 필요로 하는 allergen 테이블이 실제로 있는지로 판단한다.
+if ! python -c '
+import sqlite3, sys
+con = sqlite3.connect("data/pet_reco.db")
+row = con.execute(
+    "SELECT 1 FROM sqlite_master WHERE type=? AND name=?", ("table", "allergen")
+).fetchone()
+sys.exit(0 if row else 1)
+' 2>/dev/null; then
+    echo "[entrypoint] DB 스키마 없음 - 파이프라인으로 새로 만든다"
     python -m pipeline.load_csv
     python -m pipeline.chunk
     python -m pipeline.embed
