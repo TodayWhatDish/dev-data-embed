@@ -16,7 +16,7 @@ import sqlite3
 
 import sqlite_vec
 
-from app.core.config import EMBED_DIM, EMBED_MODEL, SIZE_CASE
+from app.core.config import EMBED_DIM, EMBED_MODEL, SIZE_CASE, INDEX_FILTER
 from app.core.embedder import embed_query
 
 logger = logging.getLogger()
@@ -121,8 +121,25 @@ def check_freshness(con: sqlite3.Connection):
     if meta.get("source") != now:
         problems.append(f"색인 당시 조각 지문은 '{meta.get('source')}' 인데 지금 chunks 는 '{now}' 입니다.")
 
+    # 위 지문은 chunks 안에서만 닫혀 있어, 웹에서 새로 달린 리뷰를 못 본다 -
+    # 아직 안 잘린 리뷰는 chunks 에 없으니 지문이 그대로다. 원본 쪽을 따로 센다.
+    # 테이블이 없으면 NOT IN 이 컴파일 단계에서 터진다(0건이 아니다). 그건 '미색인'의
+    # 가장 심한 경우라 삼키지 않고 문장으로 올린다 - 이 함수의 직업이 알리는 것이라서다.
+    try:
+        (pending,) = con.execute(f"""
+            SELECT COUNT(*) FROM review AS r
+            WHERE {INDEX_FILTER} AND r.purchase_id NOT IN (SELECT purchase_id FROM chunks)
+        """).fetchone()
+    except sqlite3.OperationalError:
+        problems.append("chunks 테이블이 없습니다. 색인을 한 번도 만들지 않았습니다.")
+    else:
+        if pending:
+            problems.append(f"색인에 안 들어간 리뷰가 {pending}건 있습니다(웹에서 새로 달린 후기).")
+
+
     if problems:
         problems.append("chunk.py 와 embed.py 를 다시 실행하세요.")
+
         # 부르는 쪽이 문장만 출력하고 넘어가므로, 로그에도 남겨야 나중에 되짚을 수 있다
         for line in problems:
             logger.warning(f"색인 신선도: {line}")
