@@ -10,6 +10,7 @@ from app.core.auth import get_current_user
 from app.domain.common import CommonMgr
 from app.domain.pet import attach_names
 from app.services.auth import login, signup
+from app.services.customers import customer_detail
 from app.repositories.pet import find_pets_by_user
 
 router = APIRouter()
@@ -71,6 +72,17 @@ def my_pets(user_id: int = Depends(get_current_user)) -> list[dict]:
     /ask/me와 같은 이유(다른 회원 펫을 user_id만 바꿔서 못 보게).
     animal_category_id -> animal_category 이름 변환은 attach_names()로 한다 (services/profile.py와 동일)."""
     return attach_names(find_pets_by_user(user_id))
+
+
+@router.get("/me/profile")
+def my_profile(user_id: int = Depends(get_current_user)) -> dict:
+    """마이페이지: 내 프로필 + 펫 상세(품종/체중/알레르기 등) + 구매이력을 한 번에.
+    관리자 고객상세(GET /api/customers/{user_id})가 쓰는 customer_detail()을 그대로 재사용한다 -
+    본인 데이터라 마스킹도 필요 없고, 같은 내용을 또 쿼리할 이유가 없다."""
+    detail = customer_detail(user_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="회원 정보를 찾을 수 없습니다.")
+    return detail
 
 
 @router.get("/allergens")
