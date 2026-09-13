@@ -21,7 +21,6 @@ SELFCHECKS = [
     "tests.domain_and_repo.allegen",
     "tests.domain_and_repo.animal_category",
     "tests.domain_and_repo.breed",
-    "tests.domain_and_repo.column_mgr",
     "tests.domain_and_repo.masking",
     "tests.domain_and_repo.pet",
     "tests.domain_and_repo.product_embedding",
@@ -29,7 +28,6 @@ SELFCHECKS = [
     "tests.domain_and_repo.safty",
     "tests.services.db_threads",
     "tests.services.products",
-    "tests.query_sample",
     "tests.eval.judges",
 ]
 

@@ -1,20 +1,18 @@
-# Last updated: 2026-09-03
-# Last Updated : 2026-09-02
+# Last updated: 2026-09-13
 
 """pet 테이블과 그 주변(animal_category, pet_allergy)에 닿는 자리.
 
-조회가 전부 JOIN 이라 general_query 를 쓰지 않는다. general_query 는 테이블·컬럼 이름을
-바깥에서 받아 SQL 을 만들 때 필요한 물건이고, 여기는 이름이 코드에 글자로 박혀 있어
-화이트리스트로 걸러야 할 대상이 애초에 없다. 대신 조인 모양을 여기 가둬둔다 —
-services 가 테이블 이름을 알면 스키마가 바뀔 때 고칠 곳이 흩어진다.
+단일 테이블 CRUD 는 ORM(session.query/add)으로 간다. 조회가 조인이거나 GROUP_CONCAT 상관
+서브쿼리가 섞이면 ORM 표현이 오히려 안 읽혀서 SQL 을 그대로 두고 fetch/fetch_tuples 로 돌린다 —
+이름이 코드에 글자로 박혀 있어 general_query 의 화이트리스트가 애초에 필요 없는 자리였다.
 """
 
 import logging
-import sqlite3
 
-from app.core.db import execute, fetch, fetch_one, fetch_tuples
-from app.repositories.general_query import select_all
-from app.repositories.general_query.insert import insert_query
+from sqlalchemy.exc import DBAPIError
+
+from app.core.db import as_dict, commit, fetch, fetch_one, fetch_tuples, get_session
+from app.models.pet import Breed, Pet, PetAllergy, PetSurvey
 
 logger = logging.getLogger()
 
@@ -30,7 +28,7 @@ def create_pet(
     body_type: int = None,
     activity_level: int = None,
 ) -> int:
-    """반려동물 등록. 값이 없는 선택 컬럼은 뺀다 - insert_query가 남은 컬럼은 NULL로 채운다."""
+    """반려동물 등록. 값이 없는 선택 컬럼은 뺀다 - DB 기본값/NULL 로 채워진다."""
     values = {"user_id": user_id, "animal_category_id": animal_category_id, "name": name}
     for k, v in (
         ("gender", gender),
@@ -42,19 +40,11 @@ def create_pet(
     ):
         if v is not None:
             values[k] = v
-    return insert_query("pet", values)
-
-
-def add_pet_allergies(pet_id: int, allergen_ids: list[int]) -> None:
-    """pet_allergy에 알러지원을 등록한다. 이미 하위까지 펼쳐진 id 목록을 받는다 -
-    카테고리 펼치기(하위 알러지 포함)는 CommonMgr.resolve_allergen_ids()가 한다.
-    OR IGNORE인 이유: 카테고리와 그 하위를 같이 넣다 보면 같은 id가 겹칠 수 있어서다."""
-    for allergen_id in allergen_ids:
-        execute(
-            "INSERT OR IGNORE INTO pet_allergy (pet_id, allergen_id) VALUES (?, ?)",
-            (pet_id, allergen_id),
-            "pet_allergy",
-        )
+    pet = Pet(**values)
+    session = get_session()
+    session.add(pet)
+    commit("pet")
+    return pet.pet_id
 
 
 def save_pet_survey(pet_id: int, diet_note: str = None, skin_note: str = None) -> None:
@@ -64,7 +54,8 @@ def save_pet_survey(pet_id: int, diet_note: str = None, skin_note: str = None) -
     for k, v in (("diet_note", diet_note), ("skin_note", skin_note)):
         if v is not None:
             values[k] = v
-    insert_query("pet_survey", values)
+    get_session().add(PetSurvey(**values))
+    commit("pet_survey")
 
 
 def get_pet_survey(pet_id: int) -> dict | None:
@@ -73,8 +64,8 @@ def get_pet_survey(pet_id: int) -> dict | None:
 
 
 def get_breeds():
-    # 테이블 하나를 통째로 읽는 거라 general_query 로 간다. 아래 조인들과 갈리는 지점이다
-    return select_all("breed")
+    rows = get_session().query(Breed).all()
+    return [as_dict(row) for row in rows]
 
 
 def find_pets_by_user(user_id: int) -> list[dict]:
@@ -115,7 +106,7 @@ def _fetch_pets(where: str, params: tuple, what: str) -> list[dict]:
         """,
             params,
         )
-    except sqlite3.Error:
+    except DBAPIError:
         # SQL 에 글자로 박힌 오타나 스키마 변경은 우리 버그다. 어느 조회였는지만 남기고 그대로 올린다
         logger.exception(f"pet 조회 실패: {what}")
         raise
@@ -133,8 +124,10 @@ def resolve_allergen_ids(names: list[str]) -> list[int]:
 
 def add_pet_allergies(pet_id: int, allergen_ids: list[int]) -> None:
     """pet_allergy에 (pet_id, allergen_id) 행을 하나씩 넣는다. 다대다라 여러 행이 나온다."""
+    session = get_session()
     for allergen_id in allergen_ids:
-        insert_query("pet_allergy", {"pet_id": pet_id, "allergen_id": allergen_id})
+        session.add(PetAllergy(pet_id=pet_id, allergen_id=allergen_id))
+        commit("pet_allergy")
 
 
 def find_allergen_names(pet_id: int) -> list[str]:
@@ -145,7 +138,7 @@ def find_allergen_names(pet_id: int) -> list[str]:
             "JOIN allergen AS al ON al.allergen_id = pa.allergen_id WHERE pa.pet_id = ?",
             (pet_id,),
         )
-    except sqlite3.Error:
+    except DBAPIError:
         logger.exception(f"pet 알레르기 조회 실패: pet_id={pet_id}")
         raise
 

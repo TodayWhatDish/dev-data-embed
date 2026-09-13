@@ -1,11 +1,9 @@
-# Last Updated : 2026-09-03
+# Last Updated : 2026-09-13
 
-"""여러 도메인이 같이 쓰는 마스터 테이블에 닿는 자리.
+"""여러 도메인이 같이 쓰는 마스터 테이블에 닿는 자리."""
 
-둘 다 테이블 하나를 통째로 읽는 거라 general_query.select_all 로 간다.
-"""
-
-from app.repositories.general_query import select_all
+from app.core.db import as_dict, get_session
+from app.models.common import Allergen, AnimalCategory
 
 
 def get_allergens():
@@ -15,8 +13,10 @@ def get_allergens():
     달라지면 같은 트리를 두 번 만들었을 때 자식 순서가 어긋난다.
     allergen_id 가 PK 라 값이 안 겹치고, 그래서 이 키 하나로 순서가 하나로 확정된다.
     """
-    return select_all("allergen", [("allergen_id", "ASC")])
+    rows = get_session().query(Allergen).order_by(Allergen.allergen_id.asc()).all()
+    return [as_dict(row) for row in rows]
 
 
 def get_animal_categories():
-    return select_all("animal_category")
+    rows = get_session().query(AnimalCategory).all()
+    return [as_dict(row) for row in rows]

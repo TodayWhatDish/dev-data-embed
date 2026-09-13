@@ -8,8 +8,10 @@
 
 from fastapi import APIRouter
 
+from sqlalchemy import text
+
 from app.core.config import LLM_API_KEY
-from app.core.db import get_con
+from app.core.db import get_session
 
 router = APIRouter()
 
@@ -27,7 +29,7 @@ def ready() -> dict:
     llm_ok = False
 
     try:
-        get_con().execute("SELECT 1").fetchone()
+        get_session().execute(text("SELECT 1")).fetchone()
         db_ok = True
     except Exception:
         db_ok = False

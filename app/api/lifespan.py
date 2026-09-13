@@ -7,7 +7,7 @@ main.py 는 앱을 조립하고 라우터를 등록하는 일만 한다(그 파�
 
 담는 것은 세 가지고, 서로 성격이 다르다:
   * 도메인 마스터 : DB 값을 도메인 싱글턴에 얹는다 (알러지/축종/품종/카테고리...)
-  * 스키마 정보   : general_query 가 컬럼 이름을 거를 때 쓰는 화이트리스트
+  * 스키마 확인   : ORM Base.metadata 에 매핑된 테이블이 실제 DB 에도 있는지 기동 때 미리 본다
   * 벡터 커넥션   : sqlite_vec 확장이 얹힌 별도 커넥션. 전역 con 과 다른 물건이다
 """
 
@@ -15,9 +15,10 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from sqlalchemy import inspect
 
+from app.core.db import engine
 from app.domain.domain_init import init_from_db
-from app.repositories.general_query import ColumnMgr, get_all_table_names
 from pipeline.vector_db import connect
 
 logger = logging.getLogger()
@@ -33,17 +34,14 @@ def load_domain_cache():
 
 
 def load_schema_cache():
-    """테이블·컬럼 이름을 ColumnMgr 에 담고 몇 개를 담았는지 남긴다.
+    """DB 에 실재하는 테이블 이름을 읽어서 몇 개인지 남긴다.
 
-    ColumnMgr 은 첫 호출 때 스스로 채우니 안 불러도 돌아가긴 한다. 그래도 여기서 깨우는 이유는
-    두 가지다 — 21개 테이블을 읽는 값을 첫 요청이 물지 않고, DB 가 비었거나 스키마가 어긋나면
-    기동에서 티가 난다. 첫 쓰기 요청에서 unknown_table 로 알게 되는 것보다 낫다.
+    ORM 모델은 컬럼 이름을 코드에 고정해 두므로 general_query 시절의 런타임 화이트리스트는
+    더 이상 필요 없다. 그래도 여기서 한 번 접속해 보는 이유는 남아 있다 — DB 가 비었거나
+    파일이 없으면 첫 요청이 아니라 기동에서 티가 난다.
     """
-    col_mgr = ColumnMgr.get_inst()
-    tables = get_all_table_names()
-    logger.info(
-        f"Cached schema: table={len(tables)}, column={sum(len(col_mgr.get_col_names(t)) for t in tables)}"
-    )
+    tables = inspect(engine).get_table_names()
+    logger.info(f"Cached schema: table={len(tables)}")
     return tables
 
 

@@ -1,10 +1,9 @@
-# Last updated: 2026-09-03
-# Last Updated : 2026-09-01
+# Last updated: 2026-09-13
 
 """user 테이블에 연결되는 곳. 관리자 화면용 고객 조회."""
 
-from app.core.db import fetch, fetch_one
-from app.repositories.general_query.insert import insert_query
+from app.core.db import commit, fetch, fetch_one, get_session
+from app.models.user import User
 
 
 def find_user_by_email(email: str) -> dict | None:
@@ -27,19 +26,16 @@ def create_user(
         values["phone"] = phone
     if region:
         values["region"] = region
-    return insert_query("user", values)
+    user = User(**values)
+    session = get_session()
+    session.add(user)
+    commit("user")
+    return user.user_id
 
 
 def list_users() -> list[dict]:
     """관리자 화면 왼쪽 목록용. 고객 전체를 이름순으로.
 
-    # return fetch("""
-    #     SELECT user_id, name, email, region, created_at
-    #     FROM user
-    #     ORDER BY name
-    # """)
-
-    """
     species는 이 고객이 키우는 반려동물 종을 콤마로 합친 값(예: "개,고양이") - 목록에서
     강아지/고양이/모두 카테고리를 나누는 데 쓴다. gender/birth_date는 첫 번째로 등록된
     반려동물의 것이다 (사람 성별·나이가 아니다 - user 테이블엔 그 둘이 없다).

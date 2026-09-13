@@ -32,7 +32,6 @@ from app.api.lifespan import load_domain_cache, load_schema_cache
 from app.core.db import fetch, fetch_tuple_one, fetch_tuples
 from app.domain.common import CommonMgr
 from app.services.metric.sqlbench import compare_fn
-from app.repositories.general_query import select
 
 PET_COLS = ["pet_id", "name", "animal_category_id", "size", "inactive_at"]
 
@@ -56,7 +55,7 @@ def a_join(pet_id):
 
 def a_cached(pet_id):
     """id 만 읽고 이름은 메모리에서 찾는다. 조인이 사라진 자리에 dict 조회가 들어간다"""
-    rows = select("pet", {"pet_id": pet_id}, cols=["animal_category_id", "size"])
+    rows = fetch("SELECT animal_category_id, size FROM pet WHERE pet_id = ?", (pet_id,))
     if not rows:
         return None
     row = rows[0]
@@ -89,7 +88,7 @@ def b_cached(pet_id):
     allergen = CommonMgr.get_inst().get_allergen
     return sorted(
         allergen(row["allergen_id"])["name_ko"]
-        for row in select("pet_allergy", {"pet_id": pet_id}, cols=["allergen_id"])
+        for row in fetch("SELECT allergen_id FROM pet_allergy WHERE pet_id = ?", (pet_id,))
     )
 
 
@@ -162,18 +161,22 @@ def c_cached(user_id):
             "animal_category": cmgr.get_animal_category(row["animal_category_id"])["name_ko"],
             "size": row["size"],
         }
-        for row in select("pet", {"user_id": user_id}, [("pet_id", "ASC")], PET_COLS)
+        for row in fetch(
+            f"SELECT {', '.join(PET_COLS)} FROM pet WHERE user_id = ? ORDER BY pet_id ASC", (user_id,)
+        )
         if row["inactive_at"] is None
     ]
     if not pets:
         return []
 
+    ids = tuple(p["pet_id"] for p in pets)
     return _attach(
         pets,
         [
             {"pet_id": row["pet_id"], "name_ko": cmgr.get_allergen(row["allergen_id"])["name_ko"]}
-            for row in select(
-                "pet_allergy", {"pet_id": [p["pet_id"] for p in pets]}, cols=["pet_id", "allergen_id"]
+            for row in fetch(
+                f"SELECT pet_id, allergen_id FROM pet_allergy WHERE pet_id IN ({', '.join('?' * len(ids))})",
+                ids,
             )
         ],
     )
