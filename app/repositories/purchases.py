@@ -22,7 +22,7 @@ def get_product_id(purchase_id: int) -> int | None:
 def count_for_product(product_id: int) -> int:
     """이 상품이 몇 번 팔렸는지"""
     try:
-        return fetch_tuple_one("SELECT COUNT(*) FROM purchase WHERE product_id = ?", (product_id,))[0]
+        return fetch_tuple_one("SELECT COUNT(*) FROM purchase WHERE product_id = %s", (product_id,))[0]
     except DBAPIError:
         logger.exception(f"purchase 집계 실패: product_id={product_id}")
         raise
@@ -39,7 +39,7 @@ def list_by_user(user_id: int) -> list[dict]:
         JOIN pet AS pe ON pe.pet_id = pu.pet_id
         JOIN product AS p ON p.product_id = pu.product_id
         LEFT JOIN review AS r ON r.purchase_id = pu.purchase_id
-        WHERE pe.user_id = ?
+        WHERE pe.user_id = %s
         ORDER BY pu.purchased_at DESC
     """,
         (user_id,),
@@ -51,7 +51,7 @@ def is_owned_by(purchase_id: int, user_id: int) -> bool:
     rows = fetch(
         """
         SELECT 1 FROM purchase AS pu JOIN pet AS pe ON pe.pet_id = pu.pet_id
-        WHERE pu.purchase_id = ? AND pe.user_id = ?
+        WHERE pu.purchase_id = %s AND pe.user_id = %s
     """,
         (purchase_id, user_id),
     )
@@ -95,7 +95,7 @@ def find_products_by_purchase_ids(purchase_ids: list[int]) -> dict[int, dict]:
 
     if not purchase_ids:
         return {}
-    marks = ", ".join("?" for _ in purchase_ids)
+    marks = ", ".join("%s" for _ in purchase_ids)
     rows = fetch(
         f"""
         SELECT pu.purchase_id, p.product_id, p.name, p.brand, p.price_krw, p.product_category_id

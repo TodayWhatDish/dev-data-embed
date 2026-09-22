@@ -8,7 +8,7 @@ from app.models.user import User
 
 def find_user_by_email(email: str) -> dict | None:
     """로그인/가입 시 이메일 중복 확인. email 은 UNIQUE라 최대 한 행."""
-    return fetch_one("SELECT user_id, password_hash FROM user WHERE email = ?", (email,))
+    return fetch_one('SELECT user_id, password_hash FROM "user" WHERE email = %s', (email,))
 
 
 def create_user(
@@ -42,13 +42,13 @@ def list_users() -> list[dict]:
     """
     return fetch("""
         SELECT u.user_id, u.name, u.email, u.region, u.created_at,
-               (SELECT GROUP_CONCAT(DISTINCT ac.name_ko)
+               (SELECT STRING_AGG(DISTINCT ac.name_ko, ',')
                   FROM pet AS pe
                   JOIN animal_category AS ac ON ac.animal_category_id = pe.animal_category_id
                  WHERE pe.user_id = u.user_id) AS species,
                (SELECT pe.gender FROM pet AS pe WHERE pe.user_id = u.user_id ORDER BY pe.pet_id LIMIT 1) AS gender,
                (SELECT pe.birth_date FROM pet AS pe WHERE pe.user_id = u.user_id ORDER BY pe.pet_id LIMIT 1) AS birth_date
-        FROM user AS u
+        FROM "user" AS u
         ORDER BY u.name
     """)
 
@@ -58,7 +58,7 @@ def get_user_detail(user_id: int) -> dict | None:
     user = fetch_one(
         """
         SELECT user_id, name, email, phone, region, created_at, last_login_at
-        FROM user WHERE user_id = ?
+        FROM "user" WHERE user_id = %s
     """,
         (user_id,),
     )
@@ -72,14 +72,14 @@ def get_user_detail(user_id: int) -> dict | None:
         SELECT pe.pet_id, pe.name, ac.name_ko AS animal_category, pe.gender, pe.birth_date,
                pe.weight_kg, pe.neutered, pe.size, pe.activity_level,
                ps.diet_note, ps.skin_note,
-               (SELECT GROUP_CONCAT(al.name_ko)
+               (SELECT STRING_AGG(al.name_ko, ',')
                   FROM pet_allergy AS pa
                   JOIN allergen AS al ON al.allergen_id = pa.allergen_id
                  WHERE pa.pet_id = pe.pet_id) AS allergies
         FROM pet AS pe
         JOIN animal_category AS ac ON ac.animal_category_id = pe.animal_category_id
         LEFT JOIN pet_survey AS ps ON ps.pet_id = pe.pet_id
-        WHERE pe.user_id = ?
+        WHERE pe.user_id = %s
     """,
         (user_id,),
     )
@@ -95,7 +95,7 @@ def get_user_detail(user_id: int) -> dict | None:
         JOIN pet AS pe ON pe.pet_id = pu.pet_id
         JOIN product AS p ON p.product_id = pu.product_id
         LEFT JOIN review AS r ON r.purchase_id = pu.purchase_id
-        WHERE pe.user_id = ?
+        WHERE pe.user_id = %s
         ORDER BY pu.purchased_at DESC
     """,
         (user_id,),

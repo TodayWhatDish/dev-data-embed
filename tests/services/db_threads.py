@@ -22,8 +22,8 @@ def hammer(errors, done):
     """repositories 가 실제로 쓰는 경로 그대로 두들긴다"""
     for _ in range(LOOPS):
         try:
-            fetch("SELECT pet_id, name FROM pet WHERE user_id = ?", (1,))
-            fetch("SELECT pet_id FROM pet WHERE user_id = ?", (1,))
+            fetch("SELECT pet_id, name FROM pet WHERE user_id = %s", (1,))
+            fetch("SELECT pet_id FROM pet WHERE user_id = %s", (1,))
             done.append(1)
         except Exception as e:  # noqa: BLE001 - 무슨 예외든 여기선 실패다
             errors.append(f"{type(e).__name__}: {e}")

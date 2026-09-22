@@ -60,7 +60,7 @@ def save_pet_survey(pet_id: int, diet_note: str = None, skin_note: str = None) -
 
 def get_pet_survey(pet_id: int) -> dict | None:
     """펫 한 마리의 설문 스냅샷. 없으면 None (설문을 안 받은 펫)."""
-    return fetch_one("SELECT diet_note, skin_note FROM pet_survey WHERE pet_id = ?", (pet_id,))
+    return fetch_one("SELECT diet_note, skin_note FROM pet_survey WHERE pet_id = %s", (pet_id,))
 
 
 def get_breeds():
@@ -78,7 +78,7 @@ def find_pets_by_user(user_id: int) -> list[dict]:
     알레르겐을 상관 서브쿼리로 뽑는 이유는 pet_allergy 가 다대다여서다. 조인으로 펼치면
     알레르기 수만큼 펫이 중복되고, 부르는 쪽이 다시 묶어야 한다.
     """
-    return _fetch_pets("p.user_id = ? AND p.inactive_at IS NULL", (user_id,), f"user_id={user_id}")
+    return _fetch_pets("p.user_id = %s AND p.inactive_at IS NULL", (user_id,), f"user_id={user_id}")
 
 
 def find_pet(pet_id: int) -> dict | None:
@@ -87,7 +87,7 @@ def find_pet(pet_id: int) -> dict | None:
     find_pets_by_user 와 **같은 모양**을 준다. 그래야 attach_names() 하나가 둘 다 받는다.
     여기는 inactive_at 을 안 본다 - 비활성 펫도 상세는 열려야 한다.
     """
-    rows = _fetch_pets("p.pet_id = ?", (pet_id,), f"pet_id={pet_id}")
+    rows = _fetch_pets("p.pet_id = %s", (pet_id,), f"pet_id={pet_id}")
     return rows[0] if rows else None
 
 
@@ -97,7 +97,7 @@ def _fetch_pets(where: str, params: tuple, what: str) -> list[dict]:
         return fetch(
             f"""
             SELECT p.pet_id, p.name, p.animal_category_id, p.size,
-                   (SELECT GROUP_CONCAT(pa.allergen_id)
+                   (SELECT STRING_AGG(pa.allergen_id::text, ',')
                       FROM pet_allergy AS pa
                      WHERE pa.pet_id = p.pet_id) AS allergen_ids
               FROM pet AS p
@@ -117,7 +117,7 @@ def resolve_allergen_ids(names: list[str]) -> list[int]:
     (오타로 필터가 통째로 안 걸리는 것보단, 아는 것만이라도 걸리는 게 낫다)."""
     if not names:
         return []
-    marks = ", ".join("?" for _ in names)
+    marks = ", ".join("%s" for _ in names)
     rows = fetch_tuples(f"SELECT allergen_id FROM allergen WHERE name_ko IN ({marks})", tuple(names))
     return [row[0] for row in rows]
 
@@ -135,7 +135,7 @@ def find_allergen_names(pet_id: int) -> list[str]:
     try:
         rows = fetch_tuples(
             "SELECT al.name_ko FROM pet_allergy AS pa "
-            "JOIN allergen AS al ON al.allergen_id = pa.allergen_id WHERE pa.pet_id = ?",
+            "JOIN allergen AS al ON al.allergen_id = pa.allergen_id WHERE pa.pet_id = %s",
             (pet_id,),
         )
     except DBAPIError:

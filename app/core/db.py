@@ -7,14 +7,21 @@ from sqlalchemy import create_engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import DeclarativeBase, Session, scoped_session, sessionmaker
 
-from app.core.config import DB_PATH
+from app.core.config import SUPABASE_DB_URL
 
 
 class Base(DeclarativeBase):
     """app/models/ 의 모든 ORM 모델이 여기서 상속한다."""
 
 
-engine = create_engine(f"sqlite:///{DB_PATH}")
+# postgresql:// 는 SQLAlchemy 기본값인 psycopg2 dialect 로 잡힌다 - 여기 깔린 건 psycopg(3) 라
+# +psycopg 로 dialect 를 명시해야 한다.
+_url = SUPABASE_DB_URL.replace("postgresql://", "postgresql+psycopg://", 1)
+
+# transaction pooler(포트 6543, Supavisor) 는 커넥션이 트랜잭션마다 다른 서버로 옮겨질 수 있어
+# 서버사이드 prepared statement 를 못 쓴다 - psycopg 가 자동으로 준비하려는 걸 꺼야
+# "prepared statement does not exist" 로 죽지 않는다.
+engine = create_engine(_url, connect_args={"prepare_threshold": None})
 
 # 스레드마다 자기 세션을 쓴다. 전에는 모듈 전역 커넥션 하나를 check_same_thread=False 로 열어
 # 다 같이 썼는데, 라우트가 전부 def(= async 아님)라 FastAPI 가 스레드풀에서 돌린다.
@@ -61,21 +68,21 @@ class QueryError(Exception):
         self.detail = detail
 
 
-# sqlite 제약 위반 이름 -> reason. 메시지 문자열을 파싱하지 않으려고 errorname 을 쓴다
+# postgres 제약 위반 SQLSTATE -> reason. 메시지 문자열을 파싱하지 않으려고 SQLSTATE 코드를 쓴다
+# (psycopg 예외는 클래스/인스턴스 양쪽에 .sqlstate 를 들고 있다)
 CONSTRAINT_REASON = {
-    "SQLITE_CONSTRAINT_UNIQUE": "constraint_unique",
-    "SQLITE_CONSTRAINT_PRIMARYKEY": "constraint_unique",
-    "SQLITE_CONSTRAINT_CHECK": "constraint_check",
-    "SQLITE_CONSTRAINT_FOREIGNKEY": "constraint_fk",
-    "SQLITE_CONSTRAINT_NOTNULL": "constraint_notnull",
+    "23505": "constraint_unique",  # unique_violation (PK 충돌 포함)
+    "23514": "constraint_check",  # check_violation
+    "23503": "constraint_fk",  # foreign_key_violation
+    "23502": "constraint_notnull",  # not_null_violation
 }
 
 
 def as_query_error(e: IntegrityError, table: str | None) -> QueryError:
-    """IntegrityError.orig 가 원래 sqlite3.IntegrityError 다 - sqlite_errorname 은 거기 있다."""
+    """IntegrityError.orig 가 원래 psycopg 예외다 - sqlstate 는 거기 있다."""
     orig = e.orig
     return QueryError(
-        CONSTRAINT_REASON.get(getattr(orig, "sqlite_errorname", ""), "constraint_other"), table, str(orig)
+        CONSTRAINT_REASON.get(getattr(orig, "sqlstate", ""), "constraint_other"), table, str(orig)
     )
 
 
@@ -96,13 +103,18 @@ def commit(table: str | None = None) -> None:
         raise as_query_error(e, table) from e
 
 
-def execute(sql, params=(), table: str | None = None) -> int:
+def execute(sql, params=(), table: str | None = None) -> int | None:
     """ORM 모델이 없는 자리(관계 없는 자유 SQL DELETE 등)를 위한 쓰기 한 문장 + 커밋.
     lastrowid 를 돌려준다 - INSERT 가 아니면 의미는 없지만 무해하다.
     """
     cur = get_session().connection().exec_driver_sql(sql, params)
     commit(table)
-    return cur.lastrowid
+    try:
+        return cur.lastrowid
+    except AttributeError:
+        # postgres 드라이버는 INSERT 가 아니면 lastrowid 자체가 없다(sqlite3 는 None) - 여기 호출부는
+        # 전부 DELETE 라 어차피 안 쓰는 값이다
+        return None
 
 
 def fetch(sql, params=()) -> list[dict]:

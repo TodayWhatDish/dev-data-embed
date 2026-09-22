@@ -109,7 +109,7 @@ if __name__ == "__main__":
             assert product_repo.inactive_product(product_id) == 1
             assert product_repo.find_by_id(product_id)["is_active"] == 0
             assert product_repo.inactive_product(-1) == 0  # 없는 id 는 0행
-            execute("DELETE FROM product WHERE product_id = ?", (product_id,), "product")
+            execute("DELETE FROM product WHERE product_id = %s", (product_id,), "product")
             assert product_repo.find_by_id(product_id) is None
 
     logger.info("ok")

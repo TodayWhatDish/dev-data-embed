@@ -110,13 +110,13 @@ def c_join_subquery(user_id):
     return fetch(
         """
         SELECT p.pet_id, p.name, ac.name_ko AS animal_category, p.size,
-               (SELECT GROUP_CONCAT(al.name_ko)
+               (SELECT STRING_AGG(al.name_ko, ',')
                   FROM pet_allergy AS pa
                   JOIN allergen AS al ON al.allergen_id = pa.allergen_id
                  WHERE pa.pet_id = p.pet_id) AS allergies
           FROM pet AS p
           JOIN animal_category AS ac ON ac.animal_category_id = p.animal_category_id
-         WHERE p.user_id = ? AND p.inactive_at IS NULL
+         WHERE p.user_id = %s AND p.inactive_at IS NULL
          ORDER BY p.pet_id""",
         (user_id,),
     )

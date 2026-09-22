@@ -55,6 +55,11 @@ def env(name: str, default: str) -> str:
 load_env(ROOT / ".env.local")
 load_env()
 
+# db.py 가 이 URL로만 붙는다 - SQLite fallback 없음 (docs/WORK.md 로드맵 A).
+# Supavisor transaction pooler(6543) 문자열이다 - direct connection(db.*.supabase.co)은
+# IPv4 애드온 없이는 IPv6 전용이라 이 환경에서 못 붙는다.
+SUPABASE_DB_URL = env("SUPABASE_DB_URL", "")
+
 # query_prefix/passage_prefix: e5 계열은 필수, bge 계열은 붙이면 오히려 성능이 떨어진다.
 # 모델을 비교할 때 이 표만 늘리고 코드는 건드리지 않는 것이 목표다.
 #
