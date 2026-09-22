@@ -1,4 +1,4 @@
-# Last Updated: 2026-09-02
+# Last Updated: 2026-09-23
 
 """chunk_vectors를 기반으로 유사리뷰를 찾는 행위를한다. (검색)
 
@@ -9,12 +9,14 @@ DB 에는 repositories/embedding.py 를 통해서만 닿는다. services 에 SQL
 
 FILTERS 의 조건절은 SQL 조각이지만 여기 남는다. 실행하는 게 아니라 벡터 검색에
 넘길 WHERE 를 조립하는 것이고, 무엇으로 거를지는 검색 정책이라 services 의 일이다.
+
+벡터 거리는 pgvector의 `<=>`(코사인 거리) 연산자를 쓴다 - 예전 sqlite-vec 의
+vec_distance_cosine()과 값은 같고 이름만 다르다.
 """
 
 import logging
-import sqlite3
 
-import sqlite_vec
+from sqlalchemy import text
 
 from app.core.config import EMBED_DIM, EMBED_MODEL, SIZE_CASE
 from app.core.embedder import embed_query
@@ -22,7 +24,8 @@ from app.core.embedder import embed_query
 logger = logging.getLogger()
 
 
-# 프로필 키 -> SQL 조건절. 값이 들어온 키만 WHERE 에 붙는다.
+# 프로필 키 -> SQL 조건절. 값이 들어온 키만 WHERE 에 붙는다. 자리표시자는 build_where()가
+# :p0, :p1 ... 로 채운다(포지션 하나당 ? 하나 - SQLAlchemy text()는 이름 바인딩만 받는다).
 # size_at_purchase 는 1~5 코드라 SIZE_CASE(config.py)로 사람이 쓰는 말로 바꿔 비교한다.
 # 알러지는 pet_allergy 가 다대다라 EXISTS 로 "그 알러지가 등록돼 있는가"를 확인한다.
 FILTERS = {
@@ -65,7 +68,8 @@ def build_where(profile):
     """프로필 딕셔너리를 WHERE 절과 바인딩 파라미터로 바꾼다.
 
     값이 있는 키만 조건절로 만들고, 아무것도 없으면 '1=1'(조건 없음)을 돌려준다.
-    params 로 바인딩하므로 사용자 입력을 SQL 문자열에 이어붙이지 않는다.
+    바인딩하므로 사용자 입력을 SQL 문자열에 이어붙이지 않는다. FILTERS 의 ? 는 등장
+    순서대로 :p0, :p1 ... 로 바뀐다 - search() 가 같은 순서로 params 를 딕셔너리에 얹는다.
     """
     clauses, params = [f"r.rating >= {MIN_RATING}"], []
     unknown = profile.keys() - FILTERS.keys()
@@ -80,30 +84,28 @@ def build_where(profile):
         # 알레르기처럼 값이 여러 개면 같은 조건절을 값마다 반복해 AND 로 묶는다.
         # 하나만 걸면 나머지 알레르겐이 든 상품이 그대로 통과한다.
         for item in value if isinstance(value, list) else [value]:
-            clauses.append(clause)
+            clauses.append(clause.replace("?", f":p{len(params)}"))
             params.append(item)
 
     logger.debug(f"WHERE 조립: 조건 {len(clauses)}개, params={tuple(params)}")
     return " AND ".join(clauses) or "1=1", tuple(params)
 
 
-def chunk_fingerprint(con: sqlite3.Connection) -> str:
-    """지금 chunks 테이블의 지문. embed.py:50 이 색인 때 남기는 것과 같은 식으로 계산한다."""
+def chunk_fingerprint(con) -> str:
+    """지금 chunks 테이블의 지문. embed.py 가 색인 때 남기는 것과 같은 식으로 계산한다."""
     n, id_sum, token_sum = con.execute(
-        "SELECT COUNT(*), COALESCE(SUM(purchase_id), 0), COALESCE(SUM(n_tokens), 0) FROM chunks"
-    ).fetchone()
-    # n, id_sum, token_sum = embedding_repo.get_chunk_stats(con)
+        text("SELECT COUNT(*), COALESCE(SUM(purchase_id), 0), COALESCE(SUM(n_tokens), 0) FROM chunks")
+    ).one()
     return f"{n}:{id_sum}:{token_sum}"
 
 
-def check_freshness(con: sqlite3.Connection):
+def check_freshness(con):
     """색인 시점의 모델,데이터 지문을 지금 DB와 비교해 어긋난 점을 문장 목록으로 돌려준다. 맞으면 빈 목록.
 
     load_csv.py 재실행 후 재색인을 잊으면 chunk_vectors 만 옛 데이터를 가리키는데,
     조인이 purchase_id 로 조용히 성립해 에러 없이 엉뚱한 리뷰가 나온다. 알리기만 하고 막지는 않는다.
     """
-    meta = dict(con.execute("SELECT key, value FROM embedding_meta").fetchall())
-    # meta = embedding_repo.get_embedding_meta(con)
+    meta = dict(con.execute(text("SELECT key, value FROM embedding_meta")).all())
     problems = []
 
     if meta.get("model") != EMBED_MODEL:
@@ -115,7 +117,7 @@ def check_freshness(con: sqlite3.Connection):
     if meta.get("dim") != str(EMBED_DIM):
         problems.append(f"색인 벡터는 {meta.get('dim')}차원인데 지금 모델은 {EMBED_DIM}차원입니다.")
 
-    # embed.py:50 이 색인 시점에 남긴 조각 지문을 지금 chunks 로 다시 계산해 대조한다.
+    # embed.py 가 색인 시점에 남긴 조각 지문을 지금 chunks 로 다시 계산해 대조한다.
     # chunk.py 만 돌리고 embed.py 를 잊는 게 재색인 사이클에서 가장 흔한 실수다.
     now = chunk_fingerprint(con)
     if meta.get("source") != now:
@@ -140,36 +142,32 @@ def search(con, query, where="1=1", params: tuple = (), top_k: int = 3):
         print(f"[경고] {line}")
 
     # embed_query()가 QUERY_PREFIX와 정규화를 다 챙긴다 - 모델이 로컬이든 API든 여기는 안 바뀐다.
-    q_vec = sqlite_vec.serialize_float32(embed_query(query))
+    # pgvector는 문자열 리터럴 "[v1,v2,...]"을 :: vector 로 캐스팅해서 받는다.
+    q_vec = "[" + ",".join(map(str, embed_query(query))) + "]"
 
-    # 1 con : 사용자검색하면 FastAPI 엔드포인트가 요청받고 엔드포인트 함수 동작함.
-    # 2 con이 DB에 SQL날려서 정보를 가지고 con통로로 다시 보내줌
-    # query : FastAPI 엔드포인트가 요청으로 받은 사용자가 타이핑한 자연어를 얘가 받음.
+    bind = {f"p{i}": v for i, v in enumerate(params)}
+    bind["qvec"] = q_vec
 
     # rows는 chunk 하나 당 한줄을 의미한다.
     rows = con.execute(
-        f"""
-        SELECT v.purchase_id, pu.product_id, c.body, vec_distance_cosine(v.vector, ?) AS distance
+        text(f"""
+        SELECT v.purchase_id, pu.product_id, c.body,
+               v.vector <=> CAST(:qvec AS vector) AS distance
         FROM chunk_vectors AS v
         JOIN chunks AS c ON c.purchase_id = v.purchase_id AND c.chunk_index = v.chunk_index
         JOIN purchase AS pu ON pu.purchase_id = v.purchase_id
         JOIN review AS r ON r.purchase_id = pu.purchase_id
         WHERE {where}
         ORDER BY distance
-    """,
-        (q_vec, *params),
-    ).fetchall()
+    """),
+        bind,
+    ).all()
 
-    # rows 사용자 자연어랑 비교할 것들을 쿼리문생성
-    # rows 구매건 번호, 리뷰 조각들, 검색어 거리
-    # rows 리뷰조각들 여러개 일수가 있습니다 아래서 제일 비슷한 조각 하나만 남겨줌.
-
+    # 구매건마다 사용자 검색어랑 가장 비슷한 조각 하나만 남긴다(중복 제거).
     best = {}
     for purchase_id, product_id, body, distance in rows:
         if purchase_id not in best or distance < best[purchase_id][2]:
             best[purchase_id] = (product_id, body, distance)
-    # best 구매건마다 사용자 검색어랑 비슷한 조각들을 담음.
-    # best 구매건ID 중복으로 들어온다면 distance 코사인을 비교해 유사도 높은 것만 남김
 
     # 상품이 겹치면 제일 유사도 높은 리뷰 하나만 남긴다 - 후보 3개가 같은 상품 리뷰로 채워지는 것을 방지 (중복제거)
     best_per_product = {}
@@ -178,7 +176,5 @@ def search(con, query, where="1=1", params: tuple = (), top_k: int = 3):
             best_per_product[product_id] = (purchase_id, body, distance)
 
     ranked = sorted(best_per_product.values(), key=lambda item: item[-1])[:top_k]
+    # 1 - 코사인거리 = 유사도. 유사도 높은 순으로 top_k개.
     return [(purchase_id, 1 - distance, body) for purchase_id, body, distance in ranked]
-
-    # 반환시 1 빼기 각 코사인거리를 빼주니까 유사도가 높은 순대로 나옴 유사도 높은것 3개만 남김
-    # 형태도 튜플로 다시 묶어서 리스트로 반환

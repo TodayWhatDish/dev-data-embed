@@ -8,7 +8,7 @@ main.py 는 앱을 조립하고 라우터를 등록하는 일만 한다(그 파�
 담는 것은 세 가지고, 서로 성격이 다르다:
   * 도메인 마스터 : DB 값을 도메인 싱글턴에 얹는다 (알러지/축종/품종/카테고리...)
   * 스키마 확인   : ORM Base.metadata 에 매핑된 테이블이 실제 DB 에도 있는지 기동 때 미리 본다
-  * 벡터 커넥션   : sqlite_vec 확장이 얹힌 별도 커넥션. 전역 con 과 다른 물건이다
+  * 벡터 커넥션   : pipeline/vector_db.py 가 여는 별도 SQLAlchemy 커넥션. engine 과 다른 물건이다
 """
 
 import logging

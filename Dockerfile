@@ -1,4 +1,4 @@
-# Python 3.12 + Debian(glibc). alpine 은 musl 이라 sqlite-vec 바이너리가 없다.
+# Python 3.12 + Debian(glibc).
 FROM python:3.12-slim
 
 # PYTHONDONTWRITEBYTECODE: 컨테이너는 일회성이라 .pyc 를 남길 이유가 없다

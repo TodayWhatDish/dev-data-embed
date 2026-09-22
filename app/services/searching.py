@@ -8,8 +8,9 @@ services/products.py 가 이미 그 모양이라 결을 맞춘다.
 """
 
 import logging
-import sqlite3
 from typing import Any
+
+from sqlalchemy.engine import Connection
 
 from app.core.config import PASSAGE_PREFIX
 from app.domain.products import root_category_name
@@ -23,7 +24,7 @@ logger = logging.getLogger()
 
 
 def candidates(
-    profiles: dict[str, Any], user_query: str, limit: int = 20, con: sqlite3.Connection | None = None
+    profiles: dict[str, Any], user_query: str, limit: int = 20, con: Connection | None = None
 ) -> list[dict[str, Any]]:
     """프로필에 맞는 상품 후보를 반환한다.
 
