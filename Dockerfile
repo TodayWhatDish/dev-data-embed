@@ -28,4 +28,6 @@ RUN mkdir -p logs
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# exec form은 $PORT 를 치환 못 한다 - Railway가 컨테이너에 주입하는 PORT를 그대로 듣는다.
+# 로컬처럼 PORT가 없으면 8000으로 기본값을 둔다.
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
