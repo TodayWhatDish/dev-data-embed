@@ -67,6 +67,17 @@ def create_views(conn):
         conn.execute(text(ddl))
 
 
+# product_schema.VIEWS가 CREATE VIEW로 만드는 뷰 이름. Base.metadata.drop_all()은 ORM 테이블만
+# 알아서, 뷰가 테이블을 참조하는 채로 두면 DROP TABLE이 DependentObjectsStillExist로 막힌다 -
+# drop_all보다 먼저 뷰부터 지운다. product_schema.py:212-218 순서(자식 뷰 먼저)와 맞춘다.
+VIEW_NAMES = ("v_safe_products", "v_product_safety")
+
+
+def drop_views(conn):
+    for name in VIEW_NAMES:
+        conn.execute(text(f"DROP VIEW IF EXISTS {name}"))
+
+
 SEED_SQL = re.compile(r"INSERT INTO (\w+)\(([^)]+)\)")
 
 
@@ -195,6 +206,7 @@ def main():
             print("기존 스키마 유지")
         else:
             print("스키마 재생성 (Supabase)")
+            drop_views(conn)
             Base.metadata.drop_all(conn)
             Base.metadata.create_all(conn)
             create_views(conn)
