@@ -102,6 +102,17 @@ def commit(table: str | None = None) -> None:
         session.rollback()
         raise as_query_error(e, table) from e
 
+def _exec_driver_sql(sql, params=()):
+    """실제 SQL 실행 지점 - execute/fetch 전부 여기를 거치며, 실패하면 세션을 롤백해야 다음 쿼리가 산다.
+    Postgress는 트랜잭션 안 문장 하나만 실패해도 롤백 전까진 그 커넥션 전체가 죽는다. 
+    이걸 하지 않으면, 스레드풀이 이 스레드를 재사용할 때마다 PendingRollbackError가 영구히 반복된다.
+    """
+    session = get_session()
+    try:
+        return session.connection().exec_driver_sql(sql,params)
+    except Exception:
+        session.rollback()
+        raise
 
 def execute(sql, params=(), table: str | None = None) -> int | None:
     """ORM 모델이 없는 자리(관계 없는 자유 SQL DELETE 등)를 위한 쓰기 한 문장 + 커밋.
@@ -123,7 +134,7 @@ def fetch(sql, params=()) -> list[dict]:
     exec_driver_sql 은 SQLAlchemy 의 :name 바인딩을 거치지 않고 드라이버(sqlite3)의 ? 자리표시자를
     그대로 쓴다 — 기존 SQL 문자열을 하나도 안 고치고 세션을 통해서만 돌릴 수 있는 이유다.
     """
-    cur = get_session().connection().exec_driver_sql(sql, params)
+    cur = _exec_driver_sql(sql, params)
     return [dict(row) for row in cur.mappings()]
 
 
@@ -135,9 +146,9 @@ def fetch_one(sql, params=()) -> dict | None:
 
 def fetch_tuples(sql, params=()) -> list[tuple]:
     """SELECT 결과를 행마다 튜플로 꺼낸다. 컬럼 이름은 안 붙는다."""
-    return get_session().connection().exec_driver_sql(sql, params).fetchall()
+    return _exec_driver_sql(sql, params).fetchall()
 
 
 def fetch_tuple_one(sql, params=()) -> tuple | None:
     """fetch_tuples 의 한 행짜리. 없으면 None."""
-    return get_session().connection().exec_driver_sql(sql, params).fetchone()
+    return _exec_driver_sql(sql, params).fetchone()
