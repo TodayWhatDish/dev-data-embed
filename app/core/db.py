@@ -9,6 +9,8 @@ from sqlalchemy.orm import DeclarativeBase, Session, scoped_session, sessionmake
 
 from app.core.config import SUPABASE_DB_URL
 
+import itertools
+from contextvars import ContextVar
 
 class Base(DeclarativeBase):
     """app/models/ 의 모든 ORM 모델이 여기서 상속한다."""
