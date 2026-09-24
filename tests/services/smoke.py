@@ -180,7 +180,8 @@ if __name__ == "__main__":
     )
     assert hits, "후보가 하나도 안 나왔다"
     # LLM 에 넘길 모양이 맞는지. 키가 빠지면 프롬프트가 조용히 비어서 나간다
-    need = {"product_id", "name", "brand", "price_krw", "product_type", "score", "review"}    assert all(need == set(h) for h in hits), hits[0].keys()
+    need = {"product_id", "name", "brand", "price_krw", "product_type", "score", "review"}
+    assert all(need == set(h) for h in hits), hits[0].keys()
     for h in hits[:3]:
         logger.info(f"\t{h['product_id']:>4} {h['name']} {h['price_krw']}원 score={h['score']:.4f}")
 
