@@ -12,7 +12,7 @@ from app.core.config import ADMIN_PASSWORD, JWT_ALGORITHM, JWT_EXPIRE_MINUTES, J
 
 def login(password: str) -> str:
     """공용 비밀번호를 검증하고, 맞으면 JWT 토큰을 발급한다. 틀리면 ValueError."""
-    if not secrets.compare_digest(password, ADMIN_PASSWORD):
+    if not secrets.compare_digest(password.encode(), ADMIN_PASSWORD.encode()):
         raise ValueError("비밀번호가 틀립니다.")
 
     expire = datetime.now(timezone.utc) + timedelta(minutes=JWT_EXPIRE_MINUTES)
