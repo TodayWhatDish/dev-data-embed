@@ -3,12 +3,10 @@
 """관리자 로그인 검증 + JWT 토큰 발급"""
 
 import secrets
-from datetime import datetime, timedelta, timezone
 
-import jwt
-
-from app.core.config import ADMIN_PASSWORD, JWT_ALGORITHM, JWT_EXPIRE_MINUTES, JWT_SECRET
+from app.core.config import ADMIN_PASSWORD
 from app.core.exceptions import Unauthorized
+from app.core.security import create_access_token
 
 
 def login(password: str) -> str:
@@ -16,10 +14,4 @@ def login(password: str) -> str:
     if not secrets.compare_digest(password.encode(), ADMIN_PASSWORD.encode()):
         raise Unauthorized("비밀번호가 틀립니다.")
 
-    expire = datetime.now(timezone.utc) + timedelta(minutes=JWT_EXPIRE_MINUTES)
-    token = jwt.encode(
-        {"role": "admin", "exp": expire},
-        JWT_SECRET,
-        algorithm=JWT_ALGORITHM,
-    )
-    return token
+    return create_access_token("admin")

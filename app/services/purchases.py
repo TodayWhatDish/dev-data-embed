@@ -2,7 +2,6 @@
 
 from app.core.db import QueryError
 from app.core.exceptions import Conflict, Forbidden, NotFound
-
 from app.repositories import products as product_repo
 from app.repositories import purchases as purchases_repo
 from app.repositories.pet import find_pets_by_user

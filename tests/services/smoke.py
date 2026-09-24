@@ -19,14 +19,12 @@ from app.app_logger.logger import init_logger
 init_logger("test_services")
 
 from app.api.lifespan import load_domain_cache, load_schema_cache
-
 from app.core.db import execute, fetch_tuple_one
 from app.core.exceptions import AppError, InvalidInput, NotFound
-
+from app.repositories import products as product_repo
 from app.services import products as product_feat
 from app.services import profile, retrieve, searching
 from app.services.metric.sqlbench import elapsed_time
-from app.repositories import products as product_repo
 
 logger = logging.getLogger()
 
@@ -169,7 +167,7 @@ if __name__ == "__main__":
             product_feat.delete_product(product_id)
             assert product_feat.get_product(product_id)["is_active"] == 0
             raises(NotFound, product_feat.delete_product, -1)
-            execute("DELETE FROM product WHERE product_id = ?", (product_id,), "product")
+            execute("DELETE FROM product WHERE product_id = %s", (product_id,), "product")
             assert product_repo.find_by_id(product_id) is None
     logger.info("#" * 20)
 
@@ -182,8 +180,7 @@ if __name__ == "__main__":
     )
     assert hits, "후보가 하나도 안 나왔다"
     # LLM 에 넘길 모양이 맞는지. 키가 빠지면 프롬프트가 조용히 비어서 나간다
-    need = {"product_id", "name", "brand", "price_krw", "score", "review"}
-    assert all(need == set(h) for h in hits), hits[0].keys()
+    need = {"product_id", "name", "brand", "price_krw", "product_type", "score", "review"}    assert all(need == set(h) for h in hits), hits[0].keys()
     for h in hits[:3]:
         logger.info(f"\t{h['product_id']:>4} {h['name']} {h['price_krw']}원 score={h['score']:.4f}")
 

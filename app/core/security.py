@@ -1,29 +1,35 @@
-# Last Updated : 2026-09-03
+# Last Updated : 2026-09-25
 
-"""비밀번호 해싱/검증. stdlib(hashlib, secrets)만 쓴다 — 새 의존성 없음."""
+"""비밀번호 해싱/검증 + JWT 발급. 토큰을 만드는 곳은 여기 하나뿐이다(검증은 core/auth.py)."""
 
-import hashlib
-import secrets
+from datetime import datetime, timedelta, timezone
 
-_ITERATIONS = 200_000  # OWASP 권장 PBKDF2-HMAC-SHA256 최소치
+import bcrypt
+import jwt
+
+from app.core.config import JWT_ALGORITHM, JWT_EXPIRE_MINUTES, JWT_SECRET
 
 
 def hash_password(password: str) -> str:
-    """salt$hash 형식 문자열 하나로 저장한다. 컬럼 하나로 충분하다."""
-    salt = secrets.token_hex(16)
-    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), bytes.fromhex(salt), _ITERATIONS)
-    return f"{salt}${digest.hex()}"
+    """bcrypt 해시. 72바이트 초과는 ValueError라 호출 전에 길이를 막는다."""
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
 
 def verify_password(password: str, password_hash: str) -> bool:
-    """저장된 salt로 같은 연산을 재현해 compare_digest로 비교한다(타이밍 공격 방지)."""
-    salt, _, hexdigest = password_hash.partition("$")
-    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), bytes.fromhex(salt), _ITERATIONS)
-    return secrets.compare_digest(digest.hex(), hexdigest)
+    """저장된 해시와 비교한다. bcrypt.checkpw가 타이밍 공격을 막아준다."""
+    return bcrypt.checkpw(password.encode(), password_hash.encode())
+
+
+def create_access_token(role: str, sub: str | None = None) -> str:
+    """role(+sub)을 담아 JWT를 발급한다. 관리자는 계정별 id가 없어서 sub가 없다."""
+    payload = {"role": role, "exp": datetime.now(timezone.utc) + timedelta(minutes=JWT_EXPIRE_MINUTES)}
+    if sub is not None:
+        payload["sub"] = sub
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
 def _demo() -> None:
-    """해싱 → 검증 왕복과, 틀린 비밀번호 거부를 확인한다."""
+    """해싱 -> 검증 왕복과, 틀린 비밀번호 거부를 확인한다."""
     h = hash_password("correct horse battery staple")
     assert verify_password("correct horse battery staple", h)
     assert not verify_password("wrong password", h)

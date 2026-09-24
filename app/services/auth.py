@@ -1,5 +1,4 @@
-# Last updated: 2026-09-03
-# Last Updated : 2026-09-03
+# Last Updated: 2026-09-25
 
 """일반 회원 가입/로그인 - admin_auth.py와 같은 급의 파일이다.
 
@@ -8,33 +7,16 @@
 경우가 이론적으로 남는다. 이 프로젝트 규모에선 감내하고, 문제되면 트랜잭션으로 묶을 것.
 """
 
-from datetime import datetime, timedelta, timezone
-
-import bcrypt
-import jwt
-
-from app.core.config import JWT_ALGORITHM, JWT_EXPIRE_MINUTES, JWT_SECRET
 from app.core.exceptions import Conflict, InvalidInput, Unauthorized
-
+from app.core.security import create_access_token, hash_password, verify_password
 from app.domain.common import CommonMgr
 from app.repositories.pet import add_pet_allergies, create_pet, save_pet_survey
 from app.repositories.users import create_user, find_user_by_email
 
 # animal_category_id 1 = '개'(common_schema.py 시드값). pet_species를 안 주거나 못 찾으면 이 값으로 대체한다.
 DOG_CATEGORY_ID = 1
-# bcrypt 는 72바이트까지만 받고 넘으면 ValueError 를
-# 던진다(bcrypt 5.x) - 글자 수가 아니라 바이트라 한글은 24자에서 걸린다.
+# bcrypt 는 72바이트까지만 받고 넘으면 ValueError 를 던진다(bcrypt 5.x) - 글자 수가 아니라 바이트라 한글은 24자에서 걸린다.
 MAX_PASSWORD_BYTES = 72
-
-
-def _issue_token(user_id: int) -> str:
-    """user_id를 담아 JWT를 발급한다. signup/login 둘 다 여기로 모은다."""
-    expire = datetime.now(timezone.utc) + timedelta(minutes=JWT_EXPIRE_MINUTES)
-    return jwt.encode(
-        {"role": "user", "sub": str(user_id), "exp": expire},
-        JWT_SECRET,
-        algorithm=JWT_ALGORITHM,
-    )
 
 
 def signup(
@@ -54,13 +36,14 @@ def signup(
     skin_note: str | None = None,
     pet_species: str | None = None,
 ) -> str:
-    """이메일 중복이면 Conflict, 비밀번호가 72바이트를 넘으면 InvalidInput. 통과하면 계정 + 강아지 펫 프로필을 만들고 바로 JWT를 발급한다."""
+    """이메일 중복이면 Conflict. 비밀번호가 72바이트를 넘으면 InvalidInput.
+    통과하면 계정 + 강아지 펫 프로필을 만들고 바로 JWT를 발급한다."""
     if len(password.encode()) > MAX_PASSWORD_BYTES:
         raise InvalidInput("비밀번호가 너무 깁니다.")
     if find_user_by_email(email):
         raise Conflict("이미 가입된 이메일입니다.")
 
-    password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    password_hash = hash_password(password)
     user_id = create_user(email, name, password_hash, phone, region)
     # 축종을 안 주거나 못 찾은 이름이면 기존 동작(강아지)으로 유지 - 하위 호환
     animal_category_id = CommonMgr.get_inst().resolve_animal_category_id(pet_species) or DOG_CATEGORY_ID
@@ -83,17 +66,17 @@ def signup(
     if diet_note or skin_note:
         save_pet_survey(pet_id, diet_note, skin_note)
 
-    return _issue_token(user_id)
+    return create_access_token("user", str(user_id))
 
 
 def login(email: str, password: str) -> str:
-    """이메일/비밀번호 검증하고 JWT 발급. 틀리면 Unauthorized."""
+    """이메일/비밀번호 검증하고 JWT 발급. 틀리면(72바이트 초과 포함) Unauthorized."""
     user = find_user_by_email(email)
     if (
         len(password.encode()) > MAX_PASSWORD_BYTES
         or not user
         or not user["password_hash"]
-        or not bcrypt.checkpw(password.encode(), user["password_hash"].encode())
+        or not verify_password(password, user["password_hash"])
     ):
         raise Unauthorized("이메일 또는 비밀번호가 틀립니다.")
-    return _issue_token(user["user_id"])
+    return create_access_token("user", str(user["user_id"]))
