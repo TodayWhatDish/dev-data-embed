@@ -14,12 +14,17 @@ import bcrypt
 import jwt
 
 from app.core.config import JWT_ALGORITHM, JWT_EXPIRE_MINUTES, JWT_SECRET
+from app.core.exceptions import Conflict, InvalidInput, Unauthorized
+
 from app.domain.common import CommonMgr
 from app.repositories.pet import add_pet_allergies, create_pet, save_pet_survey
 from app.repositories.users import create_user, find_user_by_email
 
 # animal_category_id 1 = '개'(common_schema.py 시드값). pet_species를 안 주거나 못 찾으면 이 값으로 대체한다.
 DOG_CATEGORY_ID = 1
+# bcrypt 는 72바이트까지만 받고 넘으면 ValueError 를
+# 던진다(bcrypt 5.x) - 글자 수가 아니라 바이트라 한글은 24자에서 걸린다.
+MAX_PASSWORD_BYTES = 72
 
 
 def _issue_token(user_id: int) -> str:
@@ -49,9 +54,11 @@ def signup(
     skin_note: str | None = None,
     pet_species: str | None = None,
 ) -> str:
-    """이메일 중복이면 ValueError. 통과하면 계정 + 강아지 펫 프로필을 만들고 바로 JWT를 발급한다."""
+    """이메일 중복이면 Conflict, 비밀번호가 72바이트를 넘으면 InvalidInput. 통과하면 계정 + 강아지 펫 프로필을 만들고 바로 JWT를 발급한다."""
+    if len(password.encode()) > MAX_PASSWORD_BYTES:
+        raise InvalidInput("비밀번호가 너무 깁니다.")
     if find_user_by_email(email):
-        raise ValueError("이미 가입된 이메일입니다.")
+        raise Conflict("이미 가입된 이메일입니다.")
 
     password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
     user_id = create_user(email, name, password_hash, phone, region)
@@ -80,12 +87,13 @@ def signup(
 
 
 def login(email: str, password: str) -> str:
-    """이메일/비밀번호 검증하고 JWT 발급. 틀리면 ValueError."""
+    """이메일/비밀번호 검증하고 JWT 발급. 틀리면 Unauthorized."""
     user = find_user_by_email(email)
     if (
-        not user
+        len(password.encode()) > MAX_PASSWORD_BYTES
+        or not user
         or not user["password_hash"]
         or not bcrypt.checkpw(password.encode(), user["password_hash"].encode())
     ):
-        raise ValueError("이메일 또는 비밀번호가 틀립니다.")
+        raise Unauthorized("이메일 또는 비밀번호가 틀립니다.")
     return _issue_token(user["user_id"])

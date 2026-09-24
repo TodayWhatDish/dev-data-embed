@@ -9,7 +9,7 @@
 
 | 우선순위 | 의미 | 완료 / 전체 |
 |---------|------|------------|
-| P0 | 버그 · 보안 · 운영 장애 | 2 / 16 |
+| P0 | 버그 · 보안 · 운영 장애 | 3 / 16 |
 | P1 | 구조 (계층 · 책임 분리) | 0 / 20 |
 | P2 | 코드 품질 · 정리 | 0 / 19 |
 | P3 | 문서 · 도구 · 배포 | 0 / 11 |
@@ -42,7 +42,7 @@
 | BE-13 | [ ] | `app/services/retrieve.py:141-142` | 검색할 때마다 `check_freshness` 쿼리 2개를 더 돌리고 결과를 `print` | lifespan에서 한 번만 확인하고 logger로 기록 | 검색 1회당 쿼리 수 감소, `print` 0건 |
 | BE-14 | [ ] | `app/core/trace.py`, `app/api/routes/questions.py`, `app/query.py:27` | 고객 질문을 로컬 jsonl에 저장해서 Railway 재배포 시 사라짐. 락 없이 append하고, query.py가 jsonl 형식을 깨뜨림 | `customer_question` 테이블로 이동 | 재배포 후에도 관리자 질문 목록이 유지됨 |
 | BE-15 | [ ] | `Dockerfile:33`, `app/core/auth.py:39` | shell-form CMD라 SIGTERM을 받지 못하고 root로 실행됨. `get_current_admin`은 `-> int`인데 None을 반환하고, 권한이 틀려도 401을 줌 | `${PORT}` 치환 때문에 shell-form은 유지하고 `CMD exec uvicorn ...`처럼 `exec`를 붙임. `USER app`, `--proxy-headers`. 반환 타입을 고치고 권한 불일치는 403 | 컨테이너가 즉시 종료되고, user 토큰으로 admin API를 부르면 403 |
-| BE-16 | [ ] | `app/services/admin_auth.py:15` | `compare_digest(str, str)`는 비ASCII 문자가 있으면 `TypeError`를 던짐. 한글 비밀번호를 보내면 401이 아니라 500 | `compare_digest(password.encode(), ADMIN_PASSWORD.encode())` | `{"password": "한글"}`로 로그인하면 401 |
+| BE-16 | [x] | `app/services/admin_auth.py:15` | `compare_digest(str, str)`는 비ASCII 문자가 있으면 `TypeError`를 던짐. 한글 비밀번호를 보내면 401이 아니라 500 | `compare_digest(password.encode(), ADMIN_PASSWORD.encode())` | `{"password": "한글"}`로 로그인하면 401 |
 
 > BE-01·02: `lifespan.check_secrets()`로 처리함 (`52e7cb1`). 코드 리뷰로 확인했고, 빈 env로 실제 기동해 보는 확인은 아직 하지 않았다.
 > 이슈: BE-03~06 → [#14](https://github.com/TodayWhatDish/dev-data-embed/issues/14) · BE-10 → [#15](https://github.com/TodayWhatDish/dev-data-embed/issues/15) · BE-12 → [#16](https://github.com/TodayWhatDish/dev-data-embed/issues/16) · BE-14 → [#17](https://github.com/TodayWhatDish/dev-data-embed/issues/17) · BE-09 → [#18](https://github.com/TodayWhatDish/dev-data-embed/issues/18). 나머지 P0는 작아서 체크리스트로만 관리한다.
