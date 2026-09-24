@@ -18,6 +18,8 @@ from fastapi import FastAPI
 from sqlalchemy import inspect
 
 from app.core.db import engine
+from app.core.config import ADMIN_PASSWORD, JWT_SECRET
+
 from app.domain.domain_init import init_from_db
 from pipeline.vector_db import connect
 
@@ -44,11 +46,18 @@ def load_schema_cache():
     logger.info(f"Cached schema: table={len(tables)}")
     return tables
 
+def check_secrets():
+    """비밀값이 비면 빈 비밀번호 로그인,토큰 위조가 가능해지기에 기동을 막는다."""
+    if not ADMIN_PASSWORD:
+        raise RuntimeError("ADMIN_PASSWORD 환경변수가 비어 있습니다.")
+    if len(JWT_SECRET) < 32: # 32 Byte
+        raise RuntimeError("JWT_SECRET 은 32자 이상이어야합니다.") 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """uvicorn이 요청을 받기 전/후에 앱에게 보내는 ASGI lifespan 이벤트를 처리."""
     try:
+        check_secrets()
         load_domain_cache()
         load_schema_cache()
         app.state.con = connect()
