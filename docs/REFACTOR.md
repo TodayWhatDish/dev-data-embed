@@ -10,7 +10,7 @@
 | 우선순위 | 의미 | 완료 / 전체 |
 |---------|------|------------|
 | P0 | 버그 · 보안 · 운영 장애 | 3 / 16 |
-| P1 | 구조 (계층 · 책임 분리) | 4 / 20 |
+| P1 | 구조 (계층 · 책임 분리) | 5 / 20 |
 | P2 | 코드 품질 · 정리 | 0 / 19 |
 | P3 | 문서 · 도구 · 배포 | 0 / 11 |
 
@@ -69,7 +69,7 @@
 | BE-36 | [ ] | `repositories/*` (`commit("product")` 등) | repository가 커밋을 함 (트랜잭션 경계가 잘못된 층에 있음) | 커밋은 `get_db` 또는 service가 함 | repositories에 `commit(` 0건 |
 | BE-37 | [ ] | `models/user.py:8`, `product.py:8`, `pet.py:8`, `repositories/purchases.py:69,86` | 시간을 Text로 저장하고 NOW 상수가 3곳에 중복됨. 불리언이 Integer이고 `datetime.now()`는 로컬 시각 | `DateTime(timezone=True)`, `server_default=func.now()`, `Boolean`으로 마이그레이션 | 새 행의 시각이 UTC timestamptz |
 | BE-38 | [ ] | `app/api/routes/background.py:10` | 페이지를 열 때마다 Unsplash를 동기로 호출하고 캐시가 없음 (api 층에서 외부 HTTP 호출) | `adapters/unsplash.py`와 TTL 캐시 | 연속 호출해도 외부 요청은 1회 |
-| BE-39 | [ ] | `app/api/routes/health.py:32`, `app/main.py:64-67` | `/health`가 두 번 정의됨. `/ready`는 준비가 안 돼도 200을 줌 | main의 `/health` 삭제, `/ready`는 준비 안 됨이면 503 | DB를 끊으면 `/ready`가 503 |
+| BE-39 | [x] | `app/api/routes/health.py:32`, `app/main.py:64-67` | `/health`가 두 번 정의됨. `/ready`는 준비가 안 돼도 200을 줌 | main의 `/health` 삭제, `/ready`는 준비 안 됨이면 503 | DB를 끊으면 `/ready`가 503 |
 | BE-40 | [ ] | 라우터 전반 | 경로가 일관되지 않음 (`/api/customers`와 `/admin/products`) | `APIRouter(prefix=..., tags=...)`로 통일 (FE와 같이 바꿈) | `/docs`의 경로 규칙이 하나 |
 
 ## P2 — 코드 품질 · 정리

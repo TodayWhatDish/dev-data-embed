@@ -58,5 +58,3 @@ app.include_router(customers_router)
 app.include_router(background_router)
 app.include_router(purchases_router)
 app.include_router(questions_router)
-
-

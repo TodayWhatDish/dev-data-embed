@@ -7,7 +7,6 @@
 """
 
 from fastapi import APIRouter, Response
-
 from sqlalchemy import text
 
 from app.core.config import LLM_API_KEY
@@ -24,7 +23,7 @@ def health() -> dict:
 
 @router.get("/ready")
 def ready(response: Response) -> dict:
-    """DB와 LLM이 실제로 준비됐는지 확인한다."""
+    """DB와 LLM이 실제로 준비됐는지 확인한다. 하나라도 안 되면 503 - 모니터링은 본문이 아니라 상태코드를 본다."""
     db_ok = False
     llm_ok = False
 
@@ -35,7 +34,7 @@ def ready(response: Response) -> dict:
         db_ok = False
 
     llm_ok = bool(LLM_API_KEY)
-    
+
     if not (db_ok and llm_ok):
         response.status_code = 503
     return {
