@@ -10,7 +10,7 @@
 | 우선순위 | 의미 | 완료 / 전체 |
 |---------|------|------------|
 | P0 | 버그 · 보안 · 운영 장애 | 3 / 16 |
-| P1 | 구조 (계층 · 책임 분리) | 7 / 20 |
+| P1 | 구조 (계층 · 책임 분리) | 8 / 20 |
 | P2 | 코드 품질 · 정리 | 0 / 19 |
 | P3 | 문서 · 도구 · 배포 | 0 / 11 |
 
@@ -58,7 +58,7 @@
 | BE-25 | [ ] | `lifespan.py:22`, `services/searching.py:21` | app이 `pipeline.vector_db`를 import함 (그래서 test_layers에 예외 처리가 있고, Dockerfile이 pipeline을 복사함) | `connect()`를 `core/db`로 이동, test_layers의 예외 삭제 | `grep "from pipeline" app/` 0건 |
 | BE-26 | [ ] | `app/core/auth.py` | core가 fastapi를 import함 | `api/deps.py`로 옮기고 `HTTPBearer` 사용 (Swagger에 인증 버튼이 생김) | `/docs`에 Authorize 버튼 |
 | BE-27 | [x] | `app/core/security.py`, `services/auth.py:25-32`, `services/admin_auth.py:18` | PBKDF2 해시는 한 번도 쓰이지 않고, 토큰 발급 코드가 두 곳에 중복됨 | `security.py`에 bcrypt 해싱과 `create_access_token(sub, role)`을 모음 | `jwt.encode` 호출이 1곳 |
-| BE-28 | [ ] | `app/core/config.py:27-56, 118, 162` | `.env` 로더를 직접 짰고, import 시점에 `SystemExit`과 `print`가 있음 | pydantic-settings `BaseSettings`로 교체 | 타입이 틀린 env는 기동 시 명확한 에러 |
+| BE-28 | [x] | `app/core/config.py:27-56, 118, 162` | `.env` 로더를 직접 짰고, import 시점에 `SystemExit`과 `print`가 있음 | pydantic-settings `BaseSettings`로 교체 | 타입이 틀린 env는 기동 시 명확한 에러 |
 | BE-29 | [x] | `app/core/config.py:144-158` | 설정 파일에 SQL 조각(INDEX_FILTER, SIZE_CASE)이 있음 | `repositories/vector.py`로 이동 | config.py에 SQL 0건 |
 | BE-30 | [ ] | `services/retrieve.py`, `services/searching.py:37-50` | 이름이 헷갈리고, service에 SQL이 있고, `owns_con` 분기가 있고, 없는 파일을 가리키는 docstring이 있음 | `services/search.py`와 `repositories/vector.py`로 정리하고 커넥션은 항상 주입받음 | services에 `text(` 0건 |
 | BE-31 | [ ] | `domain/common.py:124`, `domain/products.py:164`, `domain/pet.py:92`, `domain/domain_init.py` | `get_inst()` 싱글톤 전역 캐시 (`== None`, 속성을 `__init__` 밖에서 설정) | lifespan에서 `MasterCache` dataclass를 만들어 `app.state`에 둠 | `get_inst` 0건 |
