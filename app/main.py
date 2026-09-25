@@ -60,7 +60,3 @@ app.include_router(purchases_router)
 app.include_router(questions_router)
 
 
-@app.get("/health")
-def health():
-    """서버가 살아있는지 확인하는 Health Check. 배포 환경에서 로드밸런서(load balancer)가 주기적으로 호출"""
-    return {"status": "ok"}
