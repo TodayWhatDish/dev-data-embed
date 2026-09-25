@@ -24,7 +24,7 @@ from app.core.exceptions import AppError, InvalidInput, NotFound
 from app.repositories import products as product_repo
 from app.services import products as product_feat
 from app.services import profile, retrieve, searching
-from app.services.metric.sqlbench import elapsed_time
+from tests.bench.sqlbench import elapsed_time
 
 logger = logging.getLogger()
 
@@ -44,7 +44,7 @@ def raises(exc_cls, fn, *args):
 
 
 def timed(label, fn):
-    """부르고 걸린 시간을 남긴다. services 호출 인터페이스를 재는 게 metric/sqlbench 의 목적이다."""
+    """부르고 걸린 시간을 남긴다. services 호출 인터페이스를 재는 게 tests/bench/sqlbench 의 목적이다."""
     with elapsed_time(quiet=True) as t:
         got = fn()
     logger.info(f"\t{label:34} {t.ms:7.2f} ms")

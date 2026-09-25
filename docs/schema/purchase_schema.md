@@ -48,12 +48,12 @@
 
 SQL 로 내려면 `julianday` 차이를 `30.44`(평균 일수)로 나눠야 하는데 근사라
 **생일 근처에서 틀린다** — 2023-03-15 생 아이의 만 4년 나이가 47개월로 나온다.
-[`petcalc.age_months()`](../../src/petcalc.py) 가 달력으로 센다.
+[`petcalc.age_months()`](../../pipeline/make_data/petcalc.py) 가 달력으로 센다.
 
 조회할 때마다 계산하지 않는다. 저장해두면 행마다 시점이 다른 집계에서도 SQL 은 컬럼을 읽기만 한다.
 
 ```python
-from petcalc import age_months  # 애완동물 나이 계산
+from pipeline.make_data.petcalc import age_months  # 애완동물 나이 계산
 
 con.execute(
     "INSERT INTO purchase(..., age_month_at_purchase) VALUES (..., ?)",

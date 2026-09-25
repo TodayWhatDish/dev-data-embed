@@ -5,7 +5,7 @@ SQL 변형 비교 — 같은 결과인지 확인하고, 빠른 순으로 줄세�
 범용 함수 타이밍은 stdlib timeit 을 쓴다. 이 모듈은 timeit 이 안 해주는 것만 한다:
 변형들의 결과가 같은지 대조하는 것(compare), 그리고 임의의 블록 재기(elapsed_time).
 
-    py src/sqlbench.py      # self-check
+    python -m tests.bench.sqlbench   # self-check
 """
 
 import statistics
