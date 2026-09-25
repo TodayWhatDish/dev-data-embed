@@ -10,7 +10,7 @@
 | 우선순위 | 의미 | 완료 / 전체 |
 |---------|------|------------|
 | P0 | 버그 · 보안 · 운영 장애 | 3 / 16 |
-| P1 | 구조 (계층 · 책임 분리) | 5 / 20 |
+| P1 | 구조 (계층 · 책임 분리) | 6 / 20 |
 | P2 | 코드 품질 · 정리 | 0 / 19 |
 | P3 | 문서 · 도구 · 배포 | 0 / 11 |
 
@@ -62,7 +62,7 @@
 | BE-29 | [x] | `app/core/config.py:144-158` | 설정 파일에 SQL 조각(INDEX_FILTER, SIZE_CASE)이 있음 | `repositories/vector.py`로 이동 | config.py에 SQL 0건 |
 | BE-30 | [ ] | `services/retrieve.py`, `services/searching.py:37-50` | 이름이 헷갈리고, service에 SQL이 있고, `owns_con` 분기가 있고, 없는 파일을 가리키는 docstring이 있음 | `services/search.py`와 `repositories/vector.py`로 정리하고 커넥션은 항상 주입받음 | services에 `text(` 0건 |
 | BE-31 | [ ] | `domain/common.py:124`, `domain/products.py:164`, `domain/pet.py:92`, `domain/domain_init.py` | `get_inst()` 싱글톤 전역 캐시 (`== None`, 속성을 `__init__` 밖에서 설정) | lifespan에서 `MasterCache` dataclass를 만들어 `app.state`에 둠 | `get_inst` 0건 |
-| BE-32 | [ ] | `adapters/stores/llm.py:48-73`, `services/answering.py:20` | import만 해도 LLM 클라이언트 3개와 체인이 생성됨 (키가 필요) | `@lru_cache` 팩토리 함수 | 키 없이 `import app.services.answering` 성공 |
+| BE-32 | [x] | `adapters/stores/llm.py:48-73`, `services/answering.py:20` | import만 해도 LLM 클라이언트 3개와 체인이 생성됨 (키가 필요) | `@lru_cache` 팩토리 함수 | 키 없이 `import app.services.answering` 성공 |
 | BE-33 | [ ] | `app/adapters/stores/`, `app/domain/port.py:36-75` | stores에 llm.py가 섞여 있음. 구현이 하나뿐인 팩토리, 아무 데도 안 쓰는 ProductRepository Protocol | `adapters/llm.py`, `adapters/vector_store.py`로 평평하게. 안 쓰는 Protocol 삭제 | `adapters/stores/` 없음 |
 | BE-34 | [x] | `app/domain/embedding_text.py` | domain이 core.config를 import함 (계층 규칙 위반인데 테스트가 잡지 못함) | 접두어를 인자로 받고 test_layers에 domain→core 규칙 추가 | test_layers 통과 |
 | BE-35 | [ ] | `services/embedding_sync.py`, `services/metric/sqlbench.py`, `domain/petcalc.py`, `app/query.py` | 서버가 쓰지 않는 CLI/파이프라인 코드가 app 안에 있음 | `pipeline/`, `scripts/`, `tests/bench/`로 이동 | app/에서 `__main__` 0건 |

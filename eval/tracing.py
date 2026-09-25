@@ -69,10 +69,10 @@ def require_llm() -> bool:
     화면이 예외로 뒤덮여 '모델이 안 떠 있다'는 한 줄이 묻힌다. 채점을 시작하기 전에
     한 번만 확인하고, 실패는 실패라고 말한다.
     """
-    from app.adapters.stores.llm import chat
+    from app.adapters.stores.llm import get_chat
 
     try:
-        chat.invoke("ok")
+        get_chat().invoke("ok")
         return True
     except Exception as broke:
         print(f"  LLM 을 못 부른다: {type(broke).__name__}: {broke}")

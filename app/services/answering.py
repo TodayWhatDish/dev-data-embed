@@ -8,7 +8,7 @@ from typing import Any, Iterator
 
 from langchain_core.output_parsers import StrOutputParser
 
-from app.adapters.stores.llm import chat_answer, chat_verify
+from app.adapters.stores.llm import get_chat_answer, get_chat_verify
 from app.domain.prompting import (
     ANSWER_PROMPT,
     FactCheck,
@@ -17,15 +17,14 @@ from app.domain.prompting import (
     build_factcheck_prompt,
 )
 
-ANSWER_CHAIN = ANSWER_PROMPT | chat_answer | StrOutputParser()
-
 
 def stream(
     user_query: str, candidates: list[dict[str, Any]], customer_context: str = "정보 없음"
 ) -> Iterator[str]:
     """검색 후보와 실제 고객 구매 이력을 분리된 슬롯으로 넘기고, 모델이 흘려보내는 글자 조각을 그대로 다시 흘려보낸다."""
     context = build_answer_context(candidates)
-    yield from ANSWER_CHAIN.stream(
+    chain = ANSWER_PROMPT | get_chat_answer() | StrOutputParser()
+    yield from chain.stream(
         {"context": context, "customer_context": customer_context, "question": user_query}
     )
 
@@ -55,7 +54,7 @@ def verify(detail: dict[str, Any] | None, answer: str) -> dict[str, Any]:
     if detail:
         customer_context = build_customer_context(detail)
         prompt = build_factcheck_prompt(customer_context, answer)
-        verifier = chat_verify.with_structured_output(FactCheck).with_retry(stop_after_attempt=3)
+        verifier = get_chat_verify().with_structured_output(FactCheck).with_retry(stop_after_attempt=3)
         judged: FactCheck = verifier.invoke(prompt)
         result.update(judged.model_dump())
         result["llm_checked"] = True
