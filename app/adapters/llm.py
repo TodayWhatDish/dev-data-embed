@@ -1,5 +1,4 @@
-# Last updated: 2026-09-03
-# Last Updated : 2026-09-02
+# Last Updated : 2026-09-26
 
 """모델에 말을 거는 자리로 클라이언트 세 개(chat/answer/verify)를 만드는 함수가 전부다.
 

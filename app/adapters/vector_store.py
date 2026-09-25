@@ -1,4 +1,6 @@
-# Postgres(pgvector) 어댑터. SqliteVectorStore를 대체한다 - 계약(port.py의 VectorStore)은 그대로.
+# Last Updated : 2026-09-26
+
+"""chunk 벡터를 Postgres(pgvector)에 넣고 빼는 자리. 지켜야 할 메서드는 domain/port.py 의 VectorStore 가 정한다."""
 
 from sqlalchemy import delete, select, text, tuple_
 from sqlalchemy.dialects.postgresql import insert as pg_insert
