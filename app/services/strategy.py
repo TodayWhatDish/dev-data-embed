@@ -9,7 +9,7 @@
 
 from typing import Any
 
-from app.adapters.stores.llm import get_chat
+from app.adapters.llm import get_chat
 from app.domain.prompting import Strategy, build_strategy_prompt
 from app.services.customers import customer_detail
 

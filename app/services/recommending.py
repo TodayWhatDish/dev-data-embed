@@ -6,7 +6,7 @@
 
 from typing import Any
 
-from app.adapters.stores.llm import get_chat
+from app.adapters.llm import get_chat
 from app.domain.prompting import Recommendation, build_recommend_prompt
 
 MAX_RETRIES = 2

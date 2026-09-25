@@ -26,7 +26,7 @@ sys.stdout.reconfigure(errors="replace")
 
 from pydantic import ValidationError
 
-from app.adapters.stores.llm import get_chat
+from app.adapters.llm import get_chat
 from app.core.config import LLM_MODEL
 from app.domain.prompting import Recommendation, build_recommend_prompt
 from app.services.searching import candidates as search_candidates

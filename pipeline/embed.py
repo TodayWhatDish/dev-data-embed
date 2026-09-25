@@ -1,4 +1,4 @@
-# Last Updated : 2026-09-23
+# Last Updated : 2026-09-26
 
 """chunks 테이블의 조각을 문장 임베딩 벡터로 변환해 chunk_vectors 테이블에 저장한다.
 
@@ -8,7 +8,7 @@
 
 이 파일은 지휘만 한다.
 무엇을 다시 만들지 고르는 일은 services/embedding_sync.py 가 알고,
-어디에 어떤 모양으로 넣는지는 adapters/stores/pg_store.py 가 안다.
+어디에 어떤 모양으로 넣는지는 adapters/vector_store.py 가 안다.
 여기는 chunks 를 읽어 (id, 텍스트) 목록으로 만들어 넘길 뿐이다.
 
 기본은 증분이다. 바뀐 조각만 다시 임베딩한다.
@@ -21,7 +21,7 @@ import sys
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from app.adapters.stores.pg_store import chunk_id
+from app.adapters.vector_store import chunk_id
 from app.core.config import EMBED_MODEL
 from app.core.db import Base, engine
 from app.models.chunk import Chunk, EmbeddingMeta  # noqa: F401 (Base.metadata 등록용)

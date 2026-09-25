@@ -8,7 +8,7 @@ from typing import Any, Iterator
 
 from langchain_core.output_parsers import StrOutputParser
 
-from app.adapters.stores.llm import get_chat_answer, get_chat_verify
+from app.adapters.llm import get_chat_answer, get_chat_verify
 from app.domain.prompting import (
     ANSWER_PROMPT,
     FactCheck,

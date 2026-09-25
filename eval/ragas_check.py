@@ -41,7 +41,7 @@ except ImportError as why:
 
 from langchain_core.embeddings import Embeddings
 
-from app.adapters.stores.llm import get_chat_verify
+from app.adapters.llm import get_chat_verify
 from app.core.config import EMBED_MODEL, LLM_MODEL, VERIFY_MODEL
 from app.core.embedder import embed_documents, embed_query
 from app.services import answering

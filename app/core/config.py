@@ -149,7 +149,7 @@ if not Path(DB_PATH).exists():
 
 USE_API = env("USE_API", 1) == "1"
 
-# LLM_PROVIDER는 langchain init_chat_model()의 provider 인자로 그대로 들어간다 (adapters/stores/llm.py).
+# LLM_PROVIDER는 langchain init_chat_model()의 provider 인자로 그대로 들어간다 (adapters/llm.py).
 # 상용 API를 바꾸고 싶으면 .env의 LLM_PROVIDER/LLM_API_KEY/API_MODEL 세 값만 바꾸면 된다 - 코드 수정 불필요.
 if USE_API:
     LLM_PROVIDER = env("LLM_PROVIDER", "anthropic")
