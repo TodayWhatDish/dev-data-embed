@@ -10,7 +10,7 @@
 | 우선순위 | 의미 | 완료 / 전체 |
 |---------|------|------------|
 | P0 | 버그 · 보안 · 운영 장애 | 3 / 16 |
-| P1 | 구조 (계층 · 책임 분리) | 3 / 20 |
+| P1 | 구조 (계층 · 책임 분리) | 4 / 20 |
 | P2 | 코드 품질 · 정리 | 0 / 19 |
 | P3 | 문서 · 도구 · 배포 | 0 / 11 |
 
@@ -64,7 +64,7 @@
 | BE-31 | [ ] | `domain/common.py:124`, `domain/products.py:164`, `domain/pet.py:92`, `domain/domain_init.py` | `get_inst()` 싱글톤 전역 캐시 (`== None`, 속성을 `__init__` 밖에서 설정) | lifespan에서 `MasterCache` dataclass를 만들어 `app.state`에 둠 | `get_inst` 0건 |
 | BE-32 | [ ] | `adapters/stores/llm.py:48-73`, `services/answering.py:20` | import만 해도 LLM 클라이언트 3개와 체인이 생성됨 (키가 필요) | `@lru_cache` 팩토리 함수 | 키 없이 `import app.services.answering` 성공 |
 | BE-33 | [ ] | `app/adapters/stores/`, `app/domain/port.py:36-75` | stores에 llm.py가 섞여 있음. 구현이 하나뿐인 팩토리, 아무 데도 안 쓰는 ProductRepository Protocol | `adapters/llm.py`, `adapters/vector_store.py`로 평평하게. 안 쓰는 Protocol 삭제 | `adapters/stores/` 없음 |
-| BE-34 | [ ] | `app/domain/embedding_text.py` | domain이 core.config를 import함 (계층 규칙 위반인데 테스트가 잡지 못함) | 접두어를 인자로 받고 test_layers에 domain→core 규칙 추가 | test_layers 통과 |
+| BE-34 | [x] | `app/domain/embedding_text.py` | domain이 core.config를 import함 (계층 규칙 위반인데 테스트가 잡지 못함) | 접두어를 인자로 받고 test_layers에 domain→core 규칙 추가 | test_layers 통과 |
 | BE-35 | [ ] | `services/embedding_sync.py`, `services/metric/sqlbench.py`, `domain/petcalc.py`, `app/query.py` | 서버가 쓰지 않는 CLI/파이프라인 코드가 app 안에 있음 | `pipeline/`, `scripts/`, `tests/bench/`로 이동 | app/에서 `__main__` 0건 |
 | BE-36 | [ ] | `repositories/*` (`commit("product")` 등) | repository가 커밋을 함 (트랜잭션 경계가 잘못된 층에 있음) | 커밋은 `get_db` 또는 service가 함 | repositories에 `commit(` 0건 |
 | BE-37 | [ ] | `models/user.py:8`, `product.py:8`, `pet.py:8`, `repositories/purchases.py:69,86` | 시간을 Text로 저장하고 NOW 상수가 3곳에 중복됨. 불리언이 Integer이고 `datetime.now()`는 로컬 시각 | `DateTime(timezone=True)`, `server_default=func.now()`, `Boolean`으로 마이그레이션 | 새 행의 시각이 UTC timestamptz |

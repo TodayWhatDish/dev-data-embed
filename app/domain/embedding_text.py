@@ -8,8 +8,6 @@
 import hashlib
 from typing import Any, Mapping
 
-from app.core.config import PASSAGE_PREFIX
-
 PRODUCT_FIELDS = (
     "brand",
     "product_name",
@@ -24,10 +22,12 @@ PRODUCT_FIELDS = (
 )
 
 
-def product_text(row: Mapping[str, Any] | tuple) -> str:
+def product_text(row: Mapping[str, Any] | tuple, prefix: str) -> str:
     """
     상품 한 건(dict/tuple)을 검색용 문장 하나로 만든다.
     row: Mapping[str, Any] | tuple => `dict 형태 또는 tuple 형태로 인자가 들어온다.`
+    prefix: 모델이 요구하는 문서 접두어(호출부가 config.PASSAGE_PREFIX 를 넘긴다).
+        기본값을 두지 않는다 - 빠뜨리면 e5 계열 검색 품질이 에러 없이 무너진다.
     """
 
     # dict 형태가 아닌 자료형(tuple)이라면, dict 형태로 만든다.
@@ -35,7 +35,7 @@ def product_text(row: Mapping[str, Any] | tuple) -> str:
     parts = [
         str(data[field]) for field in PRODUCT_FIELDS if data.get(field)
     ]  # 행에 있는 정보를 문자열 리스트로 저장한다
-    return PASSAGE_PREFIX + " ".join(parts)
+    return prefix + " ".join(parts)
 
 
 def source_hash(text: str) -> str:

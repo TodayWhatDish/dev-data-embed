@@ -9,7 +9,7 @@ from collections import defaultdict
 import numpy as np
 import sqlite_vec
 
-from app.core.config import DB_PATH
+from app.core.config import DB_PATH, PASSAGE_PREFIX
 from app.core.embedder import embed_documents
 from app.domain.embedding_text import product_text
 
@@ -59,7 +59,7 @@ def build_product_vectors(con: sqlite3.Connection):
     """)
     cols = [d[0] for d in cur.description]
     products = [dict(zip(cols, row)) for row in cur.fetchall()]
-    vectors = embed_documents([product_text(p) for p in products])
+    vectors = embed_documents([product_text(p, PASSAGE_PREFIX) for p in products])
 
     con.execute("DROP TABLE IF EXISTS product_vectors")
     con.execute("CREATE TABLE product_vectors (product_id INTEGER PRIMARY KEY, vector BLOB)")

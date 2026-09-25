@@ -1,8 +1,8 @@
 # Last updated: 2026-09-08
 """계층 의존 방향을 강제한다. import 문만 읽으므로 DB 도 모델도 안 띄운다.
 
-CLAUDE.md 가 글로 적어둔 두 줄이 전부다 -
-  * "도메인은 SQL 을 모른다" (domain -> repositories/sqlite3 금지)
+핵심은 두 줄이다 -
+  * 도메인은 순수 규칙만 안다 (domain -> 바깥 계층 app.core 등 · DB 드라이버 금지)
   * repositories 는 SELECT 만 한다 (repositories -> domain/services 금지)
 
 사람 눈으로만 지키다 보면 급할 때 도메인에서 repo 를 한 번 부르고 그게 굳는다.
@@ -23,7 +23,7 @@ API_PIPELINE_EXEMPT = {"lifespan.py"}
 SERVICES_PIPELINE_EXEMPT = {"searching.py"}
 
 RULES = [
-    ("domain", ("app.repositories", "sqlite3"), DOMAIN_EXEMPT),
+    ("domain", ("app.repositories", "app.core", "app.adapters", "app.services", "app.api", "pipeline", "sqlalchemy", "psycopg"), DOMAIN_EXEMPT),
     ("repositories", ("app.domain", "app.services"), set()),
     ("core", ("app.repositories", "app.adapters", "app.services", "app.api", "pipeline"), set()),
     ("adapters", ("app.services", "app.api", "pipeline"), set()),
