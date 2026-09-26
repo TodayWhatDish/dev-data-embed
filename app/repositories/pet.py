@@ -11,7 +11,7 @@ import logging
 
 from sqlalchemy.exc import DBAPIError
 
-from app.core.db import as_dict, commit, fetch, fetch_one, fetch_tuples, get_session
+from app.core.db import as_dict, fetch, fetch_one, fetch_tuples, get_session
 from app.models.pet import Breed, Pet, PetAllergy, PetSurvey
 
 logger = logging.getLogger()
@@ -28,7 +28,7 @@ def create_pet(
     body_type: int = None,
     activity_level: int = None,
 ) -> int:
-    """반려동물 등록. 값이 없는 선택 컬럼은 뺀다 - DB 기본값/NULL 로 채워진다."""
+    """반려동물 등록. 값이 없는 선택 컬럼은 뺀다 - DB 기본값/NULL 로 채워진다. 커밋은 부른 쪽이 한다."""
     values = {"user_id": user_id, "animal_category_id": animal_category_id, "name": name}
     for k, v in (
         ("gender", gender),
@@ -43,19 +43,18 @@ def create_pet(
     pet = Pet(**values)
     session = get_session()
     session.add(pet)
-    commit("pet")
+    session.flush()
     return pet.pet_id
 
 
 def save_pet_survey(pet_id: int, diet_note: str = None, skin_note: str = None) -> None:
     """가입 설문 스냅샷 저장. 필터가 아니라 추천 질의문 재료 + 관리자 표시용이다
-    (docs/schema/pet_schema.md#pet_survey). 갱신은 안 한다 - 가입 시 한 번만 부른다."""
+    (docs/schema/pet_schema.md#pet_survey). 갱신은 안 한다 - 가입 시 한 번만 부른다. 커밋은 부른 쪽이 한다."""
     values = {"pet_id": pet_id}
     for k, v in (("diet_note", diet_note), ("skin_note", skin_note)):
         if v is not None:
             values[k] = v
     get_session().add(PetSurvey(**values))
-    commit("pet_survey")
 
 
 def get_pet_survey(pet_id: int) -> dict | None:
@@ -123,11 +122,10 @@ def resolve_allergen_ids(names: list[str]) -> list[int]:
 
 
 def add_pet_allergies(pet_id: int, allergen_ids: list[int]) -> None:
-    """pet_allergy에 (pet_id, allergen_id) 행을 하나씩 넣는다. 다대다라 여러 행이 나온다."""
+    """pet_allergy에 (pet_id, allergen_id) 행을 하나씩 넣는다. 다대다라 여러 행이 나온다. 커밋은 부른 쪽이 한다."""
     session = get_session()
     for allergen_id in allergen_ids:
         session.add(PetAllergy(pet_id=pet_id, allergen_id=allergen_id))
-        commit("pet_allergy")
 
 
 def find_allergen_names(pet_id: int) -> list[str]:

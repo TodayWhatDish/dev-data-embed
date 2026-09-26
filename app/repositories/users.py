@@ -2,7 +2,7 @@
 
 """user 테이블에 연결되는 곳. 관리자 화면용 고객 조회."""
 
-from app.core.db import commit, fetch, fetch_one, get_session
+from app.core.db import fetch, fetch_one, get_session
 from app.models.user import User
 
 
@@ -14,7 +14,8 @@ def find_user_by_email(email: str) -> dict | None:
 def create_user(
     email: str, name: str, password_hash: str, phone: str | None = None, region: str | None = None
 ) -> int:
-    """local 회원가입. auth_uid는 로컬 계정엔 별도 외부 ID가 없어 email을 그대로 쓴다."""
+    """local 회원가입. auth_uid는 로컬 계정엔 별도 외부 ID가 없어 email을 그대로 쓴다.
+    커밋하지 않는다(flush 로 user_id 만 받는다) - 가입 전체를 부른 쪽 transaction() 이 한 번에 커밋한다."""
     values = {
         "auth_provider": "local",
         "auth_uid": email,
@@ -29,7 +30,7 @@ def create_user(
     user = User(**values)
     session = get_session()
     session.add(user)
-    commit("user")
+    session.flush()
     return user.user_id
 
 
