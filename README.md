@@ -99,7 +99,7 @@ python -m pipeline.embed                # chunks -> 벡터 -> chunk_vectors 테�
 python -m pipeline.prep_rec             # 홀드아웃 지정 + product_vectors/customer_vectors 생성 (평가용)
 python -m pipeline.verify               # 데이터 개수·FK·벡터 차원·recall 한 번에 점검
 python -m eval golden                   # 홀드아웃 리뷰로 recall@1/3/10 · MRR 측정
-python -m app.query                     # 프로필+질문 받아 유사 리뷰 찾는 대화형 CLI
+python -m pipeline.query                # 프로필+질문 받아 유사 리뷰 찾는 대화형 CLI
 uvicorn app.main:app --reload           # FastAPI 서버 기동
 ```
 

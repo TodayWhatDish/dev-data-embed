@@ -15,7 +15,8 @@ sys.stdout.reconfigure(errors="replace")
 
 from sqlalchemy import text
 
-from app.core.config import EMBED_MAX_TOKENS, EMBED_PROVIDER, INDEX_FILTER, SIZE_CASE
+from app.core.config import EMBED_MAX_TOKENS, EMBED_PROVIDER
+from app.repositories.vector import INDEX_FILTER, SIZE_CASE
 
 # transformers는 provider='st'(로컬)에서만 깔린다(pyproject.toml 'local' 그룹) - openai 배포
 # 환경엔 없어 import 자체가 실패한다. 순수 로그 억제용이라 없으면 그냥 넘어간다.
@@ -68,7 +69,7 @@ FETCH_SQL = f"""
 
 
 def fetch_rows(conn):
-    """자를 대상 리뷰를 펫·상품 정보와 함께 읽어온다. (대상 조건인 INDEX_FILTER는 config.py에 명시)
+    """자를 대상 리뷰를 펫·상품 정보와 함께 읽어온다. (대상 조건인 INDEX_FILTER는 repositories/vector.py에 명시)
 
     새 스키마는 정규화돼 있어 견종/알러지/급여목적이 전부 다대다다.
     한 리뷰당 여러 행으로 불어나는 걸 STRING_AGG(DISTINCT ...)로 다시 한 줄로 뭉친다.

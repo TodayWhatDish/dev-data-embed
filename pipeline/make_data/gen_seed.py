@@ -37,7 +37,7 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.domain.petcalc import age_months  # noqa: E402
+from pipeline.make_data.petcalc import age_months  # noqa: E402
 
 MASTER_DIR = ROOT / "data" / "master"
 SEED_DIR = ROOT / "data" / "seed"

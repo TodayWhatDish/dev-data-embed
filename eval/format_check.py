@@ -26,7 +26,7 @@ sys.stdout.reconfigure(errors="replace")
 
 from pydantic import ValidationError
 
-from app.adapters.stores.llm import chat
+from app.adapters.llm import get_chat
 from app.core.config import LLM_MODEL
 from app.domain.prompting import Recommendation, build_recommend_prompt
 from app.services.searching import candidates as search_candidates
@@ -66,12 +66,12 @@ def ask_once(cands: list[dict], profile: dict, with_example: bool, force_schema:
         prompt += EXAMPLE
 
     if not force_schema:
-        return chat.invoke(prompt).content or ""
+        return get_chat().invoke(prompt).content or ""
 
     # include_raw=True 라야 스키마를 걸었을 때도 모델이 실제로 뱉은 것을 볼 수 있다.
     # 프로바이더에 따라 본문이 비고 도구호출 쪽으로만 오는데, 그때는 파싱된 값을 도로
     # JSON 으로 만들어 같은 자로 잰다 - 모델이 형식을 지킨 건 사실이기 때문이다.
-    got = chat.with_structured_output(Recommendation, include_raw=True).invoke(prompt)
+    got = get_chat().with_structured_output(Recommendation, include_raw=True).invoke(prompt)
     raw = got.get("raw")
     if raw is not None and (raw.content or "").strip():
         return raw.content

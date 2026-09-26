@@ -6,7 +6,7 @@
 
 from typing import Any
 
-from app.adapters.stores.llm import chat
+from app.adapters.llm import get_chat
 from app.domain.prompting import Recommendation, build_recommend_prompt
 
 MAX_RETRIES = 2
@@ -18,7 +18,7 @@ def recommend(
     """후보 중에 n_pick개 만큼 고른 결과와 재시도 횟수, 마지막 오류를 돌려준다."""
     valid_ids = {c["product_id"] for c in candidates}
     prompt = build_recommend_prompt(candidates, profile, n_pick)
-    structured_chat = chat.with_structured_output(Recommendation)
+    structured_chat = get_chat().with_structured_output(Recommendation)
 
     last_error = ""
     for attempt in range(MAX_RETRIES + 1):

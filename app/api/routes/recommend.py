@@ -7,11 +7,10 @@ profile.build_profile() → searching.candidates() → recommending.recommend() 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.api.schemas import RecommendRequest, RecommendResponse
-from app.core.auth import get_current_user
-from app.services.profile import build_profile, pet_profile, survey_query_text
+from app.api.deps import get_current_user
+from app.services.profile import build_profile, pet_profile, primary_pet, survey_query_text
 from app.services.recommending import recommend
 from app.services.searching import candidates
-from app.repositories.pet import find_pets_by_user
 
 router = APIRouter()
 
@@ -33,11 +32,11 @@ def recommend_route(rreq: RecommendRequest, req: Request) -> RecommendResponse:
 def my_recommend(req: Request, user_id: int = Depends(get_current_user)) -> dict:
     """로그인 직후 첫 화면용 추천 - 가입 설문(알러지/식성/피부) 기준.
     로그인마다 불릴 수 있어 LLM(recommend())은 안 태우고 벡터 검색 후보까지만 준다."""
-    pets = find_pets_by_user(user_id)
-    if not pets:
+    pet = primary_pet(user_id)
+    if pet is None:
         return {"query": "", "found": []}
 
-    pet_id = pets[0]["pet_id"]
+    pet_id = pet["pet_id"]
     profile = pet_profile(pet_id)
     query_text = survey_query_text(pet_id)
     return {"query": query_text, "found": candidates(profile, query_text, limit=5, con=req.app.state.con)}

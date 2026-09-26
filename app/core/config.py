@@ -1,14 +1,15 @@
-# Last updated: 2026-09-03
-# Last Updated: 2026-09-03
+# Last Updated: 2026-09-26
 
 """모든 스크립트가 공유하는 설정값과 상수를 모아둔다
 
-경로, 모델 이름, 토큰 한도, 색깅 대상 조건과 같은 '값' 선언.
+경로, 모델 이름, 토큰 한도, 색인 대상 조건과 같은 '값' 선언.
 표준 라이브러리 및 경로를 정의.
 """
 
-import os
 from pathlib import Path
+
+from pydantic import AliasChoices, Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = ROOT / "data"
@@ -21,44 +22,6 @@ SEED_DIR = DATA_DIR / "seed"
 EVAL_DIR = DATA_DIR / "eval"
 
 LOGGER_DIR = ROOT / "log"
-
-
-# .env 를 환경변수로 올린다.
-def load_env(path=ROOT / ".env"):
-    """.env를 환경변수로 올린다."""
-    if not Path(path).exists():
-        return
-    for line in Path(path).read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        k, v = line.split("=", 1)
-        k = k.strip()
-        v = v.strip().strip('"').strip("'")
-        os.environ.setdefault(k, v)
-
-
-def env(name: str, default: str) -> str:
-    """환경변수를 읽되, 빈 문자열은 기본값으로 친다."""
-    value = os.environ.get(name, "").strip()
-    return default if value == "" else value
-
-
-# 아래 설정값이 전부 env() 를 거치므로 .env 는 그것들보다 먼저 올라와야 한다.
-# 정의만 해두고 부르지 않으면 .env 전체가 조용히 무시된다 - 값이 안 읽혀도
-# 에러가 안 나고 기본값으로 굴러가기 때문에 알아채기 어렵다.
-#
-# .env 는 키 이름만 있고 값은 비운 채로 git에 커밋한다(어떤 값이 필요한지 문서 역할).
-# 실제 비밀값은 .env.local(gitignore)에 넣는다. setdefault()는 먼저 채워진 값을 안 덮으므로
-# .env.local을 반드시 .env보다 먼저 읽어야 한다 - 순서가 바뀌면 .env의 빈 값이 먼저 자리를
-# 차지해 .env.local의 실제 값이 조용히 무시된다.
-load_env(ROOT / ".env.local")
-load_env()
-
-# db.py 가 이 URL로만 붙는다 - SQLite fallback 없음 (docs/WORK.md 로드맵 A).
-# Supavisor transaction pooler(6543) 문자열이다 - direct connection(db.*.supabase.co)은
-# IPv4 애드온 없이는 IPv6 전용이라 이 환경에서 못 붙는다.
-SUPABASE_DB_URL = env("SUPABASE_DB_URL", "")
 
 # query_prefix/passage_prefix: e5 계열은 필수, bge 계열은 붙이면 오히려 성능이 떨어진다.
 # 모델을 비교할 때 이 표만 늘리고 코드는 건드리지 않는 것이 목표다.
@@ -110,12 +73,53 @@ EMBED_PROFILES = {
     },
 }
 
-# 재색인 없이 실험하려면 셸에서 바꾼다:  $env:EMBED_MODEL = 'BAAI/bge-m3'
-# EMBED_MODEL = env('EMBED_MODEL', 'intfloat/multilingual-e5-small')
-EMBED_MODEL = env("EMBED_MODEL", "text-embedding-3-small")
 
-if EMBED_MODEL not in EMBED_PROFILES:
-    raise SystemExit(f"EMBED_PROFILES 에 없는 모델입니다: {EMBED_MODEL}")
+class Settings(BaseSettings):
+    """env 값을 타입대로 읽는다. 틀린 값은 기동 시 ValidationError 로 어떤 키가 왜 틀렸는지 알려준다.
+
+    우선순위(뒤가 이김): .env(키만 있는 템플릿) < .env.local(실제 비밀값) < 진짜 환경변수(Railway).
+    """
+
+    model_config = SettingsConfigDict(
+        env_file=(ROOT / ".env", ROOT / ".env.local"),
+        env_ignore_empty=True,  # .env 의 빈 값은 '없음'으로 보고 아래 기본값을 쓴다
+        extra="ignore",  # 여기 안 적은 키가 .env 에 있어도 에러 내지 않는다
+    )
+
+    # db.py 가 이 URL로만 붙는다 - SQLite fallback 없음 (docs/WORK.md 로드맵 A).
+    # Supavisor transaction pooler(6543) 문자열이다 - direct connection(db.*.supabase.co)은
+    # IPv4 애드온 없이는 IPv6 전용이라 이 환경에서 못 붙는다.
+    supabase_db_url: str = ""
+    embed_model: str = "text-embedding-3-small"
+    # 두 이름 중 먼저 있는 것을 쓴다 - 따로 안 넣으면 OPENAI_API_KEY 를 같이 쓴다 (verify_api_key 도 같다)
+    embed_api_key: str = Field("", validation_alias=AliasChoices("EMBED_API_KEY", "OPENAI_API_KEY"))
+    use_api: bool = True
+    llm_provider: str = "anthropic"
+    llm_api_key: str = ""
+    api_model: str = "claude-sonnet-5"
+    verify_provider: str = "openai"
+    verify_model: str = "gpt-4o-mini"
+    verify_api_key: str = Field("", validation_alias=AliasChoices("VERIFY_API_KEY", "OPENAI_API_KEY"))
+    langsmith_tracing: bool = False
+    langsmith_eval_project: str = "pet-reco-eval"
+    jwt_secret: str = ""
+    admin_password: str = ""
+    unsplash_access_key: str = ""
+    frontend_origins: str = "http://localhost:3000"
+
+    @field_validator("embed_model")
+    @classmethod
+    def _known_model(cls, value: str) -> str:
+        if value not in EMBED_PROFILES:
+            raise ValueError(f"EMBED_PROFILES 에 없는 모델입니다: {value}")
+        return value
+
+
+settings = Settings()
+SUPABASE_DB_URL = settings.supabase_db_url
+
+# 재색인 없이 실험하려면 셸에서 바꾼다:  $env:EMBED_MODEL = 'BAAI/bge-m3'
+EMBED_MODEL = settings.embed_model
 
 _profile = EMBED_PROFILES[EMBED_MODEL]
 
@@ -134,51 +138,32 @@ EMBED_DEVICE = "cpu"
 
 # provider='openai' 인 프로파일에서만 필요하다. LLM 키(LLM_API_KEY)와 갈라 둔 이유:
 # 채팅 모델은 Anthropic 을 쓰면서 임베딩만 OpenAI 로 돌리는 조합이 흔하다.
-EMBED_API_KEY = env("EMBED_API_KEY", env("OPENAI_API_KEY", ""))
+EMBED_API_KEY = settings.embed_api_key
 
 # 코사인 유사도용
 EMBED_NORMALIZE = True
 
-# 색인 대상 리뷰를 고르는 조건. review 테이블이 r 로 별칭된 쿼리에서 쓴다.
-# is_holdout=1 은 추천 성능 평가용으로 남겨둔 행이라 색인에서 뺀다.
-INDEX_FILTER = """
-    r.is_holdout = 0
-    AND r.body IS NOT NULL
-    AND TRIM(r.body) <> ''
-"""
-
 # 체급 코드(1~5) -> 사람이 쓰는 말. SQL 과 파이썬이 같은 표를 봐야 하므로 여기 하나만 둔다.
 SIZE_LABELS = {1: "초소형", 2: "소형", 3: "중형", 4: "대형", 5: "초대형"}
 
-# 위 표에서 SQL CASE 를 만들어 쓴다 - 표를 두 군데 적으면 반드시 어긋난다.
-SIZE_CASE = (
-    "CASE pu.size_at_purchase "
-    + " ".join(f"WHEN {code} THEN '{label}'" for code, label in SIZE_LABELS.items())
-    + " END"
-)
 
+USE_API = settings.use_api
 
-if not Path(DB_PATH).exists():
-    print(f"알림: DB 가 아직 없다 -> {DB_PATH}")
-
-
-USE_API = env("USE_API", 1) == "1"
-
-# LLM_PROVIDER는 langchain init_chat_model()의 provider 인자로 그대로 들어간다 (adapters/stores/llm.py).
+# LLM_PROVIDER는 langchain init_chat_model()의 provider 인자로 그대로 들어간다 (adapters/llm.py).
 # 상용 API를 바꾸고 싶으면 .env의 LLM_PROVIDER/LLM_API_KEY/API_MODEL 세 값만 바꾸면 된다 - 코드 수정 불필요.
 if USE_API:
-    LLM_PROVIDER = env("LLM_PROVIDER", "anthropic")
+    LLM_PROVIDER = settings.llm_provider
     LLM_BASE_URL = (
         None  # provider 네이티브 클라이언트는 base_url이 필요 없다 (OpenAI 호환 프록시를 쓸 때만 .env로 지정)
     )
-    LLM_API_KEY = env("LLM_API_KEY", "")
-    LLM_MODEL = env("API_MODEL", "claude-sonnet-5")
+    LLM_API_KEY = settings.llm_api_key
+    LLM_MODEL = settings.api_model
     # 답변을 만든 모델이 자기 답을 채점하면 관대해지는 self-evaluation bias가 있다 -
     # 반증(verify)은 이 모델을 대신 쓴다 (참고: https://mjforge.tistory.com/30).
     # provider까지 LLM_PROVIDER와 다르게 두면(anthropic 답변 -> openai 채점) bias를 더 확실히 피한다.
-    VERIFY_PROVIDER = env("VERIFY_PROVIDER", "openai")
-    VERIFY_MODEL = env("VERIFY_MODEL", "gpt-4o-mini")
-    VERIFY_API_KEY = env("VERIFY_API_KEY", env("OPENAI_API_KEY", ""))
+    VERIFY_PROVIDER = settings.verify_provider
+    VERIFY_MODEL = settings.verify_model
+    VERIFY_API_KEY = settings.verify_api_key
 else:
     LLM_PROVIDER = "openai"  # Ollama가 OpenAI 호환 엔드포인트를 흉내내므로 provider는 openai로 두고 base_url만 로컬로 돌린다
     LLM_BASE_URL = "http://localhost:11434/v1"
@@ -195,22 +180,21 @@ VERIFY_BASE_URL = LLM_BASE_URL if VERIFY_PROVIDER == LLM_PROVIDER else None
 # 채점(eval/*)을 LangSmith 로도 보낼지. 꺼져 있어도 채점은 그대로 돌고 data/eval/runs.jsonl 에는 남는다.
 # 채점용 프로젝트를 서비스 로그와 가르는 이유: 채점은 같은 질문 수십 개를 몰아 던져서,
 # 실제 요청과 같은 통에 부으면 평균 응답시간 같은 서비스 지표가 채점 때문에 망가진다.
-LANGSMITH_TRACING = env("LANGSMITH_TRACING", "false").lower() == "true"
-LANGSMITH_EVAL_PROJECT = env("LANGSMITH_EVAL_PROJECT", "pet-reco-eval")
+LANGSMITH_TRACING = settings.langsmith_tracing
+LANGSMITH_EVAL_PROJECT = settings.langsmith_eval_project
 
-# 관리자 로그인 / 서버 세션 토큰 만드는 데 필요한 설정값.
 # 관리자 로그인 전용 JWT 설정. 사용자 인증은 Supabase 로 이관 중이라 구글 로그인과
 # 함께 걷어냈지만, 관리자 인증(services/admin_auth.py)은 공용 비밀번호 + 자체 JWT 라
-# 그 이관과 무관하다. core/auth.py 와 services/admin_auth.py 가 이 세 값을 import 한다.
-JWT_SECRET = env("JWT_SECRET", "")
+# 그 이관과 무관하다. api/deps.py 와 services/admin_auth.py 가 이 세 값을 import 한다.
+JWT_SECRET = settings.jwt_secret
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = 60 * 24 * 7  # 7일
-ADMIN_PASSWORD = env("ADMIN_PASSWORD", "")
+ADMIN_PASSWORD = settings.admin_password
 
 # 고객 페이지 배경 이미지용 (app/api/routes/background.py)
-UNSPLASH_ACCESS_KEY = env("UNSPLASH_ACCESS_KEY", "")
+UNSPLASH_ACCESS_KEY = settings.unsplash_access_key
 
 # dev-web(Next.js)이 배포되는 오리진. CORS 허용 목록 - main.py가 이 값을 쓴다.
 # 로컬 개발은 기본값(localhost:3000)으로 충분하고, 배포 도메인은 .env/플랫폼 환경변수로 넣는다.
 # 여러 개면 콤마로 구분: "https://foo.vercel.app,https://bar.com"
-FRONTEND_ORIGINS = [o.strip() for o in env("FRONTEND_ORIGINS", "http://localhost:3000").split(",") if o.strip()]
+FRONTEND_ORIGINS = [o.strip() for o in settings.frontend_origins.split(",") if o.strip()]

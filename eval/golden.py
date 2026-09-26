@@ -21,7 +21,8 @@ import sqlite3
 import sys
 import time
 
-from app.core.config import EMBED_DIM, EMBED_MODEL, EVAL_DIR, SIZE_CASE
+from app.core.config import EMBED_DIM, EMBED_MODEL, EVAL_DIR
+from app.repositories.vector import SIZE_CASE
 from app.services.recommending import recommend
 from app.services.retrieve import build_where, search
 from app.services.searching import candidates as search_candidates

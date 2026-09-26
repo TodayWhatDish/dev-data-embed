@@ -12,6 +12,11 @@ from app.repositories import users as users_repo
 logger = logging.getLogger()
 
 
+def customer_list() -> list[dict]:
+    """관리자 고객 목록."""
+    return users_repo.list_users()
+
+
 def customer_detail(user_id: int) -> dict | None:
     """고객 프로필 + 반려동물 + 구매이력. 없는 고객은 예외가 아니라 None."""
     detail = users_repo.get_user_detail(user_id)

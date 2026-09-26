@@ -19,6 +19,7 @@ from collections import defaultdict
 import numpy as np
 from numpy.typing import NDArray
 
+from app.core.config import PASSAGE_PREFIX
 from app.domain.embedding_text import product_text
 from pipeline.prep.chunking import count_tokens
 
@@ -275,7 +276,7 @@ def compare_recommendations(
     cur = con.execute("SELECT * FROM product")
     cols = [d[0] for d in cur.description]
     product_rows = [dict(zip(cols, row)) for row in cur.fetchall()]
-    average_product_tokens = sum(count_tokens(product_text(row)) for row in product_rows) / len(product_rows)
+    average_product_tokens = sum(count_tokens(product_text(row, PASSAGE_PREFIX)) for row in product_rows) / len(product_rows)
 
     average_tokens = {
         "상품 요약 벡터 (기준선)": average_product_tokens,
