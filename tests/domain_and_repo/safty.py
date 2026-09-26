@@ -5,7 +5,7 @@ from app.domain.common import CommonMgr
 from app.domain.domain_init import init_from_db
 from app.domain.products import ProductMgr
 from app.domain.safty import SAFE, UNKNOWN, WARN, judge
-from app.repositories.general_query import select_all, select_range
+from app.core.db import fetch
 
 logger = logging.getLogger()
 
@@ -23,7 +23,7 @@ if __name__ == "__main__":
 
     # 알러지원이 붙은 원료 하나를 실제 데이터에서 고른다
     # 테스트를 위해 query 수행
-    sample = select_range("ingredient_allergen", {}, 1, cols=["ingredient_id", "allergen_id"])[0]
+    sample = fetch("SELECT ingredient_id, allergen_id FROM ingredient_allergen LIMIT 1")[0]
     ingredient_id, allergen_id = sample["ingredient_id"], sample["allergen_id"]
     logger.info(f"표본 원료 {ingredient_id} -> 알러지원 {allergen_id}({name_of(allergen_id)})")
 
@@ -50,17 +50,17 @@ if __name__ == "__main__":
     assert allergen_of(999999) == []
 
     # 6. 뷰 v_product_safety 와 판정이 같아야 한다 (규칙이 두 군데라 어긋나면 여기서 잡는다)
-    verified = select_all("product", cols=["product_id", "ingredients_verified"])
+    verified = fetch("SELECT product_id, ingredients_verified FROM product")
     ingredients = {}
-    for row in select_all("product_ingredient", cols=["product_id", "ingredient_id"]):
+    for row in fetch("SELECT product_id, ingredient_id FROM product_ingredient"):
         ingredients.setdefault(row["product_id"], []).append(row["ingredient_id"])
 
     pet_allergies = {}
-    for row in select_all("pet_allergy", cols=["pet_id", "allergen_id"]):
+    for row in fetch("SELECT pet_id, allergen_id FROM pet_allergy"):
         pet_allergies.setdefault(row["pet_id"], []).append(row["allergen_id"])
 
-    # general_query 는 컬럼 이름이 붙은 dict 로 준다. 튜플을 벗기던 자리가 없어진다
-    pet_ids = [row["pet_id"] for row in select_all("pet", cols=["pet_id"])]
+    # fetch 는 컬럼 이름이 붙은 dict 로 준다. 튜플을 벗기던 자리가 없어진다
+    pet_ids = [row["pet_id"] for row in fetch("SELECT pet_id FROM pet")]
     for ver_info in verified:
         p_id = ver_info["product_id"]
         is_verified = ver_info["ingredients_verified"]

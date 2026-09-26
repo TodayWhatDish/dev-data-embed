@@ -9,8 +9,8 @@ from collections import Counter
 from app.api.lifespan import load_domain_cache
 from app.app_logger.logger import init_logger
 from app.domain import pet as pet_domain
+from app.core.db import fetch
 from app.repositories import pet as pet_repo
-from app.repositories.general_query import select_all
 
 logger = logging.getLogger()
 
@@ -19,9 +19,8 @@ if __name__ == "__main__":
     init_logger("test_pet")
     load_domain_cache()
 
-    # 픽스처는 general_query 로 읽고 세는 건 파이썬에서 한다. general_query 는 집계도
-    # IS NULL 도 못 만들고(= ? 가 아니다), 여기서 그걸 쓰는 게 이 계층을 같이 훑는 길이다
-    pets = [r for r in select_all("pet") if r["inactive_at"] is None]
+    # 픽스처는 fetch 로 읽고 세는 건 파이썬에서 한다.
+    pets = [r for r in fetch("SELECT * FROM pet") if r["inactive_at"] is None]
     counted = Counter(r["user_id"] for r in pets)
     user_id, pet_n = counted.most_common(1)[0]
 
@@ -39,7 +38,7 @@ if __name__ == "__main__":
     assert "animal_category" not in raw[0], "원본이 오염됐다"
 
     # 3. 알레르기가 여럿인 펫에서 콤마 문자열이 제대로 갈라지는지. 한 마리짜리 경로도 같이 본다
-    allergy_rows = select_all("pet_allergy")
+    allergy_rows = fetch("SELECT * FROM pet_allergy")
     heavy, cnt = Counter(r["pet_id"] for r in allergy_rows).most_common(1)[0]
     one = pet_domain.attach_names_one(pet_repo.find_pet(heavy))
     logger.info(f"pet {heavy} 알레르기 {len(one['allergies'])}종: {one['allergies'][:3]} ...")

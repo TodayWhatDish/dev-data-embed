@@ -2,7 +2,7 @@
 services:
   api:
     build: .
-    env_file: .env          # docker run --env-file .env 와 같은 일
+    env_file: [.env, .env.local]  # 뒤에 올수록 우선 - .env는 빈 템플릿, .env.local이 실제 값
     volumes:
       - ./data:/app/data    # docker run -v "${PWD}/data:/app/data" 와 같은 일
     ports:

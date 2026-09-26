@@ -1,53 +1,39 @@
-# Last updated: 2026-08-27
-# Last Updated: 2026-08-25
+# Last updated: 2026-09-22
 """
-data/master + data/seed 의 CSV 를 user.db(16테이블 스키마)로 적재한다.
+data/master + data/seed 의 CSV 를 Supabase(Postgres) 로 적재한다.
 
-    data/master/*.csv ┐
-                      ├─> load_csv.py ─> user.db
-    data/seed/*.csv   ┘
+스키마의 단일 원천은 app/models/ 의 SQLAlchemy 모델이다(app/core/db.py 의 Base) —
+여기서 DDL 을 다시 적지 않는다. pipeline/create_schema/*_schema.py 는 SQLite 전용
+설계 문서(user.db, docs/schema/ 와 1:1)라서 안 쓴다. 다만 뷰(VIEWS)와 코드표 시드(SEEDS)는
+app/models/ 에 대응하는 자리가 없으므로 거기서 그대로 재사용한다 — 값을 두 군데 적지 않는다.
 
-옛 src/load_db.py 를 대체한다. 그쪽은 4테이블 비정규화 스키마 전용이고,
-DDL 까지 스스로 만들었다. 여기서는 DDL 을 만들지 않는다 — 스키마의 단일 원천은
-src/create_schema/ 이고, 이 파일은 그것이 만든 테이블에 값을 넣기만 한다.
+**적재 순서를 손으로 적지 않는다.** Base.metadata.sorted_tables 가 이미 FK 기준으로
+위상 정렬해서 돌려준다(SQLAlchemy 가 제공하는 기능 - 직접 구현하지 않는다).
 
-**적재 순서를 손으로 적지 않는다.** 부모가 아직 없는 테이블에 INSERT 하면 FK 검증에 걸려
-멈추므로 순서가 중요한데, 그 정답은 이미 DDL 안에 있다 — `PRAGMA foreign_key_list` 가
-"이 테이블이 무엇을 참조하는가"를 알려준다. 그래프를 위상 정렬하면 순서가 나온다.
-사람이 옮겨 적으면 스키마와 어긋날 수 있고, 어긋난 채로도 운 좋게 돌다가
-테이블이 하나 늘어난 날 터진다.
+CSV 규약은 pipeline/make_data/gen_seed.py 의 docstring 에 있다. 값 캐스팅은 하지 않는다
+— NOT NULL/타입 위반은 DB 가 INSERT 시점에 걸러준다. 빈 칸 -> NULL 변환만 한다.
 
-순서는 두 층이다. 같은 topo_sort() 를 양쪽에 쓴다.
-
-    테이블 사이 : users 가 pets 보다 먼저      -> resolve_order()
-    한 테이블 안 : allergens 의 부모 행이 먼저  -> order_rows_parents_first()
-
-두 번째가 따로 필요한 이유는 자기참조(allergens.parent_id -> allergens) 때문이다.
-테이블 레벨에서는 자기 자신을 기다리게 되므로 그래프에서 빼고, 행 레벨에서 푼다.
-
-CSV 규약은 src/make_data/gen_seed.py 의 docstring 에 있다. 여기서 되풀이하지 않는다.
-값 캐스팅은 하지 않는다 — STRICT 테이블이 '30000' 을 INTEGER 30000 으로 받아주고
-'삼만원' 은 거부하므로, 파이썬에서 미리 int() 를 부르면 같은 검사를 두 번 하는 셈이다
-(근거는 execute_schema.py 설계규칙 7번). 빈 칸 -> NULL 변환만 한다.
-
-실행: py src/load_csv.py            (스키마를 새로 만들고 적재. 기존 user.db 는 비워진다)
-      py src/load_csv.py --keep     (스키마를 그대로 두고 적재만)
+실행: python -m pipeline.load_csv          (스키마+뷰+시드 재생성 후 적재. 기존 테이블은 비워진다)
+      python -m pipeline.load_csv --keep   (스키마는 그대로 두고 적재만)
 """
 
 import csv
-import sqlite3
+import re
 import sys
 from pathlib import Path
 
+from sqlalchemy import insert, text
+
+# app/models/* 를 전부 import 해야 클래스들이 Base.metadata 에 등록된다.
+from app.models import common, pet, product, purchase, user  # noqa: F401
+from app.core.config import MASTER_DIR, SEED_DIR
+from app.core.db import Base, engine
+
 sys.path.insert(0, str(Path(__file__).resolve().parent / "create_schema"))
+import common_schema  # noqa: E402  (SEEDS 재사용용 - TABLES/INDEXES 는 app/models 가 대신한다)
+import product_schema  # noqa: E402  (VIEWS/SEEDS 재사용용)
 
-from execute_schema import create_schema
-
-from app.core.config import DB_PATH, MASTER_DIR, SEED_DIR
-
-# 테이블 -> CSV 경로. **순서를 적지 않는다.**
-# 적재 순서는 resolve_order() 가 FK 관계에서 계산한다. 손으로 적으면 스키마와 어긋날 수 있고,
-# 어긋난 채로도 '운 좋게' 돌다가 테이블이 하나 늘어난 날 터진다.
+# 테이블 -> CSV 경로. **순서를 적지 않는다.** 적재 순서는 resolve_order() 가 FK 관계에서 계산한다.
 SOURCES = {
     # --- 마스터: 사람이 채운다. 재생성하지 않는다 ---
     "allergen": MASTER_DIR / "allergen.csv",
@@ -68,9 +54,40 @@ SOURCES = {
     "review": SEED_DIR / "review.csv",
 }
 
-# animal_category / product_category / feeding_purpose 는 여기에 없다.
-# 코드(*_schema.py 의 SEEDS)가 넣는다. CSV 로 또 빼면 같은 값이 두 군데에 앉는다.
-# 이 테이블들을 참조하는 FK 는 이미 채워져 있으므로 순서 계산에서 자동으로 빠진다.
+# animal_category / product_category / feeding_purpose 는 여기 없다 — seed_lookup_tables() 가 넣는다.
+# CSV 로 또 빼면 같은 값이 두 군데에 앉는다.
+
+
+# ---------------------------------------------------------------------------
+# 스키마 - app/models 가 단일 원천
+
+
+def create_views(conn):
+    for ddl in product_schema.VIEWS:
+        conn.execute(text(ddl))
+
+
+# product_schema.VIEWS가 CREATE VIEW로 만드는 뷰 이름. Base.metadata.drop_all()은 ORM 테이블만
+# 알아서, 뷰가 테이블을 참조하는 채로 두면 DROP TABLE이 DependentObjectsStillExist로 막힌다 -
+# drop_all보다 먼저 뷰부터 지운다. product_schema.py:212-218 순서(자식 뷰 먼저)와 맞춘다.
+VIEW_NAMES = ("v_safe_products", "v_product_safety")
+
+
+def drop_views(conn):
+    for name in VIEW_NAMES:
+        conn.execute(text(f"DROP VIEW IF EXISTS {name}"))
+
+
+SEED_SQL = re.compile(r"INSERT INTO (\w+)\(([^)]+)\)")
+
+
+def seed_lookup_tables(conn):
+    """animal_category / product_category / feeding_purpose. *_schema.py 의 SEEDS 를 그대로 쓴다."""
+    for sql, rows in common_schema.SEEDS + product_schema.SEEDS:
+        m = SEED_SQL.match(sql)
+        table_name, cols = m.group(1), [c.strip() for c in m.group(2).split(",")]
+        table = Base.metadata.tables[table_name]
+        conn.execute(insert(table), [dict(zip(cols, row)) for row in rows])
 
 
 # ---------------------------------------------------------------------------
@@ -78,19 +95,10 @@ SOURCES = {
 
 
 def topo_sort(items, key_of, deps_of, what):
-    """의존 대상이 먼저 오도록 정렬한다(위상 정렬).
-
-    "지금 넣을 수 있는 것"(= 의존 대상이 전부 처리된 것)만 골라 넣기를 반복한다.
-    아무것도 못 고르는 순간이 오면 **순환**이거나 없는 대상을 가리키는 것이라 세운다.
-    조용히 넘어가면 나중에 IntegrityError 로 터지고, 그때는 원인이 안 보인다.
-
-        items    : 정렬할 것들
-        key_of(x): x 의 식별자
-        deps_of(x): x 보다 먼저 있어야 하는 식별자들 (set)
-
-    테이블 순서와 행 순서 양쪽에 쓴다. 같은 문제라서 코드를 두 벌 두지 않는다.
+    """의존 대상이 먼저 오도록 정렬한다(위상 정렬). 테이블 순서 자체는 SQLAlchemy 가 계산해주지만,
+    한 테이블 안의 자기참조 행 순서(allergen.parent_id)는 이걸로 직접 푼다.
     """
-    pending = list(range(len(items)))  # 인덱스로 다룬다 — dict 행끼리 == 비교를 피한다
+    pending = list(range(len(items)))
     done, out = set(), []
     while pending:
         ready = [i for i in pending if deps_of(items[i]) <= done]
@@ -106,122 +114,72 @@ def topo_sort(items, key_of, deps_of, what):
     return out
 
 
-def parent_tables(con, table):
-    """이 테이블의 FK 가 가리키는 **다른** 테이블들.
-
-    자기참조(allergens.parent_id -> allergens)는 뺀다. 테이블 레벨에 두면 자기 자신을
-    기다리느라 위상 정렬이 멈춘다. 자기참조는 행 레벨(order_rows_parents_first)이 맡는다.
-    """
-    return {row[2] for row in con.execute(f'PRAGMA foreign_key_list("{table}")') if row[2] != table}
+def resolve_order(names):
+    """Base.metadata.sorted_tables 가 FK 기준으로 이미 위상 정렬해서 돌려준다."""
+    return [t.name for t in Base.metadata.sorted_tables if t.name in names]
 
 
-def resolve_order(con, sources):
-    """적재 순서를 DB 에게 물어서 계산한다.
-
-    DDL 에 이미 정답이 들어 있다 — PRAGMA foreign_key_list 가 "이 테이블이 무엇을
-    참조하는가"를 알려주므로, 그 그래프를 위상 정렬하면 순서가 나온다.
-
-    적재 대상이 아닌 부모(코드 SEEDS 로 이미 채워진 animal_categories 등)는 조건에서 뺀다.
-    이미 있는 것을 기다릴 이유가 없다.
-    """
-    names = set(sources)
-    tables = sorted(names)  # 정렬해 두면 순서 계산이 결정적이다
-    return topo_sort(tables, lambda t: t, lambda t: parent_tables(con, t) & names, "테이블 적재 순서")
+def self_fk_column(table):
+    """이 테이블 자신을 참조하는 FK 컬럼명. 없으면 None."""
+    for col in table.columns:
+        for fk in col.foreign_keys:
+            if fk.column.table.name == table.name:
+                return col.name
+    return None
 
 
-def print_order(con, order):
-    """계산된 순서와 그 근거(무엇을 기다리는가)를 보여준다."""
-    print("\n[적재 순서] FK 관계에서 계산 — 손으로 적은 목록이 아니다")
-    names = set(order)
-    for i, t in enumerate(order, 1):
-        deps = sorted(parent_tables(con, t) & names)
-        outside = sorted(parent_tables(con, t) - names)
-        why = f"  <- {', '.join(deps)}" if deps else ""
-        seeded = f"   (시드 참조: {', '.join(outside)})" if outside else ""
-        self_ref = "  [자기참조]" if self_fk_column(con, t) else ""
-        print(f"  {i:>2}. {t:28}{why}{self_ref}{seeded}")
+def order_rows_parents_first(rows, pk, fk):
+    """자기참조 테이블(allergen)의 행을 부모부터 나오도록 정렬한다."""
+    return topo_sort(rows, lambda r: r[pk], lambda r: {r[fk]} if r[fk] else set(), f"{fk} 행 순서")
 
 
 # ---------------------------------------------------------------------------
 
 
-def columns_of(con, table):
-    """{컬럼명: (notnull, 기본값있음)}. 헤더 검증에 쓴다."""
-    return {
-        row[1]: (bool(row[3]), row[4] is not None or bool(row[5]))
-        for row in con.execute(f'PRAGMA table_info("{table}")')
-    }
-
-
-def self_fk_column(con, table):
-    """자기 자신을 참조하는 FK 컬럼명. 없으면 None."""
-    for row in con.execute(f'PRAGMA foreign_key_list("{table}")'):
-        if row[2] == table:
-            return row[3]
-    return None
-
-
-def order_rows_parents_first(rows, pk, fk):
-    """자기참조 테이블의 **행**을 부모부터 나오도록 정렬한다.
-
-    allergens 는 parent_id 로 자기를 가리키고 FK 검증이 켜져 있으므로, 자식이 먼저
-    INSERT 실패한다. CSV 를 손으로 편집하다가 행 순서가 바뀌는 것은 상관 없다.
-
-    테이블 순서와 같은 문제이므로 같은 topo_sort() 를 쓴다.
-    """
-    return topo_sort(rows, lambda r: r[pk], lambda r: {r[fk]} if r[fk] else set(), f"{fk} 행 순서")
-
-
-def load_table(con, table, path):
+def load_table(conn, table_name, path):
     if not path.exists():
-        raise FileNotFoundError(f"{path} 가 없다. py src/make_data/gen_seed.py 를 먼저 돌린다.")
+        raise FileNotFoundError(f"{path} 가 없다. python -m pipeline.make_data.gen_seed 를 먼저 돌린다.")
 
     with path.open(encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f)
         header = reader.fieldnames or []
         rows = list(reader)
 
-    # --- 헤더 검증 ---
-    # 옛 load_db.py 에 이 검사를 넣은 이유가 그대로 유효하다. pet_purchases.csv 가
-    # 10 -> 17 컬럼으로 갱신됐을 때 로더가 에러 없이 조용히 깨진 이력이 있다.
-    cols = columns_of(con, table)
+    table = Base.metadata.tables[table_name]
+    cols = {c.name: (not c.nullable, c.default is not None or c.server_default is not None) for c in table.columns}
+
+    # --- 헤더 검증 --- CSV 컬럼이 스키마와 어긋나면 조용히 깨지는 대신 여기서 막는다.
     unknown = [c for c in header if c not in cols]
     if unknown:
-        raise ValueError(f"{path.name}: {table} 에 없는 컬럼 {unknown}")
+        raise ValueError(f"{path.name}: {table_name} 에 없는 컬럼 {unknown}")
     missing = [
         c for c, (notnull, has_default) in cols.items() if c not in header and notnull and not has_default
     ]
     if missing:
         raise ValueError(f"{path.name}: NOT NULL 인데 CSV 에 없는 컬럼 {missing}")
 
-    # 자기참조 테이블은 행 순서도 맞춰야 한다. 테이블 순서만으로는 부족하다.
-    fk = self_fk_column(con, table)
+    # 자기참조 테이블은 행 순서도 맞춰야 한다.
+    fk = self_fk_column(table)
     if fk:
-        pk = [r[1] for r in con.execute(f'PRAGMA table_info("{table}")') if r[5]][0]
+        pk = list(table.primary_key.columns)[0].name
         rows = order_rows_parents_first(rows, pk, fk)
 
-    # INSERT 문은 CSV 헤더에서 만든다. 컬럼 목록을 코드에 또 적지 않는다 —
-    # 적으면 스키마가 바뀔 때 세 군데(DDL / CSV / 여기)를 맞춰야 한다.
-    sql = f'INSERT INTO "{table}" ({", ".join(header)}) VALUES ({", ".join("?" * len(header))})'
-    # 빈 칸 -> NULL 이 유일한 변환이다. 숫자 캐스팅은 STRICT 가 이미 한다.
-    con.executemany(sql, [[r[c] if r[c] != "" else None for c in header] for r in rows])
+    # 빈 칸 -> NULL 이 유일한 변환이다. 숫자 캐스팅은 DB 가 INSERT 시점에 검증한다.
+    dict_rows = [{c: (r[c] if r[c] != "" else None) for c in header} for r in rows]
+    conn.execute(insert(table), dict_rows)
 
     omitted = [c for c in cols if c not in header]
     note = f"   (기본값에 맡긴 컬럼: {', '.join(omitted)})" if omitted else ""
-    print(f"  {table:30} {len(rows):>6}행{note}")
+    print(f"  {table_name:30} {len(rows):>6}행{note}")
     return len(rows)
 
 
-def verify(con):
-    """적재 후 검사. 여기를 통과해야 데이터가 쓸 수 있는 상태다."""
-    broken = con.execute("PRAGMA foreign_key_check").fetchall()
-    if broken:
-        raise RuntimeError(f"FK 위반 {len(broken)}건: {broken[:5]}")
-    print("\nFK 위반 0건")
-
-    # 판정 3분법이 세 값 다 나오는가. 한 종류로 쏠려 있으면 이 데이터로는
-    # 알러지 배제 로직을 시험할 수 없다 — 스키마는 멀쩡한데 검증만 헛돈다.
-    verdicts = dict(con.execute("SELECT verdict, count(*) FROM v_product_safety GROUP BY verdict").fetchall())
+def verify(conn):
+    """적재 후 검사. 여기를 통과해야 데이터가 쓸 수 있는 상태다.
+    FK 위반은 Postgres 가 INSERT 시점에 즉시 거부하므로(SQLite 의 사후 PRAGMA 검사와 다르다)
+    여기서는 데이터 분포만 본다.
+    """
+    verdicts = dict(conn.execute(text("SELECT verdict, count(*) FROM v_product_safety GROUP BY verdict")).all())
     print(
         "v_product_safety 전체: "
         + " / ".join(f"{v} {verdicts.get(v, 0)}쌍" for v in ("Safe", "None", "WARN"))
@@ -229,46 +187,43 @@ def verify(con):
     if len(verdicts) < 3:
         print(f"[경고] verdict 가 {len(verdicts)}종류뿐이다. 3분법을 시험할 수 없는 데이터다.")
 
-    # 특정 펫 하나를 걸고 쓰는 것이 이 뷰의 정상 사용법이다(WORK.md 2026-08-24).
-    # 필터 없이 돌리면 56초, pet_id 를 걸면 6ms 였다.
-    (starved,) = con.execute("""
+    starved = conn.execute(text("""
         SELECT count(*) FROM pet pt
          WHERE pt.inactive_at IS NULL
            AND NOT EXISTS (SELECT 1 FROM v_safe_products v WHERE v.pet_id = pt.pet_id)
-    """).fetchone()
-    (active,) = con.execute("SELECT count(*) FROM pet WHERE inactive_at IS NULL").fetchone()
+    """)).scalar()
+    active = conn.execute(text("SELECT count(*) FROM pet WHERE inactive_at IS NULL")).scalar()
     print(f"활성 펫 {active}마리 중 Safe 후보 0개인 펫 {starved}마리")
-    if starved > active * 0.1:
+    if active and starved > active * 0.1:
         print("[경고] 후보가 비는 펫이 너무 많다. 알러지를 상위 노드로 너무 자주 고르고 있다.")
 
 
 def main():
     keep = "--keep" in sys.argv
 
-    if keep:
-        print(f"기존 스키마 유지: {DB_PATH.name}")
-    else:
-        print(f"스키마 재생성: {DB_PATH.name}")
-        create_schema(str(DB_PATH), verbose=False)
+    with engine.begin() as conn:
+        if keep:
+            print("기존 스키마 유지")
+        else:
+            print("스키마 재생성 (Supabase)")
+            drop_views(conn)
+            Base.metadata.drop_all(conn)
+            Base.metadata.create_all(conn)
+            create_views(conn)
+            seed_lookup_tables(conn)
 
-    con = sqlite3.connect(DB_PATH)
-    try:
-        con.execute("PRAGMA foreign_keys = ON")
-
-        # 무엇을 먼저 넣어야 하는지 DB 에게 물어서 정한다.
-        order = resolve_order(con, SOURCES)
-        print_order(con, order)
+        order = resolve_order(set(SOURCES))
+        print("\n[적재 순서] FK 관계에서 계산 — 손으로 적은 목록이 아니다")
+        for i, t in enumerate(order, 1):
+            print(f"  {i:>2}. {t}")
 
         print("\n[적재]")
         total = 0
-        # 전부 한 트랜잭션이다. 중간에 터지면 아무것도 안 들어간 상태로 남는다.
-        with con:
-            for table in order:
-                total += load_table(con, table, SOURCES[table])
+        for table_name in order:
+            total += load_table(conn, table_name, SOURCES[table_name])
         print(f"  {'합계':30} {total:>6}행")
-        verify(con)
-    finally:
-        con.close()
+
+        verify(conn)
 
 
 if __name__ == "__main__":

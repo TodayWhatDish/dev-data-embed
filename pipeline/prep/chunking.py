@@ -17,16 +17,24 @@ RecursiveCharacterTextSplitter만 사용한다.
 
 import sqlite3
 
+from app.core.config import EMBED_PROVIDER, EMBED_TOKENIZER, PASSAGE_PREFIX
+
+# transformers/sentence_transformers는 provider='st'(로컬)에서만 깔린다 (pyproject.toml 'local'
+# 그룹) - openai 배포 이미지엔 없으므로 그쪽 경로에서만, 그쪽 경로에서만 import 한다.
+#
 # ponytail: sentence_transformers 를 langchain_text_splitters 보다 먼저 import 해야 한다.
 # 이 순서를 지키지 않으면 numpy/pyarrow 조합에서 프로세스가 그대로 죽는다(access violation) -
 # langchain_text_splitters/__init__.py 가 내부적으로 sentence_transformers 를 다시 물고 들어오는데,
 # 그게 처음 초기화되는 순간이면 죽고 이미 한 번 초기화돼 있으면 안 죽는다. 라이브러리 버전을
 # 올리다 다시 죽으면 이 줄부터 의심할 것.
-import sentence_transformers  # noqa: F401
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from transformers import AutoTokenizer
+if EMBED_PROVIDER != "openai":
+    import sentence_transformers  # noqa: F401
 
-from app.core.config import EMBED_PROVIDER, EMBED_TOKENIZER, PASSAGE_PREFIX
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+if EMBED_PROVIDER != "openai":
+    from transformers import AutoTokenizer
+
 from pipeline.prep.options import CHUNK_OVERLAP, CHUNK_SIZE, SEPARATORS
 
 _tokenizer = None

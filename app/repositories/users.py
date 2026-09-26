@@ -1,21 +1,21 @@
-# Last updated: 2026-09-03
-# Last Updated : 2026-09-01
+# Last updated: 2026-09-13
 
 """user 테이블에 연결되는 곳. 관리자 화면용 고객 조회."""
 
-from app.core.db import fetch, fetch_one
-from app.repositories.general_query.insert import insert_query
+from app.core.db import fetch, fetch_one, get_session
+from app.models.user import User
 
 
 def find_user_by_email(email: str) -> dict | None:
     """로그인/가입 시 이메일 중복 확인. email 은 UNIQUE라 최대 한 행."""
-    return fetch_one("SELECT user_id, password_hash FROM user WHERE email = ?", (email,))
+    return fetch_one('SELECT user_id, password_hash FROM "user" WHERE email = %s', (email,))
 
 
 def create_user(
     email: str, name: str, password_hash: str, phone: str | None = None, region: str | None = None
 ) -> int:
-    """local 회원가입. auth_uid는 로컬 계정엔 별도 외부 ID가 없어 email을 그대로 쓴다."""
+    """local 회원가입. auth_uid는 로컬 계정엔 별도 외부 ID가 없어 email을 그대로 쓴다.
+    커밋하지 않는다(flush 로 user_id 만 받는다) - 가입 전체를 부른 쪽 transaction() 이 한 번에 커밋한다."""
     values = {
         "auth_provider": "local",
         "auth_uid": email,
@@ -27,32 +27,29 @@ def create_user(
         values["phone"] = phone
     if region:
         values["region"] = region
-    return insert_query("user", values)
+    user = User(**values)
+    session = get_session()
+    session.add(user)
+    session.flush()
+    return user.user_id
 
 
 def list_users() -> list[dict]:
     """관리자 화면 왼쪽 목록용. 고객 전체를 이름순으로.
 
-    # return fetch("""
-    #     SELECT user_id, name, email, region, created_at
-    #     FROM user
-    #     ORDER BY name
-    # """)
-
-    """
     species는 이 고객이 키우는 반려동물 종을 콤마로 합친 값(예: "개,고양이") - 목록에서
     강아지/고양이/모두 카테고리를 나누는 데 쓴다. gender/birth_date는 첫 번째로 등록된
     반려동물의 것이다 (사람 성별·나이가 아니다 - user 테이블엔 그 둘이 없다).
     """
     return fetch("""
         SELECT u.user_id, u.name, u.email, u.region, u.created_at,
-               (SELECT GROUP_CONCAT(DISTINCT ac.name_ko)
+               (SELECT STRING_AGG(DISTINCT ac.name_ko, ',')
                   FROM pet AS pe
                   JOIN animal_category AS ac ON ac.animal_category_id = pe.animal_category_id
                  WHERE pe.user_id = u.user_id) AS species,
                (SELECT pe.gender FROM pet AS pe WHERE pe.user_id = u.user_id ORDER BY pe.pet_id LIMIT 1) AS gender,
                (SELECT pe.birth_date FROM pet AS pe WHERE pe.user_id = u.user_id ORDER BY pe.pet_id LIMIT 1) AS birth_date
-        FROM user AS u
+        FROM "user" AS u
         ORDER BY u.name
     """)
 
@@ -62,7 +59,7 @@ def get_user_detail(user_id: int) -> dict | None:
     user = fetch_one(
         """
         SELECT user_id, name, email, phone, region, created_at, last_login_at
-        FROM user WHERE user_id = ?
+        FROM "user" WHERE user_id = %s
     """,
         (user_id,),
     )
@@ -76,14 +73,14 @@ def get_user_detail(user_id: int) -> dict | None:
         SELECT pe.pet_id, pe.name, ac.name_ko AS animal_category, pe.gender, pe.birth_date,
                pe.weight_kg, pe.neutered, pe.size, pe.activity_level,
                ps.diet_note, ps.skin_note,
-               (SELECT GROUP_CONCAT(al.name_ko)
+               (SELECT STRING_AGG(al.name_ko, ',')
                   FROM pet_allergy AS pa
                   JOIN allergen AS al ON al.allergen_id = pa.allergen_id
                  WHERE pa.pet_id = pe.pet_id) AS allergies
         FROM pet AS pe
         JOIN animal_category AS ac ON ac.animal_category_id = pe.animal_category_id
         LEFT JOIN pet_survey AS ps ON ps.pet_id = pe.pet_id
-        WHERE pe.user_id = ?
+        WHERE pe.user_id = %s
     """,
         (user_id,),
     )
@@ -99,7 +96,7 @@ def get_user_detail(user_id: int) -> dict | None:
         JOIN pet AS pe ON pe.pet_id = pu.pet_id
         JOIN product AS p ON p.product_id = pu.product_id
         LEFT JOIN review AS r ON r.purchase_id = pu.purchase_id
-        WHERE pe.user_id = ?
+        WHERE pe.user_id = %s
         ORDER BY pu.purchased_at DESC
     """,
         (user_id,),

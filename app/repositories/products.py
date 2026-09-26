@@ -1,12 +1,22 @@
 import logging
 
-from app.core.db import QueryError
-from app.repositories.general_query import insert_query, select, select_all, select_range, update_query
+from sqlalchemy.exc import IntegrityError
 
-# 단일 테이블 + = 조건인 쿼리는 general_query 로 간다. SQL 을 손으로 쓰지 않는 것보다,
-# 컬럼 이름이 틀렸을 때 QueryError('unknown_column') 로 통일되는 게 크다 —
-# services/products.py 의 CLIENT_FAULT 표가 reason 을 보고 HTTP 상태를 정하기 때문이다.
-# 조인·집계는 general_query 가 못 만들어서 아래에도 SQL 이 그대로 남아 있다.
+from app.core.db import QueryError, as_dict, as_query_error, commit, get_session
+from app.models.product import (
+    FeedingPurpose,
+    Ingredient,
+    IngredientAllergen,
+    Product,
+    ProductAnimalCategory,
+    ProductCategory,
+    ProductFeedingPurpose,
+    ProductIngredient,
+    ProductNutrition,
+)
+
+# 단일 테이블 CRUD 는 ORM(session.query/add)으로 간다. 조인·집계는 ORM 이 못 만들어서 아래에도
+# fetch/fetch_tuples 로 짠 SQL 이 남아 있었는데, products 쪽엔 그런 자리가 없어 전부 ORM 이다.
 
 # def get_product_detail_info():
 #     fetch_tuples("""
@@ -26,48 +36,53 @@ from app.repositories.general_query import insert_query, select, select_all, sel
 
 
 def get_product_categories():
-    return select_all("product_category")
+    rows = get_session().query(ProductCategory).all()
+    return [as_dict(row) for row in rows]
 
 
 def get_feeding_purposes():
-    return select_all("feeding_purpose")
+    rows = get_session().query(FeedingPurpose).all()
+    return [as_dict(row) for row in rows]
 
 
 def get_ingredients():
-    return select_all("ingredient")
+    rows = get_session().query(Ingredient).all()
+    return [as_dict(row) for row in rows]
 
 
 # 아래는 임베딩 문장 재료. 이름은 마스터 캐시에 있으니 관계 테이블에서 id 만 긁어온다.
 # 1:N 이라 조인하지 않고 전량 스캔 -> domain 에서 product_id 로 묶는다 (합쳐서 1500행 남짓)
-#
-# 예전엔 컬럼 두 개만 뽑으려고 fetch_tuples 로 SQL 을 직접 썼다. select_all 이 cols 를 받게
-# 되면서 그 이유가 없어졌다 - 컬럼 이름이 붙어 오니 받는 쪽이 자리로 풀지 않아도 된다
 
 
 def get_products():
-    return select("product", {"is_active": 1})
+    rows = get_session().query(Product).filter_by(is_active=1).all()
+    return [as_dict(row) for row in rows]
 
 
 def get_product_animal_category_ids():
-    return select_all("product_animal_category", None, ["product_id", "animal_category_id"])
+    rows = get_session().query(ProductAnimalCategory).all()
+    return [as_dict(row) for row in rows]
 
 
 def get_product_feeding_purpose_ids():
-    return select_all("product_feeding_purpose", None, ["product_id", "feeding_purpose_id"])
+    rows = get_session().query(ProductFeedingPurpose).all()
+    return [as_dict(row) for row in rows]
 
 
 def get_product_ingredient_ids():
-    return select_all("product_ingredient", None, ["product_id", "ingredient_id"])
+    rows = get_session().query(ProductIngredient).all()
+    return [as_dict(row) for row in rows]
 
 
 def get_product_nutritions():
-    return select_all("product_nutrition")
+    rows = get_session().query(ProductNutrition).all()
+    return [as_dict(row) for row in rows]
 
 
 def find_by_id(product_id: int) -> dict | None:
     """상품 한 건 조회. 없으면 None (예외가 아니다 — 부른 쪽이 404 를 정한다)"""
-    rows = select("product", {"product_id": product_id})
-    return rows[0] if rows else None
+    row = get_session().query(Product).filter_by(product_id=product_id).first()
+    return as_dict(row) if row else None
 
 
 def find_page(page: int, size: int) -> list[dict]:
@@ -81,45 +96,92 @@ def find_page(page: int, size: int) -> list[dict]:
     음수 OFFSET 이 0 으로 조용히 해석돼서 잘못된 요청이 티가 안 났다.
     """
     offset = page * size
-    try:
-        products = select_range("product", {}, size, offset, [("product_id", "ASC")])
-    except QueryError as e:
-        # 거절 사유와 실제로 계산된 offset 을 아는 건 여기다. services 는 page/size 만 안다
+    if size < 1:
+        err = QueryError("bad_range", "product", f"size={size}")
+    elif offset < 0:
+        err = QueryError("bad_range", "product", f"offset={offset}")
+    else:
+        err = None
+
+    if err:
         logging.getLogger().warning(
-            f"Reject find_page: reason={e.reason}, page={page}, size={size}, offset={offset}, detail={e.detail}"
+            f"Reject find_page: reason={err.reason}, page={page}, size={size}, "
+            f"offset={offset}, detail={err.detail}"
         )
-        raise  # 인자 없는 raise 여야 원래 트레이스백이 안 날아간다
+        raise err
+
+    rows = (
+        get_session()
+        .query(Product)
+        .order_by(Product.product_id.asc())
+        .limit(size)
+        .offset(offset)
+        .all()
+    )
+    products = [as_dict(row) for row in rows]
 
     logging.getLogger().debug(f"Find page product, page: {page}, size: {size}, rows: {len(products)}")
     return products
 
 
+def _check_columns(table: str, model, values: dict) -> None:
+    """컬럼 이름은 관리자 PATCH 로 자유 입력이 들어오는 자리라 모델 컬럼인지 미리 본다.
+
+    ORM 은 테이블 이름을 동적으로 안 받으니 unknown_table 은 더 이상 있을 수 없는 사유다.
+    """
+    unknown = values.keys() - {c.name for c in model.__table__.columns}
+    if unknown:
+        raise QueryError("unknown_column", table, sorted(unknown))
+
+
 def insert(values: dict) -> int:
     """상품 한 건을 등록하고 새로 생긴 product_id를 돌려준다.
 
-    거절당하면 QueryError 가 올라온다. 사유를 아는 건 execute 인데 무엇을 넣으려 했는지
+    거절당하면 QueryError 가 올라온다. 사유를 아는 건 commit() 인데 무엇을 넣으려 했는지
     아는 건 여기라, 로그는 여기서 찍고 예외는 그대로 위로 넘긴다.
     """
     try:
-        product_id = insert_query("product", values)
+        if not values:
+            raise QueryError("no_values", "product")
+        _check_columns("product", Product, values)
+
+        product = Product(**values)
+        session = get_session()
+        session.add(product)
+        commit("product")
     except QueryError as e:
         logging.getLogger().warning(
             f"Reject insert product: reason={e.reason}, cols={list(values.keys())}, detail={e.detail}"
         )
         raise  # 인자 없는 raise 여야 원래 트레이스백이 안 날아간다
 
-    logging.getLogger().debug(f"Insert product, product_id: {product_id}, cols: {list(values.keys())}")
-    return product_id
+    logging.getLogger().debug(f"Insert product, product_id: {product.product_id}, cols: {list(values.keys())}")
+    return product.product_id
 
 
 def update_product(product_id: int, values: dict) -> int:
     """상품 한 건을 수정하고 고친 행 수를 돌려준다. 없는 id 면 예외가 아니라 0 이다.
 
-    거절당하면 QueryError 가 올라온다. 사유를 아는 건 general_query 인데 어느 테이블 몇 번인지
+    거절당하면 QueryError 가 올라온다. 사유를 아는 건 commit() 인데 어느 테이블 몇 번인지
     아는 건 여기라, 로그는 여기서 찍고 예외는 그대로 위로 넘긴다.
     """
     try:
-        return update_query("product", values, {"product_id": product_id})
+        if not values:
+            raise QueryError("no_values", "product")
+        _check_columns("product", Product, values)
+
+        session = get_session()
+        try:
+            # Query.update() 는 flush 를 기다리지 않고 그 자리에서 UPDATE 를 실행한다 -
+            # CHECK 위반이 여기서 바로 터진다 (commit() 이 잡는 자리가 아니다)
+            rowcount = session.query(Product).filter_by(product_id=product_id).update(
+                values, synchronize_session=False
+            )
+        except IntegrityError as e:
+            session.rollback()
+            raise as_query_error(e, "product") from e
+        commit("product")
+        return rowcount
     except QueryError as e:
         logging.getLogger().warning(
             f"Reject update product: reason={e.reason}, product_id={product_id}, detail={e.detail}"
@@ -137,4 +199,5 @@ def inactive_product(product_id: int) -> int:
 
 
 def get_ingredient_allergen_ids():
-    return select_all("ingredient_allergen", None, ["ingredient_id", "allergen_id"])
+    rows = get_session().query(IngredientAllergen).all()
+    return [as_dict(row) for row in rows]

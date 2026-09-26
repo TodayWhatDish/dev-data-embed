@@ -1,35 +1,24 @@
-# Last updated: 2026-09-03
-# Last Updated : 2026-09-03
+# Last Updated: 2026-09-25
 
 """일반 회원 가입/로그인 - admin_auth.py와 같은 급의 파일이다.
 
-회원가입은 계정(user) + 반려동물(pet) 두 행을 만든다. 두 insert는 각자 따로 커밋된다
-(app/core/db.py의 execute()가 호출마다 커밋) - user는 만들어졌는데 pet insert만 실패하는
-경우가 이론적으로 남는다. 이 프로젝트 규모에선 감내하고, 문제되면 트랜잭션으로 묶을 것.
+회원가입은 user · pet · pet_allergy · pet_survey 를 한 트랜잭션(core/db.transaction)으로 넣는다 -
+중간에 하나라도 실패하면 전부 롤백돼 반쪽 계정이 남지 않는다.
+이메일 중복은 미리 조회하지 않고 unique 제약 위반으로 판정한다 - 조회와 insert 사이에
+같은 이메일 가입이 끼어드는 경쟁을 DB 가 막아준다.
 """
 
-from datetime import datetime, timedelta, timezone
-
-import bcrypt
-import jwt
-
-from app.core.config import JWT_ALGORITHM, JWT_EXPIRE_MINUTES, JWT_SECRET
+from app.core.db import QueryError, transaction
+from app.core.exceptions import Conflict, InvalidInput, Unauthorized
+from app.core.security import create_access_token, hash_password, verify_password
 from app.domain.common import CommonMgr
 from app.repositories.pet import add_pet_allergies, create_pet, save_pet_survey
 from app.repositories.users import create_user, find_user_by_email
 
 # animal_category_id 1 = '개'(common_schema.py 시드값). pet_species를 안 주거나 못 찾으면 이 값으로 대체한다.
 DOG_CATEGORY_ID = 1
-
-
-def _issue_token(user_id: int) -> str:
-    """user_id를 담아 JWT를 발급한다. signup/login 둘 다 여기로 모은다."""
-    expire = datetime.now(timezone.utc) + timedelta(minutes=JWT_EXPIRE_MINUTES)
-    return jwt.encode(
-        {"role": "user", "sub": str(user_id), "exp": expire},
-        JWT_SECRET,
-        algorithm=JWT_ALGORITHM,
-    )
+# bcrypt 는 72바이트까지만 받고 넘으면 ValueError 를 던진다(bcrypt 5.x) - 글자 수가 아니라 바이트라 한글은 24자에서 걸린다.
+MAX_PASSWORD_BYTES = 72
 
 
 def signup(
@@ -49,43 +38,52 @@ def signup(
     skin_note: str | None = None,
     pet_species: str | None = None,
 ) -> str:
-    """이메일 중복이면 ValueError. 통과하면 계정 + 강아지 펫 프로필을 만들고 바로 JWT를 발급한다."""
-    if find_user_by_email(email):
-        raise ValueError("이미 가입된 이메일입니다.")
-
-    password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-    user_id = create_user(email, name, password_hash, phone, region)
+    """이메일 중복이면 Conflict. 비밀번호가 72바이트를 넘으면 InvalidInput.
+    통과하면 계정 + 강아지 펫 프로필을 만들고 바로 JWT를 발급한다."""
+    if len(password.encode()) > MAX_PASSWORD_BYTES:
+        raise InvalidInput("비밀번호가 너무 깁니다.")
+    password_hash = hash_password(password)
     # 축종을 안 주거나 못 찾은 이름이면 기존 동작(강아지)으로 유지 - 하위 호환
     animal_category_id = CommonMgr.get_inst().resolve_animal_category_id(pet_species) or DOG_CATEGORY_ID
-    pet_id = create_pet(
-        user_id,
-        animal_category_id,
-        pet_name,
-        gender=pet_gender,
-        birth_date=pet_birth_date,
-        weight_kg=pet_weight_kg,
-        size=pet_size,
-        activity_level=pet_activity_level,
-    )
+    try:
+        with transaction("user"):
+            user_id = create_user(email, name, password_hash, phone, region)
+            pet_id = create_pet(
+                user_id,
+                animal_category_id,
+                pet_name,
+                gender=pet_gender,
+                birth_date=pet_birth_date,
+                weight_kg=pet_weight_kg,
+                size=pet_size,
+                activity_level=pet_activity_level,
+            )
 
-    if pet_allergies:
-        allergen_ids = CommonMgr.get_inst().resolve_allergen_ids(pet_allergies)
-        if allergen_ids:
-            add_pet_allergies(pet_id, allergen_ids)
+            if pet_allergies:
+                allergen_ids = CommonMgr.get_inst().resolve_allergen_ids(pet_allergies)
+                if allergen_ids:
+                    add_pet_allergies(pet_id, allergen_ids)
 
-    if diet_note or skin_note:
-        save_pet_survey(pet_id, diet_note, skin_note)
+            if diet_note or skin_note:
+                save_pet_survey(pet_id, diet_note, skin_note)
+    except QueryError as e:
+        # 가입에서 unique 가 걸리는 건 user.email / (auth_provider, auth_uid=email) 뿐이다
+        # (알러지 id 는 set 이라 pet_allergy PK 는 안 겹친다)
+        if e.reason == "constraint_unique":
+            raise Conflict("이미 가입된 이메일입니다.") from e
+        raise
 
-    return _issue_token(user_id)
+    return create_access_token("user", str(user_id))
 
 
 def login(email: str, password: str) -> str:
-    """이메일/비밀번호 검증하고 JWT 발급. 틀리면 ValueError."""
+    """이메일/비밀번호 검증하고 JWT 발급. 틀리면(72바이트 초과 포함) Unauthorized."""
     user = find_user_by_email(email)
     if (
-        not user
+        len(password.encode()) > MAX_PASSWORD_BYTES
+        or not user
         or not user["password_hash"]
-        or not bcrypt.checkpw(password.encode(), user["password_hash"].encode())
+        or not verify_password(password, user["password_hash"])
     ):
-        raise ValueError("이메일 또는 비밀번호가 틀립니다.")
-    return _issue_token(user["user_id"])
+        raise Unauthorized("이메일 또는 비밀번호가 틀립니다.")
+    return create_access_token("user", str(user["user_id"]))

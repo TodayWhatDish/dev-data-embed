@@ -14,10 +14,9 @@ FAST API 코드자체는 요청에 따른 함수 콜백만 정의할 뿐, 소켓
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# jwt(PyJWT의 cryptography 백엔드)가 torch(sentence-transformers)보다 먼저 로드되면
-# 같은 프로세스에서 네이티브 라이브러리끼리 충돌해 임포트 시점에 세그폴트(exit 139)가 난다 -
-# 어떤 라우터가 jwt를 먼저 물기 전에 torch를 먼저 로드해 둔다.
-import app.core.embedder  # noqa: F401
+from app.core.config import FRONTEND_ORIGINS
+from app.core.db import request_scope
+from app.core.exceptions import AppError
 
 from app.api.routes.admin_auth import router as admin_auth_router
 from app.api.routes.ask import router as ask_router
@@ -34,12 +33,35 @@ init_logger()
 from app.api.lifespan import lifespan
 from app.api.routes.recommend import router as recommend_router
 
-app = FastAPI(lifespan=lifespan)
+from app.api.errors import app_error_handler
 
-# dev-web(Next.js, 별도 저장소)이 다른 오리진에서 API를 부른다 - 배포 도메인 정해지면 추가.
+
+
+class SessionPerRequest:
+    """요청마다 DB 세션을 따로 쓰고, 응답이 끝나면 닫는다 (app/core/db.py 의 request_scope).
+    yield 의존성(get_db)이 아니라 미들웨어인 이유: 의존성의 정리 코드는 StreamingResponse(/ask)가
+    끝나기 전에 돌아서, 스트리밍 중에 쓰는 세션을 못 닫는다."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        async with request_scope():
+            await self.app(scope, receive, send)
+
+
+app = FastAPI(lifespan=lifespan)
+app.add_exception_handler(AppError, app_error_handler)
+app.add_middleware(SessionPerRequest)
+
+# dev-web(Next.js, 별도 저장소)이 다른 오리진에서 API를 부른다.
+# 허용 오리진은 app.core.config.FRONTEND_ORIGINS(env FRONTEND_ORIGINS)에서 온다 -
+# 배포 도메인은 코드가 아니라 배포 플랫폼의 환경변수로 넣는다.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=FRONTEND_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -55,9 +77,3 @@ app.include_router(customers_router)
 app.include_router(background_router)
 app.include_router(purchases_router)
 app.include_router(questions_router)
-
-
-@app.get("/health")
-def health():
-    """서버가 살아있는지 확인하는 Health Check. 배포 환경에서 로드밸런서(load balancer)가 주기적으로 호출"""
-    return {"status": "ok"}
