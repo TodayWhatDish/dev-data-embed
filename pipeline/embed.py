@@ -29,8 +29,17 @@ from app.services.embedding_sync import sync
 
 
 def fetch_chunks(conn):
-    """색인 대상 조각을 chunks 테이블에서 읽어온다.
-    chunk.py가 먼저 돌아 chunks 테이블을 만들어둔 상태여야 한다."""
+    """
+    # Summary
+    * 색인 대상 조각을 chunks 테이블에서 읽어온다
+    # info
+    * chunk.py가 먼저 돌아 chunks 테이블을 만들어둔 상태여야 한다
+    # params
+    * conn: 읽을 DB 커넥션
+    # examples
+    * conn -> chunks 테이블을 (purchase_id, chunk_index) 순으로 SELECT
+    * -> [{purchase_id, chunk_index, body, n_tokens}, ...]
+    """
     table = Base.metadata.tables["chunks"]
     stmt = select(table.c.purchase_id, table.c.chunk_index, table.c.body, table.c.n_tokens).order_by(
         table.c.purchase_id, table.c.chunk_index

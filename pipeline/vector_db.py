@@ -6,5 +6,13 @@ from app.core.db import engine
 
 
 def connect():
-    """요청/스크립트 하나가 쓸 DB 커넥션을 연다. app.state.con(API) 또는 CLI/eval의 with 블록이 닫는다."""
+    """
+    # Summary
+    * 요청/스크립트 하나가 쓸 DB 커넥션을 연다
+    # info
+    * app.state.con(API) 또는 CLI/eval의 with 블록이 닫는다
+    # examples
+    * 인자 없음 -> engine.connect()
+    * -> SQLAlchemy Connection (닫는 건 부르는 쪽)
+    """
     return engine.connect()

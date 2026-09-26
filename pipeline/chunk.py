@@ -68,20 +68,36 @@ FETCH_SQL = f"""
 
 
 def fetch_rows(conn):
-    """자를 대상 리뷰를 펫·상품 정보와 함께 읽어온다. (대상 조건인 INDEX_FILTER는 config.py에 명시)
-
-    새 스키마는 정규화돼 있어 견종/알러지/급여목적이 전부 다대다다.
-    한 리뷰당 여러 행으로 불어나는 걸 STRING_AGG(DISTINCT ...)로 다시 한 줄로 뭉친다.
+    """
+    # Summary
+    * 자를 대상 리뷰를 펫·상품 정보와 함께 읽어온다
+    # info
+    * 대상 조건인 INDEX_FILTER는 config.py에 명시
+    * 새 스키마는 정규화돼 있어 견종/알러지/급여목적이 전부 다대다다.
+      한 리뷰당 여러 행으로 불어나는 걸 STRING_AGG(DISTINCT ...)로 다시 한 줄로 뭉친다
+    # params
+    * conn: 읽을 DB 커넥션
+    # examples
+    * conn -> INDEX_FILTER(is_holdout=0) 리뷰를 펫·상품과 조인, 다대다는 STRING_AGG 로 합침
+    * -> 리뷰당 1행 [{purchase_id, rating, review, breed: '말티즈,푸들', ingredients, ...}, ...]
     """
     return conn.execute(text(FETCH_SQL)).mappings().all()
 
 
 def save_chunks(conn, chunks: list[dict]):
-    """chunks 테이블을 비우고 새로 채운다. 조각과 벡터는 (purchase_id, chunk_index)로 묶인다.
-
-    chunk_vectors가 (purchase_id, chunk_index)로 chunks를 FK 참조하므로, chunks를 먼저 지우면
-    DependentObjectsStillExist로 막힌다 - 옛 벡터도 어차피 새 조각과 안 맞으니 먼저 지운다
-    (재임베딩은 embed.py가 담당, 여기서 새로 만들지 않는다).
+    """
+    # Summary
+    * chunks 테이블을 비우고 새로 채운다. 조각과 벡터는 (purchase_id, chunk_index)로 묶인다
+    # info
+    * chunk_vectors가 (purchase_id, chunk_index)로 chunks를 FK 참조하므로, chunks를 먼저 지우면
+      DependentObjectsStillExist로 막힌다 - 옛 벡터도 어차피 새 조각과 안 맞으니 먼저 지운다
+    * 재임베딩은 embed.py가 담당, 여기서 새로 만들지 않는다
+    # params
+    * conn: 쓸 DB 커넥션 (트랜잭션 안)
+    * chunks: chunking.split_reviews()가 만든 조각 목록
+    # examples
+    * chunks 목록 -> chunk_vectors·chunks 를 DROP 후 chunks 를 다시 만들어 INSERT
+    * -> chunks 테이블이 새 조각으로 교체됨. chunk_vectors 는 비어 있음(embed.py 가 채움)
     """
     Base.metadata.tables["chunk_vectors"].drop(conn, checkfirst=True)
     table = Base.metadata.tables["chunks"]
