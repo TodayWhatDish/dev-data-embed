@@ -7,7 +7,7 @@
              다른 회원 구매 이력을 조회하는 경로가 생긴다.
 """
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 
 from app.api.deps import get_current_admin, get_current_user
@@ -19,15 +19,15 @@ router = APIRouter()
 
 
 @router.post("/ask", dependencies=[Depends(get_current_admin)])
-def ask(body: AskRequest, req: Request):
+def ask(body: AskRequest):
     """관리자 대시보드용. pet_id 가 오면 그 펫의 DB 프로필을 쓰고, 없으면 요청에 직접 적힌 필터를 쓴다."""
-    lines = ask_stream(req.app.state.con, body.user_query, body.pet_id, body.user_id, body.model_dump())
+    lines = ask_stream(body.user_query, body.pet_id, body.user_id, body.model_dump())
     return StreamingResponse(lines, media_type="application/x-ndjson")
 
 
 @router.post("/ask/me")
-def ask_me(body: AskMeRequest, req: Request, user_id: int = Depends(get_current_user)):
+def ask_me(body: AskMeRequest, user_id: int = Depends(get_current_user)):
     """일반 회원용. 로그인한 본인의 첫 번째 펫 프로필로 묻는다."""
     pet = primary_pet(user_id)
-    lines = ask_stream(req.app.state.con, body.user_query, pet["pet_id"] if pet else None, user_id)
+    lines = ask_stream(body.user_query, pet["pet_id"] if pet else None, user_id)
     return StreamingResponse(lines, media_type="application/x-ndjson")

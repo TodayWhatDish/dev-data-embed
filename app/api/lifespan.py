@@ -5,11 +5,10 @@
 main.py 는 앱을 조립하고 라우터를 등록하는 일만 한다(그 파일 독스트링). 기동 시 1회 적재는
 전부 여기로 모은다 — uvicorn 이 요청을 받기 전에 도는 자리가 여기뿐이라서다.
 
-담는 것은 네 가지고, 서로 성격이 다르다:
+담는 것은 세 가지고, 서로 성격이 다르다:
   * 비밀값 검사   : ADMIN_PASSWORD/JWT_SECRET 이 비었거나 짧으면 기동 자체를 막는다
   * 도메인 마스터 : DB 값을 도메인 싱글턴에 얹는다 (알러지/축종/품종/카테고리...)
   * 스키마 확인   : ORM Base.metadata 에 매핑된 테이블이 실제 DB 에도 있는지 기동 때 미리 본다
-  * 벡터 커넥션   : pipeline/vector_db.py 가 여는 별도 SQLAlchemy 커넥션. engine 과 다른 물건이다
 """
 
 import logging
@@ -19,9 +18,8 @@ from fastapi import FastAPI
 from sqlalchemy import inspect
 
 from app.core.config import ADMIN_PASSWORD, JWT_SECRET
-from app.core.db import engine
+from app.core.db import SessionLocal, engine
 from app.domain.domain_init import init_from_db
-from pipeline.vector_db import connect
 
 logger = logging.getLogger()
 
@@ -31,8 +29,11 @@ def load_domain_cache():
 
     이게 없으면 CommonMgr 이 빈 채로 남아 services.profile.resolve_allergy() 가
     첫 요청에서 AttributeError 로 죽는다. 지금까지 fake_main.py 만 이걸 불렀다.
+    요청 밖이라 SessionPerRequest 가 세션을 안 닫아준다 - 직접 닫지 않으면 이 조회의 트랜잭션이
+    서버가 꺼질 때까지 'idle in transaction' 으로 커넥션 하나를 붙잡는다.
     """
     init_from_db()
+    SessionLocal.remove()
 
 
 def load_schema_cache():
@@ -62,7 +63,6 @@ async def lifespan(app: FastAPI):
         check_secrets()
         load_domain_cache()
         load_schema_cache()
-        app.state.con = connect()
     except Exception:
         # 원인은 위 예외 메시지가 말한다. 여기서는 '서버가 안 떴다'는 사실만 남기고 다시 던진다 -
         # 삼키면 설정·캐시가 빈 채로 요청을 받아, 첫 호출에서야 원인에서 먼 곳이 죽는다.
@@ -72,5 +72,4 @@ async def lifespan(app: FastAPI):
     logger.info("Lifespan startup done")
     yield
 
-    app.state.con.close()
     logger.info("Lifespan shutdown done")

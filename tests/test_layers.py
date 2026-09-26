@@ -17,8 +17,6 @@ import pytest
 APP = Path(__file__).resolve().parent.parent / "app"
 
 DOMAIN_EXEMPT = {"domain_init.py"}
-# API 부트스트랩(app.state.con) 자리 하나만 pipeline.connect()를 직접 쓴다 - lifespan.py 독스트링에 그 이유가 적혀있다
-API_PIPELINE_EXEMPT = {"lifespan.py"}
 # candidates()가 con 없이 단독 호출될 때(CLI/eval)의 fallback 하나만 예외
 SERVICES_PIPELINE_EXEMPT = {"searching.py"}
 
@@ -32,8 +30,7 @@ RULES = [
     ("core", ("app.repositories", "app.adapters", "app.services", "app.api", "pipeline", "fastapi"), set()),
     ("adapters", ("app.services", "app.api", "pipeline"), set()),
     ("services", ("app.api", "pipeline"), SERVICES_PIPELINE_EXEMPT),
-    ("api", ("pipeline",), API_PIPELINE_EXEMPT),
-    ("api", ("app.repositories",), set()),
+    ("api", ("pipeline", "app.repositories"), set()),
 ]
 
 

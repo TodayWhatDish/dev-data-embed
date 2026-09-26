@@ -4,7 +4,7 @@
 profile.build_profile() → searching.candidates() → recommending.recommend() 순서로 엮고 RecommendResponse로 돌려준다.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.schemas import RecommendRequest, RecommendResponse
 from app.api.deps import get_current_user
@@ -16,10 +16,10 @@ router = APIRouter()
 
 
 @router.post("/recommend", response_model=RecommendResponse)
-def recommend_route(rreq: RecommendRequest, req: Request) -> RecommendResponse:
+def recommend_route(rreq: RecommendRequest) -> RecommendResponse:
     """profile 구성 -> 후보 검색 -> LLM 추천 순서로 엮는다."""
     profile = build_profile(rreq.model_dump())
-    matches = candidates(profile, rreq.user_query, con=req.app.state.con)
+    matches = candidates(profile, rreq.user_query)
 
     if not matches:
         raise HTTPException(404, "조건에 맞는 후보를 찾지 못했습니다.")
@@ -29,7 +29,7 @@ def recommend_route(rreq: RecommendRequest, req: Request) -> RecommendResponse:
 
 
 @router.get("/me/recommend")
-def my_recommend(req: Request, user_id: int = Depends(get_current_user)) -> dict:
+def my_recommend(user_id: int = Depends(get_current_user)) -> dict:
     """로그인 직후 첫 화면용 추천 - 가입 설문(알러지/식성/피부) 기준.
     로그인마다 불릴 수 있어 LLM(recommend())은 안 태우고 벡터 검색 후보까지만 준다."""
     pet = primary_pet(user_id)
@@ -39,4 +39,4 @@ def my_recommend(req: Request, user_id: int = Depends(get_current_user)) -> dict
     pet_id = pet["pet_id"]
     profile = pet_profile(pet_id)
     query_text = survey_query_text(pet_id)
-    return {"query": query_text, "found": candidates(profile, query_text, limit=5, con=req.app.state.con)}
+    return {"query": query_text, "found": candidates(profile, query_text, limit=5)}

@@ -9,7 +9,7 @@
 
 | 우선순위 | 의미 | 완료 / 전체 |
 |---------|------|------------|
-| P0 | 버그 · 보안 · 운영 장애 | 3 / 16 |
+| P0 | 버그 · 보안 · 운영 장애 | 7 / 16 |
 | P1 | 구조 (계층 · 책임 분리) | 14 / 20 |
 | P2 | 코드 품질 · 정리 | 0 / 19 |
 | P3 | 문서 · 도구 · 배포 | 0 / 11 |
@@ -29,10 +29,10 @@
 |----|------|------|------|----------|----------|
 | BE-01 | [x] | `app/core/config.py:208`, `app/services/admin_auth.py:15` | `ADMIN_PASSWORD` 기본값이 `""`이고 `compare_digest("", "")`가 True라서, env가 없으면 빈 비밀번호로 관리자 로그인이 됨 | 기동 시 비어 있으면 `RuntimeError` | env 없이 기동하면 서버가 뜨지 않음 |
 | BE-02 | [x] | `app/core/config.py:205` | `JWT_SECRET` 기본값이 `""`라 누구나 토큰을 위조할 수 있음 | 비어 있거나 32자 미만이면 기동 실패 | 짧은 키로 기동하면 서버가 뜨지 않음 |
-| BE-03 | [ ] | `app/api/lifespan.py:54`, `app/services/searching.py` | `app.state.con` 커넥션 하나를 스레드 40개가 동시에 씀 (스레드 안전하지 않음, 트랜잭션이 계속 열려 있음) | 요청마다 `with engine.connect()` 또는 `get_db` 의존성, `app.state.con` 삭제 | `grep "app.state.con"` 0건, 동시 요청 부하 테스트 통과 |
-| BE-04 | [ ] | `app/core/db.py:33` | `scoped_session`을 닫지 않음. 요청이 끝나도 idle-in-transaction으로 커넥션을 붙잡고, 요청 사이에 오래된 데이터가 남음 | `api/deps.py`의 `get_db()` yield 의존성 (commit / rollback / close) | Supabase에서 `pg_stat_activity`에 idle in transaction 0건 |
-| BE-05 | [ ] | `app/core/db.py:24` | 커넥션 풀 설정이 없음 (기본 5+10 < 스레드 40), `pool_pre_ping`도 없음 | `pool_size`, `max_overflow`, `pool_pre_ping=True`, `pool_recycle=300` | 오래 방치한 뒤 첫 요청도 성공 |
-| BE-06 | [ ] | `app/core/db.py:117-128` | `execute()`는 `_exec_driver_sql`을 거치지 않아 실패해도 롤백하지 않음. `lastrowid`는 sqlite 잔재 | `_exec_driver_sql`로 돌리고 `rowcount` 반환 | 실패한 DELETE 다음 요청이 정상 동작 |
+| BE-03 | [x] | `app/api/lifespan.py:54`, `app/services/searching.py` | `app.state.con` 커넥션 하나를 스레드 40개가 동시에 씀 (스레드 안전하지 않음, 트랜잭션이 계속 열려 있음) | 요청마다 `with engine.connect()` 또는 `get_db` 의존성, `app.state.con` 삭제 | `grep "app.state.con"` 0건, 동시 요청 부하 테스트 통과 |
+| BE-04 | [x] | `app/core/db.py:33` | `scoped_session`을 닫지 않음. 요청이 끝나도 idle-in-transaction으로 커넥션을 붙잡고, 요청 사이에 오래된 데이터가 남음 | `api/deps.py`의 `get_db()` yield 의존성 (commit / rollback / close) | Supabase에서 `pg_stat_activity`에 idle in transaction 0건 |
+| BE-05 | [x] | `app/core/db.py:24` | 커넥션 풀 설정이 없음 (기본 5+10 < 스레드 40), `pool_pre_ping`도 없음 | `pool_size`, `max_overflow`, `pool_pre_ping=True`, `pool_recycle=300` | 오래 방치한 뒤 첫 요청도 성공 |
+| BE-06 | [x] | `app/core/db.py:117-128` | `execute()`는 `_exec_driver_sql`을 거치지 않아 실패해도 롤백하지 않음. `lastrowid`는 sqlite 잔재 | `_exec_driver_sql`로 돌리고 `rowcount` 반환 | 실패한 DELETE 다음 요청이 정상 동작 |
 | BE-07 | [ ] | `app/api/routes/auth.py:46-49, 88-92` | `/allergens` 라우트가 같은 함수명으로 두 번 등록됨 | 하나 삭제 | `/docs`에 `/allergens`가 1개 |
 | BE-08 | [ ] | `app/core/embedder.py:67` | 요청 처리 중에 키가 없으면 `raise SystemExit`으로 워커 스레드가 죽음 | `RuntimeError`로 바꾸고 키 검사는 기동 시점으로 이동 | `grep SystemExit app/` 0건 |
 | BE-09 | [ ] | `app/api/routes/ask.py:84, 100` | `f"LLM 응답 실패: {e}"`로 내부 예외 원문을 클라이언트에 노출 | 고정 문구만 보내고, 원문은 `logger.exception`으로 기록 | LLM 키를 깨뜨렸을 때 응답에 스택이나 키 정보가 없음 |

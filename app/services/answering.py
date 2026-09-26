@@ -24,7 +24,7 @@ from app.services.searching import candidates
 
 
 def ask_stream(
-    con, user_query: str, pet_id: int | None, user_id: int | None, profile_filters: dict | None = None
+    user_query: str, pet_id: int | None, user_id: int | None, profile_filters: dict | None = None
 ) -> Iterator[str]:
     """profile 구성 -> 후보 검색 -> 답변 스트리밍 -> 반증 순서로 엮어 NDJSON 줄을 흘려보낸다.
     /ask, /ask/me 둘 다 여기로 모인다.
@@ -33,7 +33,7 @@ def ask_stream(
     준비(검색·고객 조회)는 스트림 시작 전에 끝낸다 - 여기서 터지면 깨진 스트림이 아니라 500이 된다.
     """
     profile = pet_profile(pet_id) if pet_id else build_profile(profile_filters or {})
-    matches = candidates(profile, user_query, con=con)
+    matches = candidates(profile, user_query)
     detail = users_repo.get_user_detail(user_id) if user_id else None
     customer_context = build_customer_context(detail)
 
