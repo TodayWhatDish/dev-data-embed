@@ -133,6 +133,25 @@
             }
         },
         {
+            "label": "🔑 서버 실행 (uvicorn, 8001)",
+            "detail": "8000 을 못 쓰는 PC용. 프론트는 web/.env.local 에 NEXT_PUBLIC_API_URL=http://localhost:8001 을 넣는다.",
+            "type": "shell",
+            "command": "${command:python.interpreterPath}",
+            "args": [
+                "-m",
+                "uvicorn",
+                "app.main:app",
+                "--reload",
+                "--port",
+                "8001"
+            ],
+            "problemMatcher": [],
+            "presentation": {
+                "panel": "dedicated",
+                "clear": true
+            }
+        },
+        {
             "label": "📩 recommend 테스트",
             "detail": "서버 실행 태스크를 먼저 띄운 상태에서 /recommend 를 한 번 찔러본다.",
             "type": "shell",
