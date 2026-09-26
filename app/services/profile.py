@@ -63,6 +63,13 @@ def list_pets(user_id: int) -> list[dict]:
     return pets
 
 
+def primary_pet(user_id: int) -> dict | None:
+    """회원의 첫 번째 펫. 회원가입이 한 마리만 받으니 지금은 이걸 '그 회원의 펫'으로 쓴다.
+    펫이 여러 마리가 되면 pet_id 선택 UI가 먼저 필요하다."""
+    pets = pet_repo.find_pets_by_user(user_id)
+    return pets[0] if pets else None
+
+
 def pet_profile(pet_id: int) -> dict[str, Any]:
     """등록된 펫 정보를 그대로 검색 프로필로 만든다.
 

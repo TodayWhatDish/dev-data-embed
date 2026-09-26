@@ -4,7 +4,7 @@ from app.core.db import QueryError
 from app.core.exceptions import Conflict, Forbidden, NotFound
 from app.repositories import products as product_repo
 from app.repositories import purchases as purchases_repo
-from app.repositories.pet import find_pets_by_user
+from app.services.profile import primary_pet
 
 
 def my_purchases(user_id: int) -> list[dict]:
@@ -15,15 +15,15 @@ def my_purchases(user_id: int) -> list[dict]:
 def buy(user_id: int, product_id: int, quantity: int = 1) -> int:
     """이 회원의 첫 번째 펫이 상품을 산다 - 구매이력에 남아야 그 자리에서 리뷰를 쓸 수 있다.
     가격은 지금 시점 product.price_krw를 그대로 스냅샷한다. 새로 생긴 purchase_id를 돌려준다."""
-    pets = find_pets_by_user(user_id)
-    if not pets:
+    pet = primary_pet(user_id)
+    if pet is None:
         raise Conflict("등록된 반려동물이 없습니다.")
 
     product = product_repo.find_by_id(product_id)
     if product is None:
         raise NotFound("존재하지 않는 상품입니다.")
 
-    return purchases_repo.create_purchase(pets[0]["pet_id"], product_id, quantity, product["price_krw"])
+    return purchases_repo.create_purchase(pet["pet_id"], product_id, quantity, product["price_krw"])
 
 
 def write_review(user_id: int, purchase_id: int, rating: int, body: str) -> None:

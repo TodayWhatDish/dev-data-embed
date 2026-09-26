@@ -24,10 +24,9 @@ from app.api.deps import get_current_admin, get_current_user
 from app.core.trace import log_customer_question
 from app.domain.prompting import build_customer_context
 from app.services import answering
-from app.services.profile import build_profile, pet_profile
+from app.services.profile import build_profile, pet_profile, primary_pet
 from app.services.searching import candidates
 from app.repositories import users as users_repo
-from app.repositories.pet import find_pets_by_user
 
 router = APIRouter()
 
@@ -113,6 +112,5 @@ def ask(body: AskRequest, req: Request):
 def ask_me(body: AskMeRequest, req: Request, user_id: int = Depends(get_current_user)):
     """일반 회원용. 로그인한 본인의 첫 번째 펫 프로필로 묻는다 - 회원가입이 강아지 한 마리만
     받으니 지금은 이걸로 충분하다. 펫이 여러 마리가 되면 pet_id 선택 UI가 먼저 필요하다."""
-    pets = find_pets_by_user(user_id)
-    pet_id = pets[0]["pet_id"] if pets else None
-    return _stream_answer(req.app.state.con, body.user_query, pet_id, user_id)
+    pet = primary_pet(user_id)
+    return _stream_answer(req.app.state.con, body.user_query, pet["pet_id"] if pet else None, user_id)
