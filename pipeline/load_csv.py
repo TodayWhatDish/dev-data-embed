@@ -27,7 +27,7 @@ from sqlalchemy import insert, text
 # app/models/* 를 전부 import 해야 클래스들이 Base.metadata 에 등록된다.
 from app.models import common, pet, product, purchase, user  # noqa: F401
 from app.core.config import MASTER_DIR, SEED_DIR
-from app.core.db import Base, engine
+from app.core.db import Base, get_engine
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "create_schema"))
 import common_schema  # noqa: E402  (SEEDS 재사용용 - TABLES/INDEXES 는 app/models 가 대신한다)
@@ -259,7 +259,7 @@ def verify(conn):
 def main():
     keep = "--keep" in sys.argv
 
-    with engine.begin() as conn:
+    with get_engine().begin() as conn:
         if keep:
             print("기존 스키마 유지")
         else:

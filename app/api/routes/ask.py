@@ -16,11 +16,13 @@
 
 import json
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
+from sqlalchemy.orm import Session
 
 from app.api.schemas import AskMeRequest, AskRequest
 from app.core.auth import get_current_admin, get_current_user
+from app.core.db import get_db
 from app.core.trace import log_customer_question
 from app.domain.prompting import build_customer_context
 from app.services import answering
@@ -33,15 +35,16 @@ router = APIRouter()
 
 
 def _stream_answer(
-    con, user_query: str, pet_id: int | None, user_id: int | None, profile_filters: dict | None = None
+    db: Session, user_query: str, pet_id: int | None, user_id: int | None, profile_filters: dict | None = None
 ) -> StreamingResponse:
     """profile 구성 -> 후보 검색 -> 답변 스트리밍 순서로 엮는다. /ask, /ask/me 둘 다 여기로 모인다.
 
     pet_id 가 오면 그 펫의 DB 프로필을 쓴다. 없으면 profile_filters(요청에 직접 적힌 필터)를 쓴다.
+    DB 는 스트리밍 전에 다 쓴다 - generate() 안에서 db 를 건드리면 안 된다(아래 scope="function" 참고).
     """
-    profile = pet_profile(pet_id) if pet_id else build_profile(profile_filters or {})
-    matches = candidates(profile, user_query, con=con)
-    detail = users_repo.get_user_detail(user_id) if user_id else None
+    profile = pet_profile(db, pet_id) if pet_id else build_profile(profile_filters or {})
+    matches = candidates(db, profile, user_query)
+    detail = users_repo.get_user_detail(db, user_id) if user_id else None
     customer_context = build_customer_context(detail)
 
     def generate():
@@ -104,15 +107,23 @@ def _stream_answer(
 
 
 @router.post("/ask", dependencies=[Depends(get_current_admin)])
-def ask(body: AskRequest, req: Request):
-    """관리자 대시보드용. pet_id 가 오면 그 펫의 DB 프로필을 쓰고, 없으면 요청에 직접 적힌 필터를 쓴다."""
-    return _stream_answer(req.app.state.con, body.user_query, body.pet_id, body.user_id, body.model_dump())
+def ask(body: AskRequest, db: Session = Depends(get_db, scope="function")):
+    """관리자 대시보드용. pet_id 가 오면 그 펫의 DB 프로필을 쓰고, 없으면 요청에 직접 적힌 필터를 쓴다.
+
+    scope="function": 세션을 라우트 함수가 끝날 때 닫는다. 기본값(request)이면 LLM 스트리밍이
+    끝날 때까지 연결을 붙잡는다.
+    """
+    return _stream_answer(db, body.user_query, body.pet_id, body.user_id, body.model_dump())
 
 
 @router.post("/ask/me")
-def ask_me(body: AskMeRequest, req: Request, user_id: int = Depends(get_current_user)):
+def ask_me(
+    body: AskMeRequest,
+    user_id: int = Depends(get_current_user),
+    db: Session = Depends(get_db, scope="function"),
+):
     """일반 회원용. 로그인한 본인의 첫 번째 펫 프로필로 묻는다 - 회원가입이 강아지 한 마리만
     받으니 지금은 이걸로 충분하다. 펫이 여러 마리가 되면 pet_id 선택 UI가 먼저 필요하다."""
-    pets = find_pets_by_user(user_id)
+    pets = find_pets_by_user(db, user_id)
     pet_id = pets[0]["pet_id"] if pets else None
-    return _stream_answer(req.app.state.con, body.user_query, pet_id, user_id)
+    return _stream_answer(db, body.user_query, pet_id, user_id)

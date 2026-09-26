@@ -23,7 +23,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.adapters.stores.pg_store import chunk_id
 from app.core.config import EMBED_MODEL
-from app.core.db import Base, engine
+from app.core.db import Base, get_engine
 from app.models.chunk import Chunk, EmbeddingMeta  # noqa: F401 (Base.metadata 등록용)
 from app.services.embedding_sync import sync
 
@@ -49,7 +49,7 @@ def fetch_chunks(conn):
 
 def main():
     full = "--full" in sys.argv
-    with engine.begin() as conn:
+    with get_engine().begin() as conn:
         chunks = fetch_chunks(conn)
         if not chunks:
             raise SystemExit("색인할 리뷰가 없습니다. 먼저 python -m pipeline.chunk 를 실행하세요.")

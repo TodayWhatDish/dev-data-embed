@@ -21,13 +21,13 @@ verifying.py 하나에 몰아뒀고 눈으로 보는 검색(inspect.py)만 따�
 from sqlalchemy import func, select
 
 from app.core.config import EMBED_DIM, EMBED_MAX_TOKENS, EMBED_MODEL
-from app.core.db import engine
+from app.core.db import get_engine
 from app.models.chunk import Chunk
 from pipeline.prep import verifying
 from pipeline.prep.inspect import inspect
 
 # 읽기만 하므로 커밋 없는 connect()로 연다. DB 는 Supabase(Postgres)다.
-con = engine.connect()
+con = get_engine().connect()
 problems = []
 
 # 검사할 테이블 이름. 지금 DB에 실제로 있는 8개.

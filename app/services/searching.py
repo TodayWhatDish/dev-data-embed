@@ -10,7 +10,7 @@ services/products.py 가 이미 그 모양이라 결을 맞춘다.
 import logging
 from typing import Any
 
-from sqlalchemy.engine import Connection
+from sqlalchemy.orm import Session
 
 from app.core.config import PASSAGE_PREFIX
 from app.domain.products import root_category_name
@@ -18,38 +18,29 @@ from app.services.customers import customer_detail
 from app.services.profile import pet_profile
 from app.services.retrieve import build_where, search
 from app.repositories import purchases as purchase_repo
-from pipeline.vector_db import connect
 
 logger = logging.getLogger()
 
 
-def candidates(
-    profiles: dict[str, Any], user_query: str, limit: int = 20, con: Connection | None = None
-) -> list[dict[str, Any]]:
+def candidates(db: Session, profiles: dict[str, Any], user_query: str, limit: int = 20) -> list[dict[str, Any]]:
     """프로필에 맞는 상품 후보를 반환한다.
 
     별점/알레르기/체급/축종 필터는 build_where()가 이미 SQL로 처리한다.
     여기서는 리뷰 단위의 결과를 product 테이블과 합쳐 LLM이 판단할 수 있는 모양으로 바꾼다.
 
-    con 을 안 넘기면(=CLI/eval 처럼 혼자 쓰는 자리) 예전처럼 직접 열고 닫는다.
-    API 라우트처럼 요청마다 불릴 땐 app.state.con 을 넘겨 커넥션을 재사용한다.
+    벡터 검색도 세션의 커넥션(db.connection())으로 돈다 - 요청 하나가 연결 하나만 쓰고, 닫는 건 세션 몫이다.
     """
-    owns_con = con is None
-    if owns_con:
-        con = connect()
     try:
         where, params = build_where(profiles)
-        hits = search(con, user_query, where=where, params=params, top_k=limit)
+        hits = search(db.connection(), user_query, where=where, params=params, top_k=limit)
         logger.debug(f"벡터 검색 {len(hits)}건 (top_k={limit}, params={params})")
     except Exception:
         # 무엇이 터졌든 질문과 프로필은 남긴다 - 이게 없으면 어떤 입력에서 죽었는지 못 찾는다
         logger.exception(f"벡터 검색 실패: query={user_query!r}, profiles={profiles}")
+        db.rollback()  # 실패한 문장이 트랜잭션을 죽여 두면 같은 세션의 다음 쿼리가 전부 거부된다
         raise
-    finally:
-        if owns_con:
-            con.close()
 
-    products_by_purchase = purchase_repo.find_products_by_purchase_ids([h[0] for h in hits])
+    products_by_purchase = purchase_repo.find_products_by_purchase_ids(db, [h[0] for h in hits])
     result = []
     for purchase_id, score, review in hits:
         # 색인은 purchase 단위인데 보여줄 건 product 라 한 단계 건너뛴다.
@@ -78,13 +69,13 @@ def candidates(
     return result
 
 
-def similar_reviews_for(user_id: int, limit: int = 5) -> dict[str, Any]:
+def similar_reviews_for(db: Session, user_id: int, limit: int = 5) -> dict[str, Any]:
     """이 고객이 실제로 남긴 가장 최근 리뷰를 쿼리 삼아 추천을 찾는다.
 
     admin이 임의로 친 질문이 아니라 이 고객의 구매 이력 자체가 근거다.
     이미 산 그 상품은 결과에서 뺀다 - 방금 산 걸 또 추천하면 의미가 없다.
     """
-    detail = customer_detail(user_id)
+    detail = customer_detail(db, user_id)
     if detail is None:
         return {"query": "", "product_name": "", "found": []}
 
@@ -93,11 +84,11 @@ def similar_reviews_for(user_id: int, limit: int = 5) -> dict[str, Any]:
         return {"query": "", "product_name": "", "found": []}
 
     latest = reviewed[0]  # get_user_detail이 이미 purchased_at DESC로 정렬해서 준다
-    profile = pet_profile(detail["pets"][0]["pet_id"]) if detail["pets"] else {}
+    profile = pet_profile(db, detail["pets"][0]["pet_id"]) if detail["pets"] else {}
 
     found = [
         c
-        for c in candidates(profile, latest["review_body"], limit=limit + 1)
+        for c in candidates(db, profile, latest["review_body"], limit=limit + 1)
         if c["product_id"] != latest["product_id"]
     ][:limit]
     return {"query": latest["review_body"], "product_name": latest["product_name"], "found": found}

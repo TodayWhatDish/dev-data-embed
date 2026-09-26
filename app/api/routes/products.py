@@ -3,49 +3,51 @@
 """관리자 대시보드 - 상품 CRUD API. 전부 관리자 인증이 필요하다."""
 
 from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
 
 from app.api.errors import product_http
 from app.api.schemas import Product, ProductCreate, ProductUpdate
 from app.core.auth import get_current_admin
+from app.core.db import get_db
 from app.services import products
 
 router = APIRouter(prefix="/admin/products", tags=["관리자-상품"], dependencies=[Depends(get_current_admin)])
 
 
 @router.get("", response_model=list[Product])
-def product_list(page: int = 0, size: int = 20):
+def product_list(page: int = 0, size: int = 20, db: Session = Depends(get_db)):
     """전체 제품 리스트 출력(page방식)"""
-    return products.list_products(page, size)
+    return products.list_products(db, page, size)
 
 
 @router.get("/{product_id}", response_model=Product)
-def product_get(product_id: int):
+def product_get(product_id: int, db: Session = Depends(get_db)):
     """product_id로 제품 정보를 출력, 없으면 에러"""
     try:
-        return products.get_product(product_id)
+        return products.get_product(db, product_id)
     except products.ProductError as exc:
         raise product_http(exc) from exc
 
 
 @router.post("", response_model=Product, status_code=201)
-def product_create(draft: ProductCreate):
+def product_create(draft: ProductCreate, db: Session = Depends(get_db)):
     """ "product_id는 PK로 auto ingrement"""
-    return products.create_product(draft.model_dump())
+    return products.create_product(db, draft.model_dump())
 
 
 @router.patch("/{product_id}", response_model=Product)
-def product_update(product_id: int, patch: ProductUpdate):
+def product_update(product_id: int, patch: ProductUpdate, db: Session = Depends(get_db)):
     try:
         # 고친 행 수가 아니라 고친 뒤의 상품을 돌려줘야 한다 (response_model=Product)
-        _, product = products.update_after_select_product(product_id, patch.model_dump(exclude_unset=True))
+        _, product = products.update_after_select_product(db, product_id, patch.model_dump(exclude_unset=True))
         return product
     except products.ProductError as exc:
         raise product_http(exc) from exc
 
 
 @router.delete("/{product_id}", status_code=204)
-def product_delete(product_id: int):
+def product_delete(product_id: int, db: Session = Depends(get_db)):
     try:
-        products.delete_product(product_id)
+        products.delete_product(db, product_id)
     except products.ProductError as exc:
         raise product_http(exc) from exc

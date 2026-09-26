@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, timezone
 
 import bcrypt
 import jwt
+from sqlalchemy.orm import Session
 
 from app.core.config import JWT_ALGORITHM, JWT_EXPIRE_MINUTES, JWT_SECRET
 from app.domain.common import CommonMgr
@@ -33,6 +34,7 @@ def _issue_token(user_id: int) -> str:
 
 
 def signup(
+    db: Session,
     email: str,
     password: str,
     name: str,
@@ -50,14 +52,14 @@ def signup(
     pet_species: str | None = None,
 ) -> str:
     """이메일 중복이면 ValueError. 통과하면 계정 + 강아지 펫 프로필을 만들고 바로 JWT를 발급한다."""
-    if find_user_by_email(email):
+    if find_user_by_email(db, email):
         raise ValueError("이미 가입된 이메일입니다.")
 
     password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-    user_id = create_user(email, name, password_hash, phone, region)
+    user_id = create_user(db, email, name, password_hash, phone, region)
     # 축종을 안 주거나 못 찾은 이름이면 기존 동작(강아지)으로 유지 - 하위 호환
     animal_category_id = CommonMgr.get_inst().resolve_animal_category_id(pet_species) or DOG_CATEGORY_ID
-    pet_id = create_pet(
+    pet_id = create_pet(db, 
         user_id,
         animal_category_id,
         pet_name,
@@ -71,17 +73,17 @@ def signup(
     if pet_allergies:
         allergen_ids = CommonMgr.get_inst().resolve_allergen_ids(pet_allergies)
         if allergen_ids:
-            add_pet_allergies(pet_id, allergen_ids)
+            add_pet_allergies(db, pet_id, allergen_ids)
 
     if diet_note or skin_note:
-        save_pet_survey(pet_id, diet_note, skin_note)
+        save_pet_survey(db, pet_id, diet_note, skin_note)
 
     return _issue_token(user_id)
 
 
-def login(email: str, password: str) -> str:
+def login(db: Session, email: str, password: str) -> str:
     """이메일/비밀번호 검증하고 JWT 발급. 틀리면 ValueError."""
-    user = find_user_by_email(email)
+    user = find_user_by_email(db, email)
     if (
         not user
         or not user["password_hash"]

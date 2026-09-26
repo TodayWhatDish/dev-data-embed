@@ -43,6 +43,7 @@ from langchain_core.embeddings import Embeddings
 
 from app.adapters.stores.llm import chat_verify
 from app.core.config import EMBED_MODEL, LLM_MODEL, VERIFY_MODEL
+from app.core.db import new_session
 from app.core.embedder import embed_documents, embed_query
 from app.services import answering
 from app.services.searching import candidates as search_candidates
@@ -70,7 +71,8 @@ class LocalEmbeddings(Embeddings):
 
 def answer_one(question: str, profile: dict) -> tuple[str, list[dict]]:
     """실제 배포 경로 그대로 답을 만든다. 채점 전용 경로를 따로 두면 배포된 걸 안 재게 된다."""
-    cands = search_candidates(profile, question, limit=K)
+    with new_session() as db:  # LLM 호출 전에 닫아 연결을 붙잡지 않는다
+        cands = search_candidates(db, profile, question, limit=K)
     answer = "".join(answering.stream(question, cands))
     return answer, cands
 

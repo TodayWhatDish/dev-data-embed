@@ -2,16 +2,19 @@
 
 """user 테이블에 연결되는 곳. 관리자 화면용 고객 조회."""
 
-from app.core.db import commit, fetch, fetch_one, get_session
+from sqlalchemy.orm import Session
+
+from app.core.db import commit, fetch, fetch_one
 from app.models.user import User
 
 
-def find_user_by_email(email: str) -> dict | None:
+def find_user_by_email(db: Session, email: str) -> dict | None:
     """로그인/가입 시 이메일 중복 확인. email 은 UNIQUE라 최대 한 행."""
-    return fetch_one('SELECT user_id, password_hash FROM "user" WHERE email = %s', (email,))
+    return fetch_one(db, 'SELECT user_id, password_hash FROM "user" WHERE email = %s', (email,))
 
 
 def create_user(
+db: Session,
     email: str, name: str, password_hash: str, phone: str | None = None, region: str | None = None
 ) -> int:
     """local 회원가입. auth_uid는 로컬 계정엔 별도 외부 ID가 없어 email을 그대로 쓴다."""
@@ -27,20 +30,19 @@ def create_user(
     if region:
         values["region"] = region
     user = User(**values)
-    session = get_session()
-    session.add(user)
-    commit("user")
+    db.add(user)
+    commit(db, "user")
     return user.user_id
 
 
-def list_users() -> list[dict]:
+def list_users(db: Session) -> list[dict]:
     """관리자 화면 왼쪽 목록용. 고객 전체를 이름순으로.
 
     species는 이 고객이 키우는 반려동물 종을 콤마로 합친 값(예: "개,고양이") - 목록에서
     강아지/고양이/모두 카테고리를 나누는 데 쓴다. gender/birth_date는 첫 번째로 등록된
     반려동물의 것이다 (사람 성별·나이가 아니다 - user 테이블엔 그 둘이 없다).
     """
-    return fetch("""
+    return fetch(db, """
         SELECT u.user_id, u.name, u.email, u.region, u.created_at,
                (SELECT STRING_AGG(DISTINCT ac.name_ko, ',')
                   FROM pet AS pe
@@ -53,9 +55,10 @@ def list_users() -> list[dict]:
     """)
 
 
-def get_user_detail(user_id: int) -> dict | None:
+def get_user_detail(db: Session, user_id: int) -> dict | None:
     """고객 한 명의 프로필 + 반려동물 + 구매이력을 한 번에 묶는다."""
     user = fetch_one(
+        db,
         """
         SELECT user_id, name, email, phone, region, created_at, last_login_at
         FROM "user" WHERE user_id = %s
@@ -68,6 +71,7 @@ def get_user_detail(user_id: int) -> dict | None:
     # allergies/diet_note/skin_note는 관리자 화면 설문 요약용 - allergies는 이름을 콤마로 합친 문자열이다
     # (list_users()의 species와 같은 방식). pet_survey는 가입 때 한 번 없을 수 있어 LEFT JOIN.
     user["pets"] = fetch(
+        db,
         """
         SELECT pe.pet_id, pe.name, ac.name_ko AS animal_category, pe.gender, pe.birth_date,
                pe.weight_kg, pe.neutered, pe.size, pe.activity_level,
@@ -87,6 +91,7 @@ def get_user_detail(user_id: int) -> dict | None:
     # product_category_id 를 그대로 준다. 사료/간식으로 접는 건 분류 트리를 걸어야 하는 일이고,
     # 트리를 들고 있는 건 ProductMgr 캐시다 - domain.products.attach_product_type 이 붙인다
     user["purchases"] = fetch(
+        db,
         """
         SELECT pu.purchase_id, pu.purchased_at, pu.unit_price_krw, pu.quantity,
                p.product_id, p.name AS product_name, r.rating, r.body AS review_body,

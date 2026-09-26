@@ -9,14 +9,16 @@
 
 from typing import Any
 
+from sqlalchemy.orm import Session
+
 from app.adapters.stores.llm import chat
 from app.domain.prompting import Strategy, build_strategy_prompt
 from app.services.customers import customer_detail
 
 
-def generate_strategy(user_id: int) -> dict[str, Any] | None:
+def generate_strategy(db: Session, user_id: int) -> dict[str, Any] | None:
     """구매 이력이 없으면 None. 있으면 전략 텍스트 + 인용별 verified 플래그를 담아 돌려준다."""
-    detail = customer_detail(user_id)
+    detail = customer_detail(db, user_id)
     if detail is None or not detail["purchases"]:
         return None
 

@@ -11,6 +11,8 @@ DB 에는 repositories/pet.py 를 통해서만 닿는다. 여기에 SQL 이 있�
 import logging
 from typing import Any
 
+from sqlalchemy.orm import Session
+
 from app.core.config import SIZE_LABELS
 from app.domain import pet as pet_domain
 from app.domain.common import CommonMgr
@@ -51,10 +53,10 @@ def build_profile(raw: dict[str, Any]) -> dict[str, Any]:
     return profile
 
 
-def list_pets(user_id: int) -> list[dict]:
+def list_pets(db: Session, user_id: int) -> list[dict]:
     """한 사용자의 (비활성 아닌) 펫 목록. 선택지를 보여줄 때 쓴다."""
     # repo 가 id 를 주고 domain 이 캐시로 이름을 붙인다. services 는 둘을 엮기만 한다
-    pets = pet_domain.attach_names(pet_repo.find_pets_by_user(user_id))
+    pets = pet_domain.attach_names(pet_repo.find_pets_by_user(db, user_id))
 
     # 펫이 없는 것은 에러가 아니다. 다만 '선택지가 왜 비었나' 를 물어볼 때 근거가 있어야 한다
     if not pets:
@@ -63,13 +65,13 @@ def list_pets(user_id: int) -> list[dict]:
     return pets
 
 
-def pet_profile(pet_id: int) -> dict[str, Any]:
+def pet_profile(db: Session, pet_id: int) -> dict[str, Any]:
     """등록된 펫 정보를 그대로 검색 프로필로 만든다.
 
     사람이 종/체급/알레르기를 다시 타이핑하면 DB에 이미 있는 값을 틀리게 적을 수 있다
     (체급 한 칸을 잘못 고르면 정답이 후보에서 통째로 빠진다). DB 를 단일 출처로 삼는다.
     """
-    pet = pet_domain.attach_names_one(pet_repo.find_pet(pet_id))
+    pet = pet_domain.attach_names_one(pet_repo.find_pet(db, pet_id))
     if pet is None:
         # 없는 펫은 예외가 아니라 빈 프로필이다 (필터를 안 거는 것과 같아진다).
         # 조용히 넘어가면 '왜 아무 필터도 안 걸렸지' 를 못 찾으니 흔적은 남긴다
@@ -93,9 +95,9 @@ def pet_profile(pet_id: int) -> dict[str, Any]:
     return profile
 
 
-def survey_query_text(pet_id: int) -> str:
+def survey_query_text(db: Session, pet_id: int) -> str:
     """가입 때 받은 식성/피부 메모(pet_survey)를 검색 질의문으로 합친다.
     설문이 없거나 둘 다 비어 있으면 일반적인 추천 문구로 대체한다."""
-    survey = pet_repo.get_pet_survey(pet_id)
+    survey = pet_repo.get_pet_survey(db, pet_id)
     parts = [survey[k] for k in ("diet_note", "skin_note") if survey and survey.get(k)]
     return " ".join(parts) if parts else "사료나 간식 추천해줘"

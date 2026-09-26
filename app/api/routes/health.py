@@ -11,7 +11,7 @@ from fastapi import APIRouter
 from sqlalchemy import text
 
 from app.core.config import LLM_API_KEY
-from app.core.db import get_session
+from app.core.db import new_session
 
 router = APIRouter()
 
@@ -29,7 +29,9 @@ def ready() -> dict:
     llm_ok = False
 
     try:
-        get_session().execute(text("SELECT 1")).fetchone()
+        # Depends(get_db) 를 안 쓴다 - 엔진 생성 실패도 500 이 아니라 db: false 로 보여야 한다
+        with new_session() as db:
+            db.execute(text("SELECT 1")).fetchone()
         db_ok = True
     except Exception:
         db_ok = False

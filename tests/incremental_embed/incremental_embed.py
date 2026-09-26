@@ -17,7 +17,7 @@ import logging
 import sys
 
 from app.app_logger.logger import init_logger
-from app.core.db import execute, fetch_one
+from app.core.db import execute, fetch_one, new_session
 from app.core.security import hash_password
 from app.repositories.pet import create_pet
 from app.repositories.purchases import create_purchase, create_review
@@ -29,18 +29,18 @@ EMAIL = "__test_embed__@example.com"
 
 
 def chunk_count():
-    return fetch_one("SELECT COUNT(*) AS n FROM chunks")["n"]
+    return fetch_one(db, "SELECT COUNT(*) AS n FROM chunks")["n"]
 
 
 def setup():
-    assert find_user_by_email(EMAIL) is None, "이전 실행의 흔적이 남아있다 - cleanup 을 먼저 돌려라"
+    assert find_user_by_email(db, EMAIL) is None, "이전 실행의 흔적이 남아있다 - cleanup 을 먼저 돌려라"
 
-    user_id = create_user(email=EMAIL, name="임베딩테스트", password_hash=hash_password("pw12345"))
-    pet_id = create_pet(user_id=user_id, animal_category_id=1, name="테스트펫", size=3)
+    user_id = create_user(db, email=EMAIL, name="임베딩테스트", password_hash=hash_password("pw12345"))
+    pet_id = create_pet(db, user_id=user_id, animal_category_id=1, name="테스트펫", size=3)
 
     # purchase 와 review 는 회원가입/구매 경로가 쓰는 것과 같은 repository 함수로 넣는다.
-    purchase_id = create_purchase(pet_id=pet_id, product_id=1, quantity=1, unit_price_krw=10000)
-    create_review(
+    purchase_id = create_purchase(db, pet_id=pet_id, product_id=1, quantity=1, unit_price_krw=10000)
+    create_review(db, 
         purchase_id=purchase_id,
         rating=5,
         body="증분 임베딩 테스트용 리뷰입니다. 아이가 아주 잘 먹고 소화도 잘 시킵니다.",
@@ -52,29 +52,30 @@ def setup():
 
 
 def cleanup():
-    row = find_user_by_email(EMAIL)
+    row = find_user_by_email(db, EMAIL)
     if row is None:
         logger.info("\t지울 것이 없다")
         return
     user_id = row["user_id"]
 
     # FK 를 거스르지 않게 자식부터 지운다. review -> purchase -> pet -> user.
-    execute(
+    execute(db, 
         """DELETE FROM review WHERE purchase_id IN (
                    SELECT pu.purchase_id FROM purchase AS pu
                    JOIN pet AS pe ON pe.pet_id = pu.pet_id WHERE pe.user_id = ?)""",
         (user_id,),
     )
-    execute("DELETE FROM purchase WHERE pet_id IN (SELECT pet_id FROM pet WHERE user_id = ?)", (user_id,))
-    execute("DELETE FROM pet WHERE user_id = ?", (user_id,))
-    execute("DELETE FROM user WHERE user_id = ?", (user_id,))
+    execute(db, "DELETE FROM purchase WHERE pet_id IN (SELECT pet_id FROM pet WHERE user_id = ?)", (user_id,))
+    execute(db, "DELETE FROM pet WHERE user_id = ?", (user_id,))
+    execute(db, "DELETE FROM user WHERE user_id = ?", (user_id,))
 
-    assert find_user_by_email(EMAIL) is None
+    assert find_user_by_email(db, EMAIL) is None
     logger.info(f"\t정리 완료 - 지금 chunks {chunk_count()}개 -> chunk.py 를 돌리면 -1")
 
 
 if __name__ == "__main__":
-    init_logger("incremental_embed")
-    step = sys.argv[1] if len(sys.argv) > 1 else "setup"
-    {"setup": setup, "cleanup": cleanup}[step]()
-    logger.info("ok")
+    with new_session() as db:
+        init_logger("incremental_embed")
+        step = sys.argv[1] if len(sys.argv) > 1 else "setup"
+        {"setup": setup, "cleanup": cleanup}[step]()
+        logger.info("ok")

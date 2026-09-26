@@ -55,9 +55,19 @@ load_env(ROOT / ".env.local")
 load_env()
 
 # db.py 가 이 URL로만 붙는다 - SQLite fallback 없음 (docs/WORK.md 로드맵 A).
-# Supavisor transaction pooler(6543) 문자열이다 - direct connection(db.*.supabase.co)은
-# IPv4 애드온 없이는 IPv6 전용이라 이 환경에서 못 붙는다.
+# Supavisor session pooler(5432) 문자열이다 - 서버가 자체 풀을 들고 오래 사는 프로세스라 transaction
+# pooler(6543)가 필요 없다. direct connection(db.*.supabase.co)은 IPv4 애드온 없이는 IPv6 전용이라 못 붙는다.
+# session 모드는 클라이언트 연결 하나가 서버 연결 하나를 잡으므로 아래 풀 합계가 프로젝트 pool size 를 넘으면 안 된다.
 SUPABASE_DB_URL = env("SUPABASE_DB_URL", "")
+
+# 커넥션 풀 - db.py get_engine() 이 쓴다. 라우트가 def 라 스레드풀(기본 40)에서 도므로
+# pool_size + max_overflow 가 그보다 작으면 남는 요청은 pool_timeout(30초) 동안 연결을 기다린다.
+# Supabase session pooler 는 클라이언트 연결을 프로젝트 전체 15개로 막는다(EMAXCONNSESSION) -
+# 서버 프로세스(8000/8001)와 pipeline/eval 이 이 15개를 나눠 쓰므로 프로세스당 5개로 둔다.
+DB_POOL_SIZE = int(env("DB_POOL_SIZE", "5"))
+DB_MAX_OVERFLOW = int(env("DB_MAX_OVERFLOW", "0"))
+DB_POOL_RECYCLE = int(env("DB_POOL_RECYCLE", "300"))  # 초. pooler 가 먼저 끊기 전에 갈아 끼운다
+DB_CONNECT_TIMEOUT = int(env("DB_CONNECT_TIMEOUT", "10"))  # 초
 
 # query_prefix/passage_prefix: e5 계열은 필수, bge 계열은 붙이면 오히려 성능이 떨어진다.
 # 모델을 비교할 때 이 표만 늘리고 코드는 건드리지 않는 것이 목표다.

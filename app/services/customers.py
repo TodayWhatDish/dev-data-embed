@@ -6,15 +6,17 @@ get_user_detail() 을 라우트가 직접 부르던 걸 여기로 모았다. 구
 
 import logging
 
+from sqlalchemy.orm import Session
+
 from app.domain import products as product_domain
 from app.repositories import users as users_repo
 
 logger = logging.getLogger()
 
 
-def customer_detail(user_id: int) -> dict | None:
+def customer_detail(db: Session, user_id: int) -> dict | None:
     """고객 프로필 + 반려동물 + 구매이력. 없는 고객은 예외가 아니라 None."""
-    detail = users_repo.get_user_detail(user_id)
+    detail = users_repo.get_user_detail(db, user_id)
     if detail is None:
         logger.info(f"user_id={user_id} 가 없다")
         return None

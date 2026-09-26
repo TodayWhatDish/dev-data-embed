@@ -6,32 +6,34 @@ import logging
 from datetime import datetime
 
 from sqlalchemy.exc import DBAPIError
+from sqlalchemy.orm import Session
 
-from app.core.db import commit, fetch, fetch_tuple_one, get_session
+from app.core.db import commit, fetch, fetch_tuple_one
 from app.models.purchase import Purchase, Review
 
 logger = logging.getLogger()
 
 
-def get_product_id(purchase_id: int) -> int | None:
+def get_product_id(db: Session, purchase_id: int) -> int | None:
     """이 구매가 산 상품의 id. 없는 구매면 None."""
-    purchase = get_session().query(Purchase).filter_by(purchase_id=purchase_id).first()
+    purchase = db.query(Purchase).filter_by(purchase_id=purchase_id).first()
     return purchase.product_id if purchase else None
 
 
-def count_for_product(product_id: int) -> int:
+def count_for_product(db: Session, product_id: int) -> int:
     """이 상품이 몇 번 팔렸는지"""
     try:
-        return fetch_tuple_one("SELECT COUNT(*) FROM purchase WHERE product_id = %s", (product_id,))[0]
+        return fetch_tuple_one(db, "SELECT COUNT(*) FROM purchase WHERE product_id = %s", (product_id,))[0]
     except DBAPIError:
         logger.exception(f"purchase 집계 실패: product_id={product_id}")
         raise
     # COUNT(*) 는 맞는 행이 없어도 (0,) 을 준다. 여기서만 [0] 이 안전한 이유다
 
 
-def list_by_user(user_id: int) -> list[dict]:
+def list_by_user(db: Session, user_id: int) -> list[dict]:
     """이 회원의 구매 내역 전체. 리뷰를 쓴 건이면 rating/review_body가 같이 붙는다(없으면 NULL)."""
     return fetch(
+        db,
         """
         SELECT pu.purchase_id, pu.purchased_at, p.product_id, p.name AS product_name,
                r.rating, r.body AS review_body
@@ -46,9 +48,10 @@ def list_by_user(user_id: int) -> list[dict]:
     )
 
 
-def is_owned_by(purchase_id: int, user_id: int) -> bool:
+def is_owned_by(db: Session, purchase_id: int, user_id: int) -> bool:
     """이 구매가 이 회원 것인지. 리뷰를 쓰기 전에 남의 구매를 못 건드리게 막는다."""
     rows = fetch(
+        db,
         """
         SELECT 1 FROM purchase AS pu JOIN pet AS pe ON pe.pet_id = pu.pet_id
         WHERE pu.purchase_id = %s AND pe.user_id = %s
@@ -58,7 +61,7 @@ def is_owned_by(purchase_id: int, user_id: int) -> bool:
     return bool(rows)
 
 
-def create_purchase(pet_id: int, product_id: int, quantity: int, unit_price_krw: int) -> int:
+def create_purchase(db: Session, pet_id: int, product_id: int, quantity: int, unit_price_krw: int) -> int:
     """구매 한 건을 남긴다. age_month_at_purchase/size_at_purchase는 지금 계산할 근거가
     마땅치 않아 비운다(둘 다 NULL 허용 컬럼)."""
     purchase = Purchase(
@@ -68,17 +71,15 @@ def create_purchase(pet_id: int, product_id: int, quantity: int, unit_price_krw:
         unit_price_krw=unit_price_krw,
         purchased_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     )
-    session = get_session()
-    session.add(purchase)
-    commit("purchase")
+    db.add(purchase)
+    commit(db, "purchase")
     return purchase.purchase_id
 
 
-def create_review(purchase_id: int, rating: int, body: str) -> None:
+def create_review(db: Session, purchase_id: int, rating: int, body: str) -> None:
     """구매 건에 리뷰를 남긴다. purchase_id가 review의 PK라 이미 리뷰가 있으면
     QueryError('constraint_unique')가 난다 - 부르는 쪽(services)이 잡는다."""
-    session = get_session()
-    session.add(
+    db.add(
         Review(
             purchase_id=purchase_id,
             rating=rating,
@@ -86,10 +87,10 @@ def create_review(purchase_id: int, rating: int, body: str) -> None:
             reviewed_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         )
     )
-    commit("review")
+    commit(db, "review")
 
 
-def find_products_by_purchase_ids(purchase_ids: list[int]) -> dict[int, dict]:
+def find_products_by_purchase_ids(db: Session, purchase_ids: list[int]) -> dict[int, dict]:
     """purchase_id 목록으로 상품 정보를 한 번에 묶어온다. candidates()의 N+1 조회를 대체한다.
     없는 purchase_id/product_id는 결과 dict에서 그냥 빠진다. 호출부가 get()으로 걸러쓴다."""
 
@@ -97,6 +98,7 @@ def find_products_by_purchase_ids(purchase_ids: list[int]) -> dict[int, dict]:
         return {}
     marks = ", ".join("%s" for _ in purchase_ids)
     rows = fetch(
+        db,
         f"""
         SELECT pu.purchase_id, p.product_id, p.name, p.brand, p.price_krw, p.product_category_id
         FROM purchase AS pu

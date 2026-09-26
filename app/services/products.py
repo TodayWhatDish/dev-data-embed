@@ -8,6 +8,8 @@ CRUD와 검색은 서로 다른 이유로 바뀌는 코드라 한 파일에 안 
 
 import logging
 
+from sqlalchemy.orm import Session
+
 from app.core.db import QueryError
 from app.repositories import products as product_repo
 
@@ -34,14 +36,14 @@ class ProductError(Exception):
         self.message = message
 
 
-def list_products(page: int, size: int) -> list[dict]:
+def list_products(db: Session, page: int, size: int) -> list[dict]:
     """상품 여러 건 조회. page/size 가 잘못되면 ProductError("params_error") 다.
 
     거절 사유 자체는 repositories 가 이미 찍었다. 여기서 남기는 건 '그래서 어떻게 했나' 다 —
     같은 예외를 두 층이 다 찍으면 트레이스백이 두 번 남아 에러가 하나인지 둘인지 못 가린다.
     """
     try:
-        products = product_repo.find_page(page, size)
+        products = product_repo.find_page(db, page, size)
     except QueryError as e:
         kind_msg = CLIENT_FAULT.get(e.reason)
         if kind_msg is None:
@@ -56,21 +58,21 @@ def list_products(page: int, size: int) -> list[dict]:
     return products
 
 
-def get_product(product_id: int) -> dict:
+def get_product(db: Session, product_id: int) -> dict:
     """상품 한 건 조회"""
-    product = product_repo.find_by_id(product_id)
+    product = product_repo.find_by_id(db, product_id)
     if not product:
         raise ProductError("not_found", f"product_id {product_id}상품이 없다.")
     return product
 
 
-def create_product(values: dict) -> dict:
+def create_product(db: Session, values: dict) -> dict:
     """등록하고, 등록된 걸 다시 조회해서 돌려준다."""
-    product_id = product_repo.insert(values)
-    return product_repo.find_by_id(product_id)
+    product_id = product_repo.insert(db, values)
+    return product_repo.find_by_id(db, product_id)
 
 
-def update_product(product_id: int, values: dict) -> int:
+def update_product(db: Session, product_id: int, values: dict) -> int:
     """
     수정 한 후, 수정된 행 갯수를 반환
     업데이트된 행이 없다면 0을 반환
@@ -78,7 +80,7 @@ def update_product(product_id: int, values: dict) -> int:
     if not values:  # PATCH 빈 바디. 안 막으면 'SET  WHERE' 라는 깨진 SQL 이 나간다
         raise ProductError("params_error", "조건 입력이 잘못되었습니다.")
     try:
-        updated_row = product_repo.update_product(product_id, values)
+        updated_row = product_repo.update_product(db, product_id, values)
     except QueryError as e:
         kind_msg = CLIENT_FAULT.get(e.reason)
         if kind_msg is None:
@@ -92,21 +94,21 @@ def update_product(product_id: int, values: dict) -> int:
     return updated_row
 
 
-def update_after_select_product(product_id: int, values: dict) -> tuple[int, dict]:
+def update_after_select_product(db: Session, product_id: int, values: dict) -> tuple[int, dict]:
     """수정하고 다시 조회해서 돌려준다. 존재 여부는 선조회가 아니라 고친 행 수로 안다."""
     if not values:  # PATCH 빈 바디. 안 막으면 'SET  WHERE' 라는 깨진 SQL 이 나간다
         raise ProductError("params_error", "조건 입력이 잘못되었습니다.")
-    updated_row = update_product(product_id, values)
+    updated_row = update_product(db, product_id, values)
 
     logging.getLogger().debug("update after select to product table")
 
     if updated_row == 0:
         raise ProductError("not_found", f"{product_id}상품이 없다.")
 
-    return (updated_row, product_repo.find_by_id(product_id))
+    return (updated_row, product_repo.find_by_id(db, product_id))
 
 
-def delete_product(product_id: int) -> None:
+def delete_product(db: Session, product_id: int) -> None:
     """상품을 판매 중지시킨다. 행은 지우지 않고 is_active 를 0 으로 내린다.
 
     구매 이력이 product_id 를 참조하고 있어서 DELETE 는 애초에 못 한다. is_active 컬럼이
@@ -114,7 +116,7 @@ def delete_product(product_id: int) -> None:
     없는 id 는 0행이라 not_found 다 (선조회 대신 고친 행 수로 안다).
     """
     try:
-        updated_row = product_repo.inactive_product(product_id)
+        updated_row = product_repo.inactive_product(db, product_id)
     except QueryError as e:
         kind_msg = CLIENT_FAULT.get(e.reason)
         if kind_msg is None:

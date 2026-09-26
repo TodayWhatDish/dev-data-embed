@@ -4,7 +4,7 @@
 """리뷰를 임베딩용 문서로 조립하고(embedding) 토큰 한도에 맞게 자른다(chunking).
 
 자르는 건 몇 초, 임베딩은 모델 로딩 포함 수십 초 - 값이 다른 작업이라 나눴다.
-DB는 Supabase(Postgres) - app.core.db.engine 하나로 관계형 테이블과 chunks 를 같이 읽고 쓴다.
+DB는 Supabase(Postgres) - app.core.db.get_engine() 하나로 관계형 테이블과 chunks 를 같이 읽고 쓴다.
 """
 
 import statistics
@@ -30,7 +30,7 @@ if EMBED_PROVIDER != "openai":
         hf_logging.set_verbosity_error()
     except ImportError:
         pass
-from app.core.db import Base, engine
+from app.core.db import Base, get_engine
 from app.models.chunk import Chunk, ChunkVector  # noqa: F401 (Base.metadata 등록용)
 from pipeline.prep import chunking
 
@@ -107,7 +107,7 @@ def save_chunks(conn, chunks: list[dict]):
 
 
 def main():
-    with engine.begin() as conn:
+    with get_engine().begin() as conn:
         rows = fetch_rows(conn)
         if not rows:
             raise SystemExit("자를 리뷰가 없습니다. 먼저 python -m pipeline.load_csv 를 실행하세요.")

@@ -28,6 +28,7 @@ from pydantic import ValidationError
 
 from app.adapters.stores.llm import chat
 from app.core.config import LLM_MODEL
+from app.core.db import new_session
 from app.domain.prompting import Recommendation, build_recommend_prompt
 from app.services.searching import candidates as search_candidates
 from eval.golden import load_holdout
@@ -134,7 +135,8 @@ def main(argv: list[str]) -> int:
 
         for i, (_pid, _prod, animal, size, allergy, review) in enumerate(sample, start=1):
             profile = {"animal_category": animal, "size_category": size, "allergy": allergy}
-            cands = search_candidates(profile, review)
+            with new_session() as db:
+                cands = search_candidates(db, profile, review)
             if not cands:
                 continue
             valid_ids = {c["product_id"] for c in cands}

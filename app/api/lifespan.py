@@ -5,10 +5,9 @@
 main.py 는 앱을 조립하고 라우터를 등록하는 일만 한다(그 파일 독스트링). 기동 시 1회 적재는
 전부 여기로 모은다 — uvicorn 이 요청을 받기 전에 도는 자리가 여기뿐이라서다.
 
-담는 것은 세 가지고, 서로 성격이 다르다:
+담는 것은 두 가지고, 서로 성격이 다르다:
   * 도메인 마스터 : DB 값을 도메인 싱글턴에 얹는다 (알러지/축종/품종/카테고리...)
   * 스키마 확인   : ORM Base.metadata 에 매핑된 테이블이 실제 DB 에도 있는지 기동 때 미리 본다
-  * 벡터 커넥션   : pipeline/vector_db.py 가 여는 별도 SQLAlchemy 커넥션. engine 과 다른 물건이다
 """
 
 import logging
@@ -18,9 +17,8 @@ from fastapi import FastAPI
 from sqlalchemy import inspect
 
 from app.core.config import ADMIN_PASSWORD, JWT_SECRET
-from app.core.db import engine
+from app.core.db import get_engine, new_session
 from app.domain.domain_init import init_from_db
-from pipeline.vector_db import connect
 
 logger = logging.getLogger()
 
@@ -31,7 +29,8 @@ def load_domain_cache():
     이게 없으면 CommonMgr 이 빈 채로 남아 services.profile.resolve_allergy() 가
     첫 요청에서 AttributeError 로 죽는다. 지금까지 fake_main.py 만 이걸 불렀다.
     """
-    init_from_db()
+    with new_session() as db:  # 적재가 끝나면 닫아 연결을 풀에 돌려준다
+        init_from_db(db)
 
 
 def load_schema_cache():
@@ -41,7 +40,7 @@ def load_schema_cache():
     더 이상 필요 없다. 그래도 여기서 한 번 접속해 보는 이유는 남아 있다 — DB 가 비었거나
     파일이 없으면 첫 요청이 아니라 기동에서 티가 난다.
     """
-    tables = inspect(engine).get_table_names()
+    tables = inspect(get_engine()).get_table_names()
     logger.info(f"Cached schema: table={len(tables)}")
     return tables
 
@@ -61,7 +60,6 @@ async def lifespan(app: FastAPI):
         check_secrets()
         load_domain_cache()
         load_schema_cache()
-        app.state.con = connect()
     except Exception:
         # 실패 사유와 트레이스백은 아래 층(repositories)이 이미 찍었다. 여기서 남기는 건
         # '그래서 서버가 안 떴다' 는 사실이다 - 예외를 삼키지 않아 uvicorn 이 기동을 멈춘다.
@@ -72,5 +70,5 @@ async def lifespan(app: FastAPI):
     logger.info("Lifespan startup done")
     yield
 
-    app.state.con.close()
+    get_engine().dispose()
     logger.info("Lifespan shutdown done")
