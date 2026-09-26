@@ -4,12 +4,15 @@
 이 검증이 없으면 LLM이 후보에 없는 상품을 지어내도 그대로 나감.
 """
 
+import logging
 from typing import Any
 
 from app.adapters.llm import get_chat
 from app.domain.prompting import Recommendation, build_recommend_prompt
 
 MAX_RETRIES = 2
+
+logger = logging.getLogger(__name__)
 
 
 def recommend(
@@ -27,8 +30,9 @@ def recommend(
         except Exception as exc:
             # 결과가 없는데 아래 검증으로 내려가면 result 가 미정의라 NameError 가 난다.
             # 연결 실패·타임아웃·형식 오류가 엉뚱한 에러로 둔갑하지 않도록 여기서 붙잡는다.
-            # 예외 종류까지 남긴다 - "왜 실패했나"를 응답만 보고 판단해야 하기 때문이다.
-            last_error = f"{type(exc).__name__}: {exc}"
+            # 원문은 키·내부 주소가 섞일 수 있어 서버 로그에만 남긴다 - 응답의 error 는 클라이언트로 나간다.
+            logger.warning("추천 LLM 호출 실패 (시도 %d)", attempt + 1, exc_info=exc)
+            last_error = "LLM 호출 실패"
             continue
 
         # 후보 밖 product_id가 섞였는지, 개수가 n_pick과 맞는지 검증한다.

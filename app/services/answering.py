@@ -5,6 +5,7 @@
 """
 
 import json
+import logging
 from typing import Any, Iterator
 
 from langchain_core.output_parsers import StrOutputParser
@@ -21,6 +22,8 @@ from app.domain.prompting import (
 from app.repositories import users as users_repo
 from app.services.profile import build_profile, pet_profile
 from app.services.searching import candidates
+
+logger = logging.getLogger(__name__)
 
 
 def ask_stream(
@@ -65,6 +68,8 @@ def ask_stream(
                 answer_parts.append(piece)
                 yield json.dumps({"type": "delta", "text": piece}, ensure_ascii=False) + "\n"
         except Exception as e:
+            # 원문(키·스택이 섞일 수 있다)은 서버 로그와 관리자용 질문 기록에만 남기고, 클라이언트엔 고정 문구만 보낸다
+            logger.exception("LLM 답변 스트리밍 실패")
             log_customer_question(
                 user_id=user_id,
                 pet_id=pet_id,
@@ -74,7 +79,7 @@ def ask_stream(
                 ok=False,
                 error=str(e),
             )
-            yield json.dumps({"type": "error", "message": f"LLM 응답 실패: {e}"}, ensure_ascii=False) + "\n"
+            yield json.dumps({"type": "error", "message": "답변을 만들지 못했습니다. 잠시 후 다시 시도해 주세요."}, ensure_ascii=False) + "\n"
             return
         # 관리자 대시보드 '질문' 탭용 기록 - 반증 성패와 무관하게 답변이 나왔으면 성공으로 남긴다.
         log_customer_question(
@@ -89,8 +94,9 @@ def ask_stream(
         try:
             verification = verify(detail, "".join(answer_parts))
             yield json.dumps({"type": "verification", **verification}, ensure_ascii=False) + "\n"
-        except Exception as e:
-            yield json.dumps({"type": "error", "message": f"반증 실패: {e}"}, ensure_ascii=False) + "\n"
+        except Exception:
+            logger.exception("반증(팩트체크) 실패")
+            yield json.dumps({"type": "error", "message": "답변 검증에 실패했습니다."}, ensure_ascii=False) + "\n"
         yield json.dumps({"type": "done"}, ensure_ascii=False) + "\n"
 
     return generate()
