@@ -5,7 +5,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.schemas import AuthResponse, LoginRequest, SignupRequest
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, rate_limit
 from app.domain.common import CommonMgr
 from app.services.auth import login, signup
 from app.services.customers import customer_detail
@@ -44,7 +44,7 @@ def allergens() -> list[str]:
     return CommonMgr.get_inst().get_allergen_names()
 
 
-@router.post("/login", response_model=AuthResponse)
+@router.post("/login", response_model=AuthResponse, dependencies=[Depends(rate_limit(10, 60))])
 def login_route(payload: LoginRequest) -> AuthResponse:
     """일반 회원 로그인. 이메일/비밀번호가 안 맞으면 401."""
     token = login(payload.email, payload.password)

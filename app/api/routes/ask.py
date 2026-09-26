@@ -10,7 +10,7 @@
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 
-from app.api.deps import get_current_admin, get_current_user
+from app.api.deps import get_current_admin, get_current_user, rate_limit
 from app.api.schemas import AskMeRequest, AskRequest
 from app.services.answering import ask_stream
 from app.services.profile import primary_pet
@@ -18,14 +18,15 @@ from app.services.profile import primary_pet
 router = APIRouter()
 
 
-@router.post("/ask", dependencies=[Depends(get_current_admin)])
+@router.post("/ask", dependencies=[Depends(get_current_admin), Depends(rate_limit(20, 60))])
 def ask(body: AskRequest):
     """관리자 대시보드용. pet_id 가 오면 그 펫의 DB 프로필을 쓰고, 없으면 요청에 직접 적힌 필터를 쓴다."""
     lines = ask_stream(body.user_query, body.pet_id, body.user_id, body.model_dump())
     return StreamingResponse(lines, media_type="application/x-ndjson")
 
 
-@router.post("/ask/me")
+# LLM 호출 두 번(답변+반증)이 붙는 경로라 비용 상한 겸 한도를 둔다
+@router.post("/ask/me", dependencies=[Depends(rate_limit(10, 60))])
 def ask_me(body: AskMeRequest, user_id: int = Depends(get_current_user)):
     """일반 회원용. 로그인한 본인의 첫 번째 펫 프로필로 묻는다."""
     pet = primary_pet(user_id)

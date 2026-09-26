@@ -5,13 +5,13 @@
 from fastapi import APIRouter, Depends
 
 from app.api.schemas import AdminLoginRequest, AuthResponse
-from app.api.deps import get_current_admin
+from app.api.deps import get_current_admin, rate_limit
 from app.services.admin_auth import login
 
 router = APIRouter()
 
 
-@router.post("/admin/login", response_model=AuthResponse)
+@router.post("/admin/login", response_model=AuthResponse, dependencies=[Depends(rate_limit(5, 60))])
 def admin_login(payload: AdminLoginRequest) -> AuthResponse:
     """관리자 로그인. username과 password를 검증하고, 맞으면 JWT 토큰을 발급한다."""
 

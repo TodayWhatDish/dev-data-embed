@@ -30,4 +30,6 @@ EXPOSE 8000
 
 # exec form은 $PORT 를 치환 못 한다 - Railway가 컨테이너에 주입하는 PORT를 그대로 듣는다.
 # 로컬처럼 PORT가 없으면 8000으로 기본값을 둔다.
-CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
+# --forwarded-allow-ips: Railway 프록시가 붙인 X-Forwarded-For 를 믿어야 요청 제한(api/deps.rate_limit)이 IP별로 센다.
+# 컨테이너에 프록시를 거치지 않고 닿는 길이 없어서 '*' 로 둔다.
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --forwarded-allow-ips '*'
