@@ -5,17 +5,16 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.deps import get_current_admin
-from app.services.customers import customer_detail
+from app.services.customers import customer_detail, customer_list
 from app.services.searching import similar_reviews_for
 from app.services.strategy import generate_strategy
-from app.repositories import users as users_repo
 
 router = APIRouter(dependencies=[Depends(get_current_admin)])
 
 
 @router.get("/api/customers")
 def list_customers():
-    return users_repo.list_users()
+    return customer_list()
 
 
 @router.get("/api/customers/{user_id}")

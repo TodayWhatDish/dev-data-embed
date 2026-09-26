@@ -7,10 +7,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.api.schemas import AuthResponse, LoginRequest, SignupRequest
 from app.api.deps import get_current_user
 from app.domain.common import CommonMgr
-from app.domain.pet import attach_names
-from app.repositories.pet import find_pets_by_user
 from app.services.auth import login, signup
 from app.services.customers import customer_detail
+from app.services.profile import list_pets
 
 router = APIRouter()
 
@@ -62,8 +61,8 @@ def me() -> dict:
 def my_pets(user_id: int = Depends(get_current_user)) -> list[dict]:
     """로그인한 회원 본인의 펫 목록. user_id를 바디/쿼리로 안 받고 토큰에서만 가져온다 -
     /ask/me와 같은 이유(다른 회원 펫을 user_id만 바꿔서 못 보게).
-    animal_category_id -> animal_category 이름 변환은 attach_names()로 한다 (services/profile.py와 동일)."""
-    return attach_names(find_pets_by_user(user_id))
+    이름 변환(attach_names)은 services/profile.list_pets()가 한다."""
+    return list_pets(user_id)
 
 
 @router.get("/me/profile")

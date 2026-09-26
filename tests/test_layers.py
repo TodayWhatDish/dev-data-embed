@@ -30,6 +30,7 @@ RULES = [
     ("adapters", ("app.services", "app.api", "pipeline"), set()),
     ("services", ("app.api", "pipeline"), SERVICES_PIPELINE_EXEMPT),
     ("api", ("pipeline",), API_PIPELINE_EXEMPT),
+    ("api", ("app.repositories",), set()),
 ]
 
 

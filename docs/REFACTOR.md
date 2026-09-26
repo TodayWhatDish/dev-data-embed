@@ -10,7 +10,7 @@
 | 우선순위 | 의미 | 완료 / 전체 |
 |---------|------|------------|
 | P0 | 버그 · 보안 · 운영 장애 | 3 / 16 |
-| P1 | 구조 (계층 · 책임 분리) | 12 / 20 |
+| P1 | 구조 (계층 · 책임 분리) | 13 / 20 |
 | P2 | 코드 품질 · 정리 | 0 / 19 |
 | P3 | 문서 · 도구 · 배포 | 0 / 11 |
 
@@ -53,7 +53,7 @@
 |----|------|------|------|----------|----------|
 | BE-21 | [x] | `app/api/errors.py`, `routes/auth.py:40,56`, `routes/products.py`, `services/products.py:45-50,82-86,118-122` | 예외를 HTTP로 바꾸는 매핑이 products에만 있음. 나머지는 ValueError를 제각각 변환하고 try/except가 반복됨 | `core/exceptions.py`의 `AppError`(NotFound/Conflict/Invalid/Unauthorized)와 `app.add_exception_handler` 1개 | `grep "except (ValueError\|products.ProductError)" app/api` 0건, `ProductError` 정의 0건 (ask·background·health의 try는 BE-22·38 몫) |
 | BE-22 | [x] | `app/api/routes/ask.py:35-103` | 질문 처리 흐름 조립(프로필, 후보, 상세, 로그, 검증)이 라우트 안에 있음 | `services/answering.ask_stream()`으로 옮기고 라우트는 감싸기만 함 | `ask.py` 40줄 이하 |
-| BE-23 | [ ] | `ask.py:29-30`, `auth.py:14`, `recommend.py:14`, `customers.py:11` | 라우트가 repository를 직접 import함 | 서비스를 경유하게 하고 `tests/test_layers.py`에 api→repositories 금지 규칙 추가 | test_layers 통과 |
+| BE-23 | [x] | `ask.py:29-30`, `auth.py:14`, `recommend.py:14`, `customers.py:11` | 라우트가 repository를 직접 import함 | 서비스를 경유하게 하고 `tests/test_layers.py`에 api→repositories 금지 규칙 추가 | test_layers 통과 |
 | BE-24 | [x] | `ask.py:116-117`, `recommend.py:36-40`, `services/purchases.py:17-19` | "첫 번째 펫" 로직이 세 곳에 중복됨 | `services/pets.primary_pet(user_id)` 하나로 | 정의가 1곳 |
 | BE-25 | [ ] | `lifespan.py:22`, `services/searching.py:21` | app이 `pipeline.vector_db`를 import함 (그래서 test_layers에 예외 처리가 있고, Dockerfile이 pipeline을 복사함) | `connect()`를 `core/db`로 이동, test_layers의 예외 삭제 | `grep "from pipeline" app/` 0건 |
 | BE-26 | [x] | `app/core/auth.py` | core가 fastapi를 import함 | `api/deps.py`로 옮기고 `HTTPBearer` 사용 (Swagger에 인증 버튼이 생김) | `/docs`에 Authorize 버튼 |
@@ -71,6 +71,8 @@
 | BE-38 | [ ] | `app/api/routes/background.py:10` | 페이지를 열 때마다 Unsplash를 동기로 호출하고 캐시가 없음 (api 층에서 외부 HTTP 호출) | `adapters/unsplash.py`와 TTL 캐시 | 연속 호출해도 외부 요청은 1회 |
 | BE-39 | [x] | `app/api/routes/health.py:32`, `app/main.py:64-67` | `/health`가 두 번 정의됨. `/ready`는 준비가 안 돼도 200을 줌 | main의 `/health` 삭제, `/ready`는 준비 안 됨이면 503 | DB를 끊으면 `/ready`가 503 |
 | BE-40 | [ ] | 라우터 전반 | 경로가 일관되지 않음 (`/api/customers`와 `/admin/products`) | `APIRouter(prefix=..., tags=...)`로 통일 (FE와 같이 바꿈) | `/docs`의 경로 규칙이 하나 |
+
+> BE-24: `primary_pet`은 새 파일 대신 펫 조회가 이미 모여 있는 `services/profile.py`에 뒀다. BE-26: 권한 불일치 401·`get_current_admin`의 None 반환은 BE-15(P0) 몫이라 그대로 옮기기만 했다.
 
 ## P2 — 코드 품질 · 정리
 
