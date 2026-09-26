@@ -6,7 +6,7 @@
 from fastapi import APIRouter, Depends
 
 from app.api.schemas import BuyRequest, ReviewRequest
-from app.core.auth import get_current_user
+from app.api.deps import get_current_user
 from app.services.purchases import buy, my_purchases, write_review
 
 router = APIRouter()

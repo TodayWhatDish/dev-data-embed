@@ -26,7 +26,7 @@ RULES = [
     ("domain", ("app.repositories", "app.core", "app.adapters", "app.services", "app.api", 
     "pipeline", "sqlalchemy", "psycopg"), DOMAIN_EXEMPT),
     ("repositories", ("app.domain", "app.services"), set()),
-    ("core", ("app.repositories", "app.adapters", "app.services", "app.api", "pipeline"), set()),
+    ("core", ("app.repositories", "app.adapters", "app.services", "app.api", "pipeline", "fastapi"), set()),
     ("adapters", ("app.services", "app.api", "pipeline"), set()),
     ("services", ("app.api", "pipeline"), SERVICES_PIPELINE_EXEMPT),
     ("api", ("pipeline",), API_PIPELINE_EXEMPT),

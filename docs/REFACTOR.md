@@ -10,7 +10,7 @@
 | 우선순위 | 의미 | 완료 / 전체 |
 |---------|------|------------|
 | P0 | 버그 · 보안 · 운영 장애 | 3 / 16 |
-| P1 | 구조 (계층 · 책임 분리) | 9 / 20 |
+| P1 | 구조 (계층 · 책임 분리) | 10 / 20 |
 | P2 | 코드 품질 · 정리 | 0 / 19 |
 | P3 | 문서 · 도구 · 배포 | 0 / 11 |
 
@@ -56,7 +56,7 @@
 | BE-23 | [ ] | `ask.py:29-30`, `auth.py:14`, `recommend.py:14`, `customers.py:11` | 라우트가 repository를 직접 import함 | 서비스를 경유하게 하고 `tests/test_layers.py`에 api→repositories 금지 규칙 추가 | test_layers 통과 |
 | BE-24 | [ ] | `ask.py:116-117`, `recommend.py:36-40`, `services/purchases.py:17-19` | "첫 번째 펫" 로직이 세 곳에 중복됨 | `services/pets.primary_pet(user_id)` 하나로 | 정의가 1곳 |
 | BE-25 | [ ] | `lifespan.py:22`, `services/searching.py:21` | app이 `pipeline.vector_db`를 import함 (그래서 test_layers에 예외 처리가 있고, Dockerfile이 pipeline을 복사함) | `connect()`를 `core/db`로 이동, test_layers의 예외 삭제 | `grep "from pipeline" app/` 0건 |
-| BE-26 | [ ] | `app/core/auth.py` | core가 fastapi를 import함 | `api/deps.py`로 옮기고 `HTTPBearer` 사용 (Swagger에 인증 버튼이 생김) | `/docs`에 Authorize 버튼 |
+| BE-26 | [x] | `app/core/auth.py` | core가 fastapi를 import함 | `api/deps.py`로 옮기고 `HTTPBearer` 사용 (Swagger에 인증 버튼이 생김) | `/docs`에 Authorize 버튼 |
 | BE-27 | [x] | `app/core/security.py`, `services/auth.py:25-32`, `services/admin_auth.py:18` | PBKDF2 해시는 한 번도 쓰이지 않고, 토큰 발급 코드가 두 곳에 중복됨 | `security.py`에 bcrypt 해싱과 `create_access_token(sub, role)`을 모음 | `jwt.encode` 호출이 1곳 |
 | BE-28 | [x] | `app/core/config.py:27-56, 118, 162` | `.env` 로더를 직접 짰고, import 시점에 `SystemExit`과 `print`가 있음 | pydantic-settings `BaseSettings`로 교체 | 타입이 틀린 env는 기동 시 명확한 에러 |
 | BE-29 | [x] | `app/core/config.py:144-158` | 설정 파일에 SQL 조각(INDEX_FILTER, SIZE_CASE)이 있음 | `repositories/vector.py`로 이동 | config.py에 SQL 0건 |

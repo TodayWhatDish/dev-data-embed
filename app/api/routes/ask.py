@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 
 from app.api.schemas import AskMeRequest, AskRequest
-from app.core.auth import get_current_admin, get_current_user
+from app.api.deps import get_current_admin, get_current_user
 from app.core.trace import log_customer_question
 from app.domain.prompting import build_customer_context
 from app.services import answering

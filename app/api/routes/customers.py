@@ -4,7 +4,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.core.auth import get_current_admin
+from app.api.deps import get_current_admin
 from app.services.customers import customer_detail
 from app.services.searching import similar_reviews_for
 from app.services.strategy import generate_strategy

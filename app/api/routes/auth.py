@@ -5,7 +5,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.schemas import AuthResponse, LoginRequest, SignupRequest
-from app.core.auth import get_current_user
+from app.api.deps import get_current_user
 from app.domain.common import CommonMgr
 from app.domain.pet import attach_names
 from app.repositories.pet import find_pets_by_user

@@ -1,6 +1,6 @@
 # Last Updated : 2026-09-25
 
-"""비밀번호 해싱/검증 + JWT 발급. 토큰을 만드는 곳은 여기 하나뿐이다(검증은 core/auth.py)."""
+"""비밀번호 해싱/검증 + JWT 발급. 토큰을 만드는 곳은 여기 하나뿐이다(검증은 api/deps.py)."""
 
 from datetime import datetime, timedelta, timezone
 

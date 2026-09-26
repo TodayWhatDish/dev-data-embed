@@ -185,7 +185,7 @@ LANGSMITH_EVAL_PROJECT = settings.langsmith_eval_project
 
 # 관리자 로그인 전용 JWT 설정. 사용자 인증은 Supabase 로 이관 중이라 구글 로그인과
 # 함께 걷어냈지만, 관리자 인증(services/admin_auth.py)은 공용 비밀번호 + 자체 JWT 라
-# 그 이관과 무관하다. core/auth.py 와 services/admin_auth.py 가 이 세 값을 import 한다.
+# 그 이관과 무관하다. api/deps.py 와 services/admin_auth.py 가 이 세 값을 import 한다.
 JWT_SECRET = settings.jwt_secret
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = 60 * 24 * 7  # 7일

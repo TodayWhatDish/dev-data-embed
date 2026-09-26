@@ -5,7 +5,7 @@
 from fastapi import APIRouter, Depends
 
 from app.api.schemas import AdminLoginRequest, AuthResponse
-from app.core.auth import get_current_admin
+from app.api.deps import get_current_admin
 from app.services.admin_auth import login
 
 router = APIRouter()

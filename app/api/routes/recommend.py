@@ -7,7 +7,7 @@ profile.build_profile() → searching.candidates() → recommending.recommend() 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.api.schemas import RecommendRequest, RecommendResponse
-from app.core.auth import get_current_user
+from app.api.deps import get_current_user
 from app.services.profile import build_profile, pet_profile, survey_query_text
 from app.services.recommending import recommend
 from app.services.searching import candidates
