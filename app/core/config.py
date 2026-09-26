@@ -12,7 +12,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = ROOT / "data"
-DB_PATH = DATA_DIR / "pet_reco.db"
 MASTER_DIR = DATA_DIR / "master"
 LOG_PATH = ROOT / "logs" / "query_log.jsonl"
 SEED_DIR = DATA_DIR / "seed"
@@ -156,10 +155,6 @@ SIZE_CASE = (
     + " ".join(f"WHEN {code} THEN '{label}'" for code, label in SIZE_LABELS.items())
     + " END"
 )
-
-
-if not Path(DB_PATH).exists():
-    print(f"알림: DB 가 아직 없다 -> {DB_PATH}")
 
 
 USE_API = env("USE_API", 1) == "1"

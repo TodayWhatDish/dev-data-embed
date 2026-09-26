@@ -11,35 +11,62 @@
 한 번 돌려서 무엇이 몇 개 틀렸나를 다 보는 것이 점검표의 값이다.
 """
 
-import json
-import sqlite3
 import time
 from collections import defaultdict
 
 import numpy as np
 from numpy.typing import NDArray
+from sqlalchemy import Connection, distinct, func, select
+from sqlalchemy import inspect as sa_inspect
 
+from app.core.db import Base
 from app.domain.embedding_text import product_text
+from app.models import chunk, common, pet, product, purchase, user  # noqa: F401 (Base.metadata 등록용)
+from app.models.chunk import Chunk, EmbeddingMeta
+from app.models.pet import Pet
+from app.models.product import Product
+from app.models.purchase import Purchase, Review
 from pipeline.prep.chunking import count_tokens
 
 
 def check(ok: bool, error_msg: str, problems: list[str]) -> bool:
-    """참/거짓을 한 줄로 찍고 실패한 것만 problems 에 쌓는다."""
+    """
+    # Summary
+    * 참/거짓을 한 줄로 찍고 실패한 것만 problems 에 쌓는다
+    # params
+    * ok: 검사 결과
+    * error_msg: 찍을 문장. 실패하면 이 문장이 problems 에 쌓인다
+    * problems: 실패를 모으는 목록 (부르는 쪽 것을 그대로 고친다)
+    # examples
+    * (False, 'chunks 테이블이 있다', problems) -> '[문제] ...' 출력, problems 에 문장 추가
+    * -> False (ok 를 그대로 돌려줌)
+    """
     print(f"  [{'OK  ' if ok else '문제'}] {error_msg}")
     if not ok:
         problems.append(error_msg)
     return ok
 
 
-# 표마다 몇 행인가. 벡터가 빠진 행은 없는가. (1단계)
-def check_table_data(con: sqlite3.Connection, table_names: tuple, problems: list[str]):
-    existing = {row[0] for row in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+def check_table_data(con: Connection, table_names: tuple, problems: list[str]):
+    """
+    # Summary
+    * 표마다 몇 행인가. 벡터가 빠진 행은 없는가. (1단계)
+    # params
+    * con: 읽을 DB 커넥션
+    * table_names: 검사할 테이블 이름들
+    * problems: 실패를 모으는 목록
+    # examples
+    * 테이블 이름들 -> 존재·행 수, 조각 수 == 벡터 수, 홀드아웃 수 == 고객 수 를 확인
+    * -> 반환 없음. 결과는 출력되고 실패는 problems 에 쌓임
+    """
+    existing = set(sa_inspect(con).get_table_names())
     ok_count = 0
     counts = {}
     for name in table_names:
         if not check(name in existing, f"{name} 테이블이 있다", problems):
             continue
-        counts[name] = con.execute(f"SELECT COUNT(*) FROM {name}").fetchone()[0]
+        # "user" 같은 Postgres 예약어는 SQLAlchemy 가 알아서 따옴표로 감싼다.
+        counts[name] = con.execute(select(func.count()).select_from(Base.metadata.tables[name])).scalar_one()
         if check(counts[name] > 0, f"{name} 테이블에 데이터가 있다 ({counts[name]:,}행)", problems):
             ok_count += 1
     print(f"[1단계] 테이블 {ok_count}/{len(table_names)}개 정상")
@@ -51,17 +78,18 @@ def check_table_data(con: sqlite3.Connection, table_names: tuple, problems: list
             problems,
         )
 
-    fk_errors = con.execute("PRAGMA foreign_key_check").fetchall()
-    check(len(fk_errors) == 0, f"FK 위반 없음 (어긴 행 {len(fk_errors)}개)", problems)
+    # FK 위반 검사(SQLite 의 PRAGMA foreign_key_check)는 없다. Postgres 는 INSERT 시점에
+    # FK 를 강제하므로 위반한 행이 애초에 들어오지 못한다.
 
     # 채점의 전제다. hit@k는 숨겨 둔 정답이 상위 k 안에 오나를 세는데,
     # 정답이 없으면 셀 것이 없고 그 자리에서 죽는다.
     if "review" in counts and "user" in counts:
-        holdout = con.execute("SELECT COUNT(*) FROM review WHERE is_holdout = 1").fetchone()[0]
-        customer_count = con.execute("""
-            SELECT COUNT(DISTINCT pe.user_id)
-            FROM purchase AS pu JOIN pet AS pe ON pe.pet_id = pu.pet_id
-        """).fetchone()[0]
+        holdout = con.execute(
+            select(func.count()).select_from(Review).where(Review.is_holdout == 1)
+        ).scalar_one()
+        customer_count = con.execute(
+            select(func.count(distinct(Pet.user_id))).select_from(Purchase).join(Pet, Pet.pet_id == Purchase.pet_id)
+        ).scalar_one()
         check(
             holdout == customer_count,
             f"채점용 정답이 고객당 1건이다 ({holdout}건 / 고객 {customer_count}명)",
@@ -70,10 +98,23 @@ def check_table_data(con: sqlite3.Connection, table_names: tuple, problems: list
 
 
 def check_vector_data(
-    con: sqlite3.Connection, kinds: tuple, expected_dim: int, expected_model: str, problems: list[str]
+    con: Connection, kinds: tuple, expected_dim: int, expected_model: str, problems: list[str]
 ):
-    """벡터를 되살려 차원 · 모델 · 정규화를 본다. {표 이름: (아이디, 행렬)} 을 돌려준다"""
-    meta = dict(con.execute("SELECT key, value FROM embedding_meta"))
+    """
+    # Summary
+    * 벡터를 되살려 차원 · 모델 · 정규화를 본다. (2단계)
+    * {표 이름: (아이디, 행렬)} 을 돌려준다
+    # params
+    * con: 읽을 DB 커넥션
+    * kinds: (벡터 테이블, 열쇠 컬럼) 쌍들
+    * expected_dim: 설정의 차원 (EMBED_DIM)
+    * expected_model: 설정의 모델 (EMBED_MODEL)
+    * problems: 실패를 모으는 목록
+    # examples
+    * KINDS 3벌 -> embedding_meta 의 모델/차원 비교, 각 표의 벡터를 행렬로 읽어 차원·길이 1 확인
+    * -> {'chunk_vectors': ([purchase_id, ...], (n, 1536) 행렬), ...}
+    """
+    meta = dict(con.execute(select(EmbeddingMeta.key, EmbeddingMeta.value)).all())
     check(
         meta.get("model") == expected_model,
         f"모델이 설정값과 같다 (저장값 '{meta.get('model')}', 설정값 '{expected_model}')",
@@ -86,21 +127,19 @@ def check_vector_data(
     )
 
     vectors = {}
+    existing = set(sa_inspect(con).get_table_names())
     for table, id_col in kinds:
-        rows = con.execute(f"SELECT {id_col}, vector FROM {table}").fetchall()
+        # 테이블이 없으면 Postgres 는 트랜잭션째 에러 상태가 되므로 먼저 확인한다.
+        if not check(table in existing, f"{table} 테이블이 있다", problems):
+            continue
+        # vector 컬럼이 Vector 타입이라 pgvector 가 문자열 "[...]" 이 아니라 배열로 풀어 준다.
+        t = Base.metadata.tables[table]
+        rows = con.execute(select(t.c[id_col], t.c.vector)).all()
         if not check(bool(rows), f"{table}에 벡터가 있다", problems):
             continue
 
-        ids, mat = [], []
-        for row_id, vec in rows:
-            arr = (
-                np.frombuffer(vec, dtype=np.float32)
-                if isinstance(vec, bytes)
-                else np.array(json.loads(vec), dtype=np.float32)
-            )
-            ids.append(row_id)
-            mat.append(arr)
-        mat = np.array(mat, dtype=np.float32)
+        ids = [row_id for row_id, _ in rows]
+        mat = np.array([vec for _, vec in rows], dtype=np.float32)
 
         check(
             mat.shape[1] == expected_dim,
@@ -120,39 +159,68 @@ def check_vector_data(
 
 
 def check_vector_storage(
-    con: sqlite3.Connection, kinds: tuple, vectors: dict, embed_dim: int, problems: list[str]
+    con: Connection, kinds: tuple, vectors: dict, embed_dim: int, problems: list[str]
 ) -> dict:
-    """BLOB 실제 바이트 수와 float32 예상 바이트(dim*4)를 비교한다. (3단계)
-
-    벡터 하나가 예상보다 크거나 작으면(잘못된 차원이 섞였거나 저장 형식이 깨졌으면)
-    total_bytes가 expected_bytes와 어긋난다."""
+    """
+    # Summary
+    * 저장된 벡터의 차원이 전부 설정값인지 DB 쪽에서 센다. (3단계)
+    # info
+    * SQLite 때는 BLOB 바이트 수(dim*4)로 쟀지만, pgvector 는 헤더가 붙고 TOAST 압축도 될 수 있어
+      바이트 수가 dim*4 와 안 맞는다. 그래서 vector_dims()로 차원을 직접 센다
+    * 바이트 수(pg_column_size)는 용량 참고로만 찍는다
+    # params
+    * con: 읽을 DB 커넥션
+    * kinds: (벡터 테이블, 열쇠 컬럼) 쌍들. 첫 번째 표만 잰다
+    * vectors: check_vector_data()가 돌려준 것 (여기선 안 쓴다)
+    * embed_dim: 설정의 차원
+    * problems: 실패를 모으는 목록
+    # examples
+    * KINDS 의 첫 표 -> vector_dims() 로 차원이 다른 행 수, pg_column_size 합계를 셈
+    * -> {count: 3000, wrong_dim: 0, total_bytes: ...}
+    """
     table = kinds[0][0]
-    count, one_bytes, total_bytes = con.execute(f"""
-        SELECT COUNT(*), length(vector), SUM(length(vector)) FROM {table}
-    """).fetchone()
-    expected_bytes = count * embed_dim * 4  # float32 = 4바이트
+    vector = Base.metadata.tables[table].c.vector
+    count, wrong_dim, total_bytes = con.execute(
+        select(
+            func.count(),
+            func.count().filter(func.vector_dims(vector) != embed_dim),
+            func.coalesce(func.sum(func.pg_column_size(vector)), 0),
+        ).select_from(Base.metadata.tables[table])
+    ).one()
 
     check(
-        total_bytes == expected_bytes,
-        f"{table} 저장 용량이 예상과 같다 (실제 {total_bytes:,}B, 예상 {expected_bytes:,}B)",
+        wrong_dim == 0,
+        f"{table} 벡터가 전부 {embed_dim}차원이다 (어긋난 것 {wrong_dim}개)",
         problems,
     )
 
+    one_bytes = total_bytes / count if count else 0
     print(
         f"[3단계] {table} {count:,}개, 벡터 하나당 {one_bytes / 1024:.2f}KB, 전체 {total_bytes / 1024:.2f}KB"
     )
 
-    return {"count": count, "total_bytes": total_bytes, "expected_bytes": expected_bytes}
+    return {"count": count, "wrong_dim": wrong_dim, "total_bytes": total_bytes}
 
 
-def check_token_sizes(con: sqlite3.Connection, max_tokens: int, problems: list[str]):
-    """상한을 넘어 조용히 잘리는 조각이 있는가. (4단계)
-    토큰은 글자 수도 낱말 수도 아니고 모델이 글을 나누는 단위다.
-    상한을 넘으면 뒤가 잘린 채로 벡터가 되는데 오류는 안 난다."""
-
-    total = con.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
-    over = con.execute("SELECT COUNT(*) FROM chunks WHERE n_tokens > ?", (max_tokens,)).fetchone()[0]
-    average = con.execute("SELECT AVG(n_tokens) FROM chunks").fetchone()[0]
+def check_token_sizes(con: Connection, max_tokens: int, problems: list[str]):
+    """
+    # Summary
+    * 상한을 넘어 잘리는 조각이 있는가. (4단계)
+    # info
+    * 토큰은 글자 수도 낱말 수도 아니고 모델이 글을 나누는 단위다
+    * 상한을 넘으면 뒤가 잘린 채로 벡터가 되는데 오류는 안 난다
+    # params
+    * con: 읽을 DB 커넥션
+    * max_tokens: 모델의 토큰 상한
+    * problems: 실패를 모으는 목록
+    # examples
+    * max_tokens=EMBED_MAX_TOKENS -> chunks 의 n_tokens 로 전체·초과·평균을 셈
+    * -> {total: 3000, over_limit: 0, average: 87.3}
+    """
+    total = con.execute(select(func.count()).select_from(Chunk)).scalar_one()
+    over = con.execute(select(func.count()).select_from(Chunk).where(Chunk.n_tokens > max_tokens)).scalar_one()
+    # Postgres AVG 는 Decimal 을 돌려줘서 float 로 바꿔 둔다.
+    average = float(con.execute(select(func.avg(Chunk.n_tokens))).scalar_one() or 0)
 
     check(over == 0, f"상한({max_tokens})을 넘는 조각 {over}개", problems)
     print(f"[4단계] 조각 평균 {average:.1f}토큰 · 총 {total}개 중 상한 초과 {over}개")
@@ -168,9 +236,17 @@ def calculate_scores(
     product_ids: list[str],  # 상품 ID 리스트 (순서 = product_vectors 행 순서)
     product_of: dict[int, str],  # purchase_id -> product_id 매핑
 ) -> dict[str, NDArray[np.float32]]:  # 3가지 점수 행렬 (n_customers, n_products)
-    """상품요약/조각최고점/조각평균 3방식으로 (고객 x 상품) 점수 행렬을 만든다. (5단계)
-    세 벡터가 전부 정규화돼 있으므로(normalize_embeddings=True) 내적 = 코사인 유사도다."""
-
+    """
+    # Summary
+    * 상품요약/조각최고점/조각평균 3방식으로 (고객 x 상품) 점수 행렬을 만든다. (5단계)
+    # info
+    * 세 벡터가 전부 정규화돼 있으므로(normalize_embeddings=True) 내적 = 코사인 유사도다
+    # params
+    * 각 인자의 모양은 시그니처 옆 주석에 있다
+    # examples
+    * 고객·상품·조각 행렬 -> 고객x상품 내적, 고객x조각 내적을 상품별 max/mean 으로 합침
+    * -> {'상품 요약 벡터 (기준선)': (고객, 상품) 행렬, '조각 · max': ..., '조각 · mean': ...}
+    """
     product_index = {pid: i for i, pid in enumerate(product_ids)}
     n_customers = customer_vectors.shape[0]
     n_products = len(product_ids)
@@ -210,7 +286,15 @@ def hit_at(
     answers: dict[str, str],  # customer_id -> 정답 상품 (holdout)
     ks: tuple[int, ...] = (1, 3, 5),
 ) -> dict[int, float]:  # {k: hit_rate_percent}
-    """점수 행렬에서 고객별 정답 상품이 상위 k 안에 들었는지로 hit@k를 계산한다. (5단계)"""
+    """
+    # Summary
+    * 점수 행렬에서 고객별 정답 상품이 상위 k 안에 들었는지로 hit@k를 계산한다. (5단계)
+    # params
+    * 각 인자의 모양은 시그니처 옆 주석에 있다
+    # examples
+    * 점수 행렬, 정답 {고객: 상품} -> 고객마다 이미 산 상품을 빼고 점수순 상위 k 에 정답이 있나 셈
+    * -> {1: 12.3, 3: 25.0, 5: 33.1} (퍼센트)
+    """
     product_index = {pid: i for i, pid in enumerate(product_ids)}
     max_k = max(ks)
     hits = {k: 0 for k in ks}
@@ -238,43 +322,44 @@ def hit_at(
     return {k: hits[k] / evaluated * 100 for k in ks}
 
 
-# calculate_scores + hit_at을 엮어 3가지 추천 방식의 성능을 한 번에 비교한다. (5단계)
 def compare_recommendations(
-    con: sqlite3.Connection,
+    con: Connection,
     vectors: dict[str, tuple[list, NDArray[np.float32]]],  # check_vector_data가 돌려준 것 그대로
     token_result: dict[str, float],  # check_token_sizes 반환값
 ) -> dict[str, dict[int, float]]:  # {label: {k: hit%}}
+    """
+    # Summary
+    * calculate_scores + hit_at을 엮어 3가지 추천 방식의 성능을 한 번에 비교한다. (5단계)
+    # params
+    * con: 읽을 DB 커넥션
+    * vectors, token_result: 시그니처 옆 주석 참고
+    # examples
+    * vectors, token_result -> 이미 산 것/정답을 DB 에서 읽고 calculate_scores + hit_at 실행
+    * -> {방식 이름: {1: %, 3: %, 5: %}} 반환 + 비교표 출력
+    """
     customer_ids, customer_mat = vectors["customer_vectors"]
     product_ids, product_mat = vectors["product_vectors"]
     chunk_ids, chunk_mat = vectors["chunk_vectors"]  # chunk_ids[j] = 그 조각의 purchase_id
 
-    product_of = dict(con.execute("SELECT purchase_id, product_id FROM purchase"))
+    product_of = dict(con.execute(select(Purchase.purchase_id, Purchase.product_id)).all())
+
+    # 고객이 리뷰를 남긴 구매. is_holdout 으로 이미 산 것(0)과 채점용 정답(1)을 가른다.
+    reviewed = (
+        select(Pet.user_id, Purchase.product_id)
+        .select_from(Purchase)
+        .join(Pet, Pet.pet_id == Purchase.pet_id)
+        .join(Review, Review.purchase_id == Purchase.purchase_id)
+    )
 
     bought = defaultdict(set)
-    for customer_id, product_id in con.execute("""
-        SELECT pe.user_id, pu.product_id
-        FROM purchase AS pu
-        JOIN pet AS pe ON pe.pet_id = pu.pet_id
-        JOIN review AS r ON r.purchase_id = pu.purchase_id
-        WHERE r.is_holdout = 0
-    """):
+    for customer_id, product_id in con.execute(reviewed.where(Review.is_holdout == 0)):
         bought[customer_id].add(product_id)
 
-    answers = dict(
-        con.execute("""
-        SELECT pe.user_id, pu.product_id
-        FROM purchase AS pu
-        JOIN pet AS pe ON pe.pet_id = pu.pet_id
-        JOIN review AS r ON r.purchase_id = pu.purchase_id
-        WHERE r.is_holdout = 1
-    """)
-    )
+    answers = dict(con.execute(reviewed.where(Review.is_holdout == 1)).all())
 
     # embed.py/prep_rec.py가 실제로 쓰는 그 함수(product_text)로 다시 문장을 만들어 토큰을 센다.
     # 손으로 다시 조립하면 만들 때와 잴 때가 어긋나도 아무도 모른다.
-    cur = con.execute("SELECT * FROM product")
-    cols = [d[0] for d in cur.description]
-    product_rows = [dict(zip(cols, row)) for row in cur.fetchall()]
+    product_rows = [dict(row) for row in con.execute(select(Product.__table__)).mappings()]
     average_product_tokens = sum(count_tokens(product_text(row)) for row in product_rows) / len(product_rows)
 
     average_tokens = {
@@ -313,7 +398,15 @@ def compare_recommendations(
 
 
 def print_final_result(problems: list[str]) -> None:
-    """쌓아 둔 문제를 한 번에 요약한다. 새로 검사하지 않는다"""
+    """
+    # Summary
+    * 쌓아 둔 문제를 한 번에 요약한다. 새로 검사하지 않는다
+    # params
+    * problems: 앞 단계들이 쌓은 실패 목록
+    # examples
+    * ['chunks 테이블이 있다'] -> 건수와 문장을 출력. 빈 목록이면 '전부 통과'
+    * -> 반환 없음
+    """
     print()
     print("=" * 74)
     if problems:

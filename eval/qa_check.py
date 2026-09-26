@@ -13,12 +13,25 @@ LLM 을 한 번도 안 부른다 - 요금이 안 든다.
 """
 
 import json
-import sqlite3
 import sys
 from pathlib import Path
 
+from sqlalchemy import Connection, Select, select
+
 sys.stdout.reconfigure(errors="replace")
 
+from app.models.chunk import Chunk
+from app.models.common import Allergen, AnimalCategory
+from app.models.product import (
+    FeedingPurpose,
+    Ingredient,
+    IngredientAllergen,
+    Product,
+    ProductAnimalCategory,
+    ProductFeedingPurpose,
+    ProductIngredient,
+)
+from app.models.purchase import Purchase
 from app.services.searching import candidates as search_candidates
 from eval.tracing import banner, eval_run, warm_domain
 from pipeline.vector_db import connect
@@ -28,64 +41,65 @@ ITEMS = GOLDEN["items"]
 
 K = 5
 
-# expect 의 키 -> 그 속성을 만족하는 product_id 를 뽑는 SQL. 값 하나를 파라미터로 받는다.
+# expect 의 키 -> 값 하나를 받아 그 속성을 만족하는 product_id 를 뽑는 쿼리.
 # 여기서만 상품 속성을 읽으므로 조건을 늘릴 때 고칠 곳이 한 군데다.
 EXPECT_SQL = {
-    "feeding_purpose": """
-        SELECT pfp.product_id FROM product_feeding_purpose AS pfp
-        JOIN feeding_purpose AS fp ON fp.feeding_purpose_id = pfp.feeding_purpose_id
-        WHERE fp.name_ko = ?
-    """,
-    "food_form": "SELECT product_id FROM product WHERE food_form = ?",
-    "ingredient": """
-        SELECT pi.product_id FROM product_ingredient AS pi
-        JOIN ingredient AS ing ON ing.ingredient_id = pi.ingredient_id
-        WHERE ing.name_ko = ?
-    """,
+    "feeding_purpose": lambda value: (
+        select(ProductFeedingPurpose.product_id)
+        .join(FeedingPurpose, FeedingPurpose.feeding_purpose_id == ProductFeedingPurpose.feeding_purpose_id)
+        .where(FeedingPurpose.name_ko == value)
+    ),
+    "food_form": lambda value: select(Product.product_id).where(Product.food_form == value),
+    "ingredient": lambda value: (
+        select(ProductIngredient.product_id)
+        .join(Ingredient, Ingredient.ingredient_id == ProductIngredient.ingredient_id)
+        .where(Ingredient.name_ko == value)
+    ),
 }
 
-ANIMAL_SQL = """
-    SELECT pac.product_id FROM product_animal_category AS pac
-    JOIN animal_category AS ac ON ac.animal_category_id = pac.animal_category_id
-    WHERE ac.name_ko = ?
-"""
 
-ALLERGEN_SQL = """
-    SELECT pi.product_id FROM product_ingredient AS pi
-    JOIN ingredient_allergen AS ia ON ia.ingredient_id = pi.ingredient_id
-    JOIN allergen AS al ON al.allergen_id = ia.allergen_id
-    WHERE al.name_ko = ?
-"""
+def animal_sql(value: str) -> Select:
+    return (
+        select(ProductAnimalCategory.product_id)
+        .join(AnimalCategory, AnimalCategory.animal_category_id == ProductAnimalCategory.animal_category_id)
+        .where(AnimalCategory.name_ko == value)
+    )
+
+
+def allergen_sql(value: str) -> Select:
+    return (
+        select(ProductIngredient.product_id)
+        .join(IngredientAllergen, IngredientAllergen.ingredient_id == ProductIngredient.ingredient_id)
+        .join(Allergen, Allergen.allergen_id == IngredientAllergen.allergen_id)
+        .where(Allergen.name_ko == value)
+    )
+
 
 # 색인에 실제로 들어간(is_holdout=0) 리뷰가 달린 상품. 리뷰가 없으면 벡터 검색이
 # 그 상품을 애초에 못 돌려주므로, 자가검증은 '상품이 있나' 가 아니라 여기까지 봐야 한다.
-INDEXED_SQL = """
-    SELECT DISTINCT pu.product_id
-    FROM purchase AS pu
-    JOIN chunks AS c ON c.purchase_id = pu.purchase_id
-"""
+INDEXED_SQL = select(Purchase.product_id).distinct().join(Chunk, Chunk.purchase_id == Purchase.purchase_id)
 
 
-def ids(con: sqlite3.Connection, sql: str, params: tuple = ()) -> set[int]:
-    """SQL 한 방을 product_id 집합으로 바꾼다. 집합 연산으로 조건을 겹치려고 쓴다."""
-    return {row[0] for row in con.execute(sql, params)}
+def ids(con: Connection, stmt: Select) -> set[int]:
+    """쿼리 한 방을 product_id 집합으로 바꾼다. 집합 연산으로 조건을 겹치려고 쓴다."""
+    return set(con.execute(stmt).scalars())
 
 
-def expected_products(con: sqlite3.Connection, item: dict) -> set[int]:
+def expected_products(con: Connection, item: dict) -> set[int]:
     """이 문항에서 '맞다'고 칠 상품 집합. expect 조건을 전부 만족하고 축종도 맞아야 한다."""
-    matched = ids(con, ANIMAL_SQL, (item["profile"]["animal_category"],))
+    matched = ids(con, animal_sql(item["profile"]["animal_category"]))
     for key, value in item["expect"].items():
-        matched &= ids(con, EXPECT_SQL[key], (value,))
+        matched &= ids(con, EXPECT_SQL[key](value))
 
     # 알레르기를 준 문항은 그 알레르겐이 든 상품을 정답에서 뺀다 - 조건은 맞아도
     # 줘서는 안 되는 상품이라 '맞은 것'으로 세면 안 된다.
     allergy = item["profile"].get("allergy")
     if allergy:
-        matched -= ids(con, ALLERGEN_SQL, (allergy,))
+        matched -= ids(con, allergen_sql(allergy))
     return matched
 
 
-def self_check(con: sqlite3.Connection) -> list[tuple]:
+def self_check(con: Connection) -> list[tuple]:
     """채점을 시작하기 전에 자가 성한지 본다.
 
     expect 를 만족하면서 색인된 리뷰까지 있는 상품이 없으면 그 문항은 아무리 검색이
@@ -103,16 +117,16 @@ def self_check(con: sqlite3.Connection) -> list[tuple]:
     return broken
 
 
-def score_item(con: sqlite3.Connection, item: dict) -> dict:
+def score_item(con: Connection, item: dict) -> dict:
     """문항 하나를 실제 배포 경로(searching.candidates)로 검색해 채점한다."""
     profile = item["profile"]
     found = search_candidates(profile, item["question"], limit=K)
     got = [row["product_id"] for row in found]
 
     wanted = expected_products(con, item)
-    animal_ok = ids(con, ANIMAL_SQL, (profile["animal_category"],))
+    animal_ok = ids(con, animal_sql(profile["animal_category"]))
     allergy = profile.get("allergy")
-    unsafe = ids(con, ALLERGEN_SQL, (allergy,)) if allergy else set()
+    unsafe = ids(con, allergen_sql(allergy)) if allergy else set()
 
     return {
         "id": item["id"],

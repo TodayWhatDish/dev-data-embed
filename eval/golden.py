@@ -17,11 +17,16 @@
 
 import json
 import random
-import sqlite3
 import sys
 import time
 
-from app.core.config import EMBED_DIM, EMBED_MODEL, EVAL_DIR, SIZE_CASE
+from sqlalchemy import Connection, case, func, select
+
+from app.core.config import EMBED_DIM, EMBED_MODEL, EVAL_DIR, SIZE_LABELS
+from app.models.common import Allergen, AnimalCategory
+from app.models.pet import Pet, PetAllergy
+from app.models.product import IngredientAllergen, Product, ProductIngredient
+from app.models.purchase import Purchase, Review
 from app.services.recommending import recommend
 from app.services.retrieve import build_where, search
 from app.services.searching import candidates as search_candidates
@@ -29,43 +34,54 @@ from eval.tracing import banner, eval_run, require_llm, warm_domain
 from pipeline.vector_db import connect
 
 
-def load_product_map(con: sqlite3.Connection) -> dict[int, int]:
+def load_product_map(con: Connection) -> dict[int, int]:
     """purchase_id -> product_id 사전을 만든다 검색 결과(purchase_id)를 상품으로 해석할 때 쓴다."""
-    rows = con.execute(
-        "SELECT purchase_id, product_id FROM purchase"
-    ).fetchall()  # 전체 구매의 (purchase_id, product_id) 쌍을 가져옴
+    # 전체 구매의 (purchase_id, product_id) 쌍을 가져옴
+    rows = con.execute(select(Purchase.purchase_id, Purchase.product_id)).all()
     return dict(rows)  # {purchase_id, product_id}
 
 
-def load_holdout(con: sqlite3.Connection):
+def load_holdout(con: Connection):
     """색인(chunks / chunk_vectors)에서 빠진, 정답(product_id)을 이미 아는 평가용 표본을 가져온다."""
-    return con.execute(f"""
-        SELECT
-            pu.purchase_id,
-            pu.product_id,
-            (SELECT ac.name_ko FROM pet AS pe
-                JOIN animal_category AS ac ON ac.animal_category_id = pe.animal_category_id
-                WHERE pe.pet_id = pu.pet_id) AS animal_category,
-            {SIZE_CASE} AS size_category,
-            (SELECT al.name_ko FROM pet_allergy AS pa
-                JOIN allergen AS al ON al.allergen_id = pa.allergen_id
-                WHERE pa.pet_id = pu.pet_id LIMIT 1) AS allergy,
-            r.body AS review
-        FROM purchase AS pu
-        JOIN review AS r ON r.purchase_id = pu.purchase_id
-        WHERE r.is_holdout = 1
-        AND r.body IS NOT NULL
-        AND TRIM(r.body) <> ''
-    """).fetchall()
+    animal_category = (
+        select(AnimalCategory.name_ko)
+        .select_from(Pet)
+        .join(AnimalCategory, AnimalCategory.animal_category_id == Pet.animal_category_id)
+        .where(Pet.pet_id == Purchase.pet_id)
+        .scalar_subquery()
+    )
+    allergy = (
+        select(Allergen.name_ko)
+        .select_from(PetAllergy)
+        .join(Allergen, Allergen.allergen_id == PetAllergy.allergen_id)
+        .where(PetAllergy.pet_id == Purchase.pet_id)
+        .limit(1)
+        .scalar_subquery()
+    )
+    # SIZE_CASE(config.py)와 같은 매핑을 빌더로 만든다 - size_at_purchase 1~5 코드 -> 라벨.
+    size_category = case(SIZE_LABELS, value=Purchase.size_at_purchase)
+    return con.execute(
+        select(
+            Purchase.purchase_id,
+            Purchase.product_id,
+            animal_category.label("animal_category"),
+            size_category.label("size_category"),
+            allergy.label("allergy"),
+            Review.body.label("review"),
+        )
+        .select_from(Purchase)
+        .join(Review, Review.purchase_id == Purchase.purchase_id)
+        .where(Review.is_holdout == 1, Review.body.is_not(None), func.trim(Review.body) != "")
+    ).all()
 
 
-def load_product_names(con: sqlite3.Connection) -> dict[int, str]:
+def load_product_names(con: Connection) -> dict[int, str]:
     """product_id -> 상품명 사전. 결과를 사람이 읽을 수 있게 찍을 때 쓴다."""
-    rows = con.execute("SELECT product_id, name FROM product").fetchall()
+    rows = con.execute(select(Product.product_id, Product.name)).all()
     return dict(rows)
 
 
-def inspect_misses(con: sqlite3.Connection, runs: list[tuple], n: int = 5) -> None:
+def inspect_misses(con: Connection, runs: list[tuple], n: int = 5) -> None:
     """미스 케이스 n건을 골라, 정답과 실제 상위 결과를 나란히 찍는다."""
     product_of = load_product_map(con)
     name_of = load_product_names(con)
@@ -89,7 +105,7 @@ def inspect_misses(con: sqlite3.Connection, runs: list[tuple], n: int = 5) -> No
             break
 
 
-def is_allergy_contaminated(con: sqlite3.Connection, product_id: int, allergy: str) -> bool:
+def is_allergy_contaminated(con: Connection, product_id: int, allergy: str) -> bool:
     """정답 상품에 그 pet의 등록 알레르기 원료가 실제로 들어있는지.
 
     True면 FILTERS["allergy"](retrieve.py:26-33)가 이 정답을 애초에 후보군에서 뺐다는 뜻 -
@@ -98,18 +114,17 @@ def is_allergy_contaminated(con: sqlite3.Connection, product_id: int, allergy: s
     if not allergy:
         return False
     row = con.execute(
-        """
-        SELECT 1 FROM product_ingredient AS pi
-        JOIN ingredient_allergen AS ia ON ia.ingredient_id = pi.ingredient_id
-        JOIN allergen AS al ON al.allergen_id = ia.allergen_id
-        WHERE pi.product_id = ? AND al.name_ko = ?
-    """,
-        (product_id, allergy),
-    ).fetchone()
+        select(1)
+        .select_from(ProductIngredient)
+        .join(IngredientAllergen, IngredientAllergen.ingredient_id == ProductIngredient.ingredient_id)
+        .join(Allergen, Allergen.allergen_id == IngredientAllergen.allergen_id)
+        .where(ProductIngredient.product_id == product_id, Allergen.name_ko == allergy)
+        .limit(1)
+    ).first()
     return row is not None
 
 
-def count_allergy_contamination(con: sqlite3.Connection, runs: list[tuple]) -> None:
+def count_allergy_contamination(con: Connection, runs: list[tuple]) -> None:
     """top50 미스 중 알레르기 필터가 정답 자체를 걸러낸 오염 건수를 센다."""
     product_of = load_product_map(con)
     contaminated = 0
@@ -124,7 +139,7 @@ def count_allergy_contamination(con: sqlite3.Connection, runs: list[tuple]) -> N
     print(f"top50 미스 {n_miss}건 중 알레르기 오염(정답이 필터에 걸림) {contaminated}건 ({rate:.1%})")
 
 
-def run_holdout_search(con: sqlite3.Connection, top_k_wide: int = 50) -> list[tuple]:
+def run_holdout_search(con: Connection, top_k_wide: int = 50) -> list[tuple]:
     """홀드아웃 66건을 한 번씩만 검색해서, 이후 지표 계산 함수들이 재사용하게 한다."""
     holdout = load_holdout(con)
     runs = []
@@ -148,7 +163,7 @@ def rank_of_answer(product_of: dict[int, int], product_id: int, results: list[tu
     return None
 
 
-def score_runs(con: sqlite3.Connection, runs: list[tuple]) -> list[dict]:
+def score_runs(con: Connection, runs: list[tuple]) -> list[dict]:
     """검색 결과를 표본별 한 줄 기록으로 압축한다. 모델 비교는 이 기록끼리 한다."""
     product_of = load_product_map(con)
     return [
