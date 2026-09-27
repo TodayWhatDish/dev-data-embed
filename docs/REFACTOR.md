@@ -9,7 +9,7 @@
 
 | 우선순위 | 의미 | 완료 / 전체 |
 |---------|------|------------|
-| P0 | 버그 · 보안 · 운영 장애 | 3 / 16 |
+| P0 | 버그 · 보안 · 운영 장애 | 10 / 16 |
 | P1 | 구조 (계층 · 책임 분리) | 14 / 20 |
 | P2 | 코드 품질 · 정리 | 0 / 19 |
 | P3 | 문서 · 도구 · 배포 | 0 / 11 |
@@ -29,16 +29,16 @@
 |----|------|------|------|----------|----------|
 | BE-01 | [x] | `app/core/config.py:208`, `app/services/admin_auth.py:15` | `ADMIN_PASSWORD` 기본값이 `""`이고 `compare_digest("", "")`가 True라서, env가 없으면 빈 비밀번호로 관리자 로그인이 됨 | 기동 시 비어 있으면 `RuntimeError` | env 없이 기동하면 서버가 뜨지 않음 |
 | BE-02 | [x] | `app/core/config.py:205` | `JWT_SECRET` 기본값이 `""`라 누구나 토큰을 위조할 수 있음 | 비어 있거나 32자 미만이면 기동 실패 | 짧은 키로 기동하면 서버가 뜨지 않음 |
-| BE-03 | [ ] | `app/api/lifespan.py:54`, `app/services/searching.py` | `app.state.con` 커넥션 하나를 스레드 40개가 동시에 씀 (스레드 안전하지 않음, 트랜잭션이 계속 열려 있음) | 요청마다 `with engine.connect()` 또는 `get_db` 의존성, `app.state.con` 삭제 | `grep "app.state.con"` 0건, 동시 요청 부하 테스트 통과 |
-| BE-04 | [ ] | `app/core/db.py:33` | `scoped_session`을 닫지 않음. 요청이 끝나도 idle-in-transaction으로 커넥션을 붙잡고, 요청 사이에 오래된 데이터가 남음 | `api/deps.py`의 `get_db()` yield 의존성 (commit / rollback / close) | Supabase에서 `pg_stat_activity`에 idle in transaction 0건 |
-| BE-05 | [ ] | `app/core/db.py:24` | 커넥션 풀 설정이 없음 (기본 5+10 < 스레드 40), `pool_pre_ping`도 없음 | `pool_size`, `max_overflow`, `pool_pre_ping=True`, `pool_recycle=300` | 오래 방치한 뒤 첫 요청도 성공 |
-| BE-06 | [ ] | `app/core/db.py:117-128` | `execute()`는 `_exec_driver_sql`을 거치지 않아 실패해도 롤백하지 않음. `lastrowid`는 sqlite 잔재 | `_exec_driver_sql`로 돌리고 `rowcount` 반환 | 실패한 DELETE 다음 요청이 정상 동작 |
+| BE-03 | [x] | `app/api/lifespan.py:54`, `app/services/searching.py` | `app.state.con` 커넥션 하나를 스레드 40개가 동시에 씀 (스레드 안전하지 않음, 트랜잭션이 계속 열려 있음) | 요청마다 `with engine.connect()` 또는 `get_db` 의존성, `app.state.con` 삭제 | `grep "app.state.con"` 0건, 동시 요청 부하 테스트 통과 |
+| BE-04 | [x] | `app/core/db.py:33` | `scoped_session`을 닫지 않음. 요청이 끝나도 idle-in-transaction으로 커넥션을 붙잡고, 요청 사이에 오래된 데이터가 남음 | `api/deps.py`의 `get_db()` yield 의존성 (commit / rollback / close) | Supabase에서 `pg_stat_activity`에 idle in transaction 0건 |
+| BE-05 | [x] | `app/core/db.py:24` | 커넥션 풀 설정이 없음 (기본 5+10 < 스레드 40), `pool_pre_ping`도 없음 | `pool_size`, `max_overflow`, `pool_pre_ping=True`, `pool_recycle=300` | 오래 방치한 뒤 첫 요청도 성공 |
+| BE-06 | [x] | `app/core/db.py:117-128` | `execute()`는 `_exec_driver_sql`을 거치지 않아 실패해도 롤백하지 않음. `lastrowid`는 sqlite 잔재 | `_exec_driver_sql`로 돌리고 `rowcount` 반환 | 실패한 DELETE 다음 요청이 정상 동작 |
 | BE-07 | [ ] | `app/api/routes/auth.py:46-49, 88-92` | `/allergens` 라우트가 같은 함수명으로 두 번 등록됨 | 하나 삭제 | `/docs`에 `/allergens`가 1개 |
 | BE-08 | [ ] | `app/core/embedder.py:67` | 요청 처리 중에 키가 없으면 `raise SystemExit`으로 워커 스레드가 죽음 | `RuntimeError`로 바꾸고 키 검사는 기동 시점으로 이동 | `grep SystemExit app/` 0건 |
-| BE-09 | [ ] | `app/api/routes/ask.py:84, 100` | `f"LLM 응답 실패: {e}"`로 내부 예외 원문을 클라이언트에 노출 | 고정 문구만 보내고, 원문은 `logger.exception`으로 기록 | LLM 키를 깨뜨렸을 때 응답에 스택이나 키 정보가 없음 |
-| BE-10 | [ ] | `/login`, `/admin/login`, `/ask` | 요청 횟수 제한이 없어 무차별 대입이 가능하고 LLM 비용 상한도 없음 | slowapi 등으로 IP별 요청 제한 | 짧은 시간에 연속 로그인하면 429 |
+| BE-09 | [x] | `app/api/routes/ask.py:84, 100` | `f"LLM 응답 실패: {e}"`로 내부 예외 원문을 클라이언트에 노출 | 고정 문구만 보내고, 원문은 `logger.exception`으로 기록 | LLM 키를 깨뜨렸을 때 응답에 스택이나 키 정보가 없음 |
+| BE-10 | [x] | `/login`, `/admin/login`, `/ask` | 요청 횟수 제한이 없어 무차별 대입이 가능하고 LLM 비용 상한도 없음 | slowapi 등으로 IP별 요청 제한 | 짧은 시간에 연속 로그인하면 429 |
 | BE-11 | [ ] | `app/main.py:44` | Bearer 인증인데 `allow_credentials=True`와 `*` 메서드/헤더를 씀 | `allow_credentials=False`, 메서드와 헤더를 명시 | 프론트엔드 전체 기능이 정상 동작 |
-| BE-12 | [ ] | `app/services/auth.py:53-57`, `app/repositories/pet.py:127-130` | 가입 시 user, pet, 알러지를 따로 커밋해서 중간에 실패하면 반쪽 데이터가 남음. 이메일 중복 검사에 경쟁 조건이 있음 | 트랜잭션 1개로 묶고, 중복은 unique 제약 위반으로 판정 | 알러지 insert를 일부러 실패시키면 user 행도 없음 |
+| BE-12 | [x] | `app/services/auth.py:53-57`, `app/repositories/pet.py:127-130` | 가입 시 user, pet, 알러지를 따로 커밋해서 중간에 실패하면 반쪽 데이터가 남음. 이메일 중복 검사에 경쟁 조건이 있음 | 트랜잭션 1개로 묶고, 중복은 unique 제약 위반으로 판정 | 알러지 insert를 일부러 실패시키면 user 행도 없음 |
 | BE-13 | [ ] | `app/services/retrieve.py:141-142` | 검색할 때마다 `check_freshness` 쿼리 2개를 더 돌리고 결과를 `print` | lifespan에서 한 번만 확인하고 logger로 기록 | 검색 1회당 쿼리 수 감소, `print` 0건 |
 | BE-14 | [ ] | `app/core/trace.py`, `app/api/routes/questions.py`, `app/query.py:27` | 고객 질문을 로컬 jsonl에 저장해서 Railway 재배포 시 사라짐. 락 없이 append하고, query.py가 jsonl 형식을 깨뜨림 | `customer_question` 테이블로 이동 | 재배포 후에도 관리자 질문 목록이 유지됨 |
 | BE-15 | [ ] | `Dockerfile:33`, `app/core/auth.py:39` | shell-form CMD라 SIGTERM을 받지 못하고 root로 실행됨. `get_current_admin`은 `-> int`인데 None을 반환하고, 권한이 틀려도 401을 줌 | `${PORT}` 치환 때문에 shell-form은 유지하고 `CMD exec uvicorn ...`처럼 `exec`를 붙임. `USER app`, `--proxy-headers`. 반환 타입을 고치고 권한 불일치는 403 | 컨테이너가 즉시 종료되고, user 토큰으로 admin API를 부르면 403 |
@@ -46,6 +46,7 @@
 
 > BE-01·02: `lifespan.check_secrets()`로 처리함 (`52e7cb1`). 코드 리뷰로 확인했고, 빈 env로 실제 기동해 보는 확인은 아직 하지 않았다.
 > 이슈: BE-03~06 → [#14](https://github.com/TodayWhatDish/dev-data-embed/issues/14) · BE-10 → [#15](https://github.com/TodayWhatDish/dev-data-embed/issues/15) · BE-12 → [#16](https://github.com/TodayWhatDish/dev-data-embed/issues/16) · BE-14 → [#17](https://github.com/TodayWhatDish/dev-data-embed/issues/17) · BE-09 → [#18](https://github.com/TodayWhatDish/dev-data-embed/issues/18). 나머지 P0는 작아서 체크리스트로만 관리한다.
+> BE-04: yield 의존성 대신 ASGI 미들웨어(`main.SessionPerRequest`)로 세션을 닫는다 - 의존성 정리는 StreamingResponse가 끝나기 전에 돌아서 `/ask` 스트림 도중 세션이 닫힌다. 기동 시 `init_from_db` 세션도 lifespan에서 닫는다(안 닫으면 서버 수명 내내 idle in transaction 1건). BE-10: slowapi 대신 `api/deps.rate_limit` 메모리 카운터(워커 1개 전제). 확인: `tests.api.rate_limit`, `tests.services.signup_tx`(slow).
 
 ## P1 — 구조 (계층 · 책임 분리)
 

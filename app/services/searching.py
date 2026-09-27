@@ -31,8 +31,7 @@ def candidates(
     별점/알레르기/체급/축종 필터는 build_where()가 이미 SQL로 처리한다.
     여기서는 리뷰 단위의 결과를 product 테이블과 합쳐 LLM이 판단할 수 있는 모양으로 바꾼다.
 
-    con 을 안 넘기면(=CLI/eval 처럼 혼자 쓰는 자리) 예전처럼 직접 열고 닫는다.
-    API 라우트처럼 요청마다 불릴 땐 app.state.con 을 넘겨 커넥션을 재사용한다.
+    con 을 안 넘기면 풀에서 하나 빌려 쓰고 닫는다 - API 요청도 이 경로다(커넥션을 스레드끼리 공유하지 않게).
     """
     owns_con = con is None
     if owns_con:

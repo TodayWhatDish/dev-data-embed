@@ -127,7 +127,15 @@ DDL_KINDS = ("TABLES", "INDEXES", "UNIQUE_INDEXES", "VIEWS")
 
 
 def collect(kind):
-    """전 모듈에서 kind 리스트를 MODULES 순서대로 이어붙인다."""
+    """
+    # Summary
+    * 전 모듈에서 kind 리스트를 MODULES 순서대로 이어붙인다
+    # params
+    * kind: TABLES / INDEXES / UNIQUE_INDEXES / VIEWS / SEEDS
+    # examples
+    * 'TABLES' -> MODULES 순서로 각 모듈의 TABLES 를 이어 붙임
+    * -> [common 의 DDL..., user 의 DDL..., pet 의 DDL..., product 의 DDL...]
+    """
     out = []
     for mod in MODULES:
         out.extend(getattr(mod, kind, ()))
@@ -135,16 +143,22 @@ def collect(kind):
 
 
 def drop_all(con):
-    """sqlite_master 에 있는 것을 전부 지운다.
-
-    모듈마다 DROP 목록을 따로 두지 않는 이유: 목록과 실제 테이블이 어긋나면
-    옛 테이블이 유령으로 남는다. 실제로 겪었다 — 옛 스크립트가 만든
-    purchase/review/review_embeddings 가 DROP 목록에 없어서 계속 살아남아
-    객체 수가 17개로 잡혔다. 여기서는 '무엇을 만들었는지'가 아니라
-    '지금 무엇이 있는지'를 보고 지우므로 그 어긋남 자체가 생기지 않는다.
-
-    이 스크립트의 계약은 '전체 재생성'이다(증분이 아니다). db_path 를
-    다른 DB 로 돌리면 그 DB 도 비워진다.
+    """
+    # Summary
+    * sqlite_master 에 있는 것을 전부 지운다
+    # info
+    * 모듈마다 DROP 목록을 따로 두지 않는 이유: 목록과 실제 테이블이 어긋나면
+      옛 테이블이 유령으로 남는다. 실제로 겪었다 — 옛 스크립트가 만든
+      purchase/review/review_embeddings 가 DROP 목록에 없어서 계속 살아남아
+      객체 수가 17개로 잡혔다. 여기서는 '무엇을 만들었는지'가 아니라
+      '지금 무엇이 있는지'를 보고 지우므로 그 어긋남 자체가 생기지 않는다
+    * 이 스크립트의 계약은 '전체 재생성'이다(증분이 아니다). db_path 를
+      다른 DB 로 돌리면 그 DB 도 비워진다
+    # params
+    * con: sqlite3 커넥션
+    # examples
+    * con -> sqlite_master 에서 뷰·테이블 이름을 읽어 뷰부터 DROP
+    * -> (지운 테이블 수, 지운 뷰 수)
     """
     views = [n for (n,) in con.execute("SELECT name FROM sqlite_master WHERE type = 'view'")]
     tables = [
@@ -161,11 +175,18 @@ def drop_all(con):
 
 
 def check_fk_targets(con):
-    """모든 FK 의 참조 대상 테이블이 실재하는지 확인한다.
-
-    SQLite 는 없는 테이블을 가리키는 FK 로도 CREATE TABLE 을 통과시킨다.
-    그래서 MODULES 순서가 틀어지거나 테이블명에 오타가 나도 생성은 성공하고,
-    나중에 INSERT 할 때가 되어서야 터진다. 여기서 미리 잡는다.
+    """
+    # Summary
+    * 모든 FK 의 참조 대상 테이블이 실재하는지 확인한다
+    # info
+    * SQLite 는 없는 테이블을 가리키는 FK 로도 CREATE TABLE 을 통과시킨다.
+      그래서 MODULES 순서가 틀어지거나 테이블명에 오타가 나도 생성은 성공하고,
+      나중에 INSERT 할 때가 되어서야 터진다. 여기서 미리 잡는다
+    # params
+    * con: sqlite3 커넥션
+    # examples
+    * con -> 테이블마다 PRAGMA foreign_key_list 로 참조 대상이 실재하는지 봄
+    * -> 반환 없음. 없는 대상이 있으면 RuntimeError('pet -> breedz')
     """
     tables = {
         n
@@ -184,7 +205,15 @@ def check_fk_targets(con):
 
 
 def owners():
-    """객체명 -> 모듈명. 인벤토리를 모듈별로 묶어 보여주려고 DDL 에서 이름을 뽑는다."""
+    """
+    # Summary
+    * 객체명 -> 모듈명
+    # info
+    * 인벤토리를 모듈별로 묶어 보여주려고 DDL 에서 이름을 뽑는다
+    # examples
+    * 인자 없음 -> 각 모듈 DDL 에서 CREATE TABLE/VIEW/INDEX 뒤 이름을 정규식으로 뽑음
+    * -> {'user': 'user_schema', 'pet': 'pet_schema', ...}
+    """
     pat = re.compile(r"CREATE\s+(?:UNIQUE\s+)?(TABLE|VIEW|INDEX)\s+([A-Za-z_][\w]*)", re.I)
     out = {}
     for mod in MODULES:
@@ -197,7 +226,15 @@ def owners():
 
 
 def report(con):
-    """모듈별로 무엇이 생겼는지, 시드가 몇 행 들어갔는지 출력한다."""
+    """
+    # Summary
+    * 모듈별로 무엇이 생겼는지, 시드가 몇 행 들어갔는지 출력한다
+    # params
+    * con: sqlite3 커넥션
+    # examples
+    * con -> sqlite_master 의 객체를 owners() 로 모듈별로 묶고 시드 행 수를 셈
+    * -> 화면 출력만 ('15 tables, 2 views, N indexes')
+    """
     own = owners()
     rows = con.execute(
         "SELECT type, name FROM sqlite_master WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite_%'"

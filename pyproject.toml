@@ -15,7 +15,8 @@ dependencies = [
     "langchain-core",
     "langchain-openai",
     "langchain-anthropic",
-    "langchain-text-splitters",    
+    "langchain-text-splitters",  
+    "langgraph",  
     "bcrypt",
     # EMBED_PROFILES 의 provider='openai' 프로파일용. langchain-openai 가 둘 다 끌고 오지만,
     # app/core/embedder.py 와 pipeline/prep/chunking.py 가 직접 import 하므로 명시해 둔다.

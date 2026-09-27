@@ -30,11 +30,58 @@ ANSWER_PROMPT = ChatPromptTemplate.from_messages(
             "이 고객에 대한 질문(구매 여부·횟수 등)은 반드시 [고객 정보]만 근거로 답하고, [추천 후보]를 근거로 쓰지 않는다. "
             "두 정보 모두에 없으면 '자료에 없다'고 말한다. 지어내지 않는다. 3~5문장으로 짧게 쓴다. "
             "[고객 정보]에는 고객 이름이 없다 - 고객을 부를 땐 이름 대신 '고객님'이라고만 쓰고, "
-            "이름을 모른다고 'undefined' 같은 자리표시자를 쓰지 않는다.",
+            "이름을 모른다고 'undefined' 같은 자리표시자를 쓰지 않는다. "
+            "[성분표]는 후보 상품의 등록 성분(%)이다 - 성분·영양 수치는 [성분표]에 있는 값만 쓴다.",
         ),
-        ("human", "[고객 정보]\n{customer_context}\n\n[추천 후보]\n{context}\n\n[질문]\n{question}"),
+        (
+            "human",
+            "[고객 정보]\n{customer_context}\n\n[추천 후보]\n{context}\n\n[성분표]\n{nutrition_context}\n\n[질문]\n{question}",
+        ),
     ]
 )
+
+
+class Plan(BaseModel):
+    nutrition: bool = Field(
+        description="질문이 성분·영양 수치(단백질·지방·섬유·칼슘·인·나트륨·수분 등)를 묻거나 비교할 때만 true. "
+        "알러지·체급·기호에 맞는 일반 추천은 false"
+    )
+
+
+def build_plan_prompt(question: str) -> str:
+    """질문만 보고 어떤 도구가 필요한지 고르게 한다. 후보·고객 정보는 안 넘긴다 - retrieve 와 동시에 돈다."""
+    return (
+        "반려동물 사료 상담 질문이다. 기본은 도구 없이 리뷰 검색만으로 답한다.\n"
+        "성분표는 질문에 성분명(단백질·지방·섬유·회분·수분·칼슘·인·나트륨)이나 함량·퍼센트가 나올 때만 쓴다.\n"
+        "예) '단백질 높은 사료', '나트륨 적은 거' -> nutrition=true / "
+        "'알러지 있는 강아지 사료 추천', '입 짧은 노견 간식', '또 사도 될까' -> nutrition=false\n\n"
+        f"[질문]\n{question}"
+    )
+
+
+NUTRITION_LABELS = {
+    "crude_protein_pct": "조단백",
+    "crude_fat_pct": "조지방",
+    "crude_fiber_pct": "조섬유",
+    "crude_ash_pct": "조회분",
+    "moisture_pct": "수분",
+    "calcium_pct": "칼슘",
+    "phosphorus_pct": "인",
+    "sodium_pct": "나트륨",
+}
+
+
+def build_nutrition_context(candidates: list[dict[str, Any]], nutritions: dict[int, dict] | None) -> str:
+    """후보 상품의 성분표를 한 줄씩. 조회 안 했으면(None) 그렇다고, 조회했는데 없으면 없다고 적는다."""
+    if nutritions is None:
+        return "조회하지 않음"
+    names = {c["product_id"]: c["name"] for c in candidates}
+    lines = [
+        f"-product_id = {pid} | {names.get(pid, '')} | "
+        + ", ".join(f"{label} {row[key]}%" for key, label in NUTRITION_LABELS.items() if row.get(key) is not None)
+        for pid, row in nutritions.items()
+    ]
+    return "\n".join(lines) or "후보 상품의 성분 정보 없음"
 
 
 def build_customer_context(detail: dict[str, Any] | None) -> str:

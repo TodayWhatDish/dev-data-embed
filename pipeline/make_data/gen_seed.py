@@ -61,20 +61,45 @@ rng = random.Random(SEED)
 
 
 def pick(weighted):
-    """[(값, 가중치), ...] 에서 하나."""
+    """
+    # Summary
+    * 가중치대로 값 하나를 뽑는다
+    # params
+    * weighted: [(값, 가중치), ...]
+    # examples
+    * [('소형', 6), ('중형', 3), ('대형', 1)] -> 가중치 비율로 무작위 선택
+    * -> '소형' (60% 확률)
+    """
     return rng.choices([v for v, _ in weighted], weights=[w for _, w in weighted])[0]
 
 
 def as_dt(x, end_of_day=False):
-    """date -> datetime. datetime 이면 그대로."""
+    """
+    # Summary
+    * date -> datetime. datetime 이면 그대로
+    # params
+    * x: date 또는 datetime
+    * end_of_day: True 면 그날 끝 시각, False 면 0시로 붙인다
+    # examples
+    * date(2026, 1, 5) -> 0시(end_of_day 면 23:59:59) 를 붙임
+    * -> datetime(2026, 1, 5, 0, 0)
+    """
     return x if isinstance(x, datetime) else datetime.combine(x, time.max if end_of_day else time.min)
 
 
 def rdt(start, end):
-    """start~end 사이 datetime 하나.
-
-    날짜를 뽑고 시각을 따로 붙이면 같은 날일 때 09시 가입 -> 03시 로그인이 나온다.
-    초 단위로 뽑아 그 구멍을 없앤다. 뒤집힌 구간은 start 로 눕힌다.
+    """
+    # Summary
+    * start~end 사이 datetime 하나
+    # info
+    * 날짜를 뽑고 시각을 따로 붙이면 같은 날일 때 09시 가입 -> 03시 로그인이 나온다.
+      초 단위로 뽑아 그 구멍을 없앤다
+    * 뒤집힌 구간은 start 로 눕힌다
+    # params
+    * start, end: date 또는 datetime
+    # examples
+    * (2026-01-05, 2026-01-05) -> 그날 0시~23:59:59 사이 초를 무작위로 뽑음
+    * -> datetime(2026, 1, 5, 14, 22, 7). end < start 면 start
     """
     start, end = as_dt(start), as_dt(end, end_of_day=True)
     if end < start:
@@ -83,13 +108,31 @@ def rdt(start, end):
 
 
 def rdate(start, end):
-    """start~end 사이 날짜 하나."""
+    """
+    # Summary
+    * start~end 사이 날짜 하나
+    # params
+    * start, end: date
+    # examples
+    * (2026-01-01, 2026-01-31) -> 사이 일수에서 무작위로 뽑음
+    * -> date(2026, 1, 17)
+    """
     span = (end - start).days
     return start if span <= 0 else start + timedelta(days=rng.randint(0, span))
 
 
 def dt(x):
-    """ISO-8601 문자열. SQLite datetime() 이 파싱할 수 있어야 한다."""
+    """
+    # Summary
+    * ISO-8601 문자열로 바꾼다
+    # info
+    * SQLite datetime() 이 파싱할 수 있어야 한다
+    # params
+    * x: date 또는 datetime
+    # examples
+    * date(2026, 1, 5) -> as_dt 후 strftime
+    * -> '2026-01-05 00:00:00'
+    """
     return as_dt(x).strftime("%Y-%m-%d %H:%M:%S")
 
 
@@ -138,7 +181,15 @@ INGREDIENT_NAME = {int(r["ingredient_id"]): r["name_ko"] for r in ingredient_row
 
 
 def descendants(aid):
-    """aid 자신 + 모든 하위. pet_allergy 에 그대로 들어갈 집합."""
+    """
+    # Summary
+    * aid 자신 + 모든 하위. pet_allergy 에 그대로 들어갈 집합
+    # params
+    * aid: allergen_id
+    # examples
+    * '육류' 의 allergen_id -> parent_id 트리를 따라 하위를 모두 모음
+    * -> {육류, 가금류, 닭고기, ...} 의 id 집합
+    """
     out, stack = set(), [aid]
     while stack:
         cur = stack.pop()
@@ -371,7 +422,18 @@ TREAT_SPEC = {
 
 
 def pick_breeds(category, n):
-    """가중치를 반영해 서로 다른 품종 n 개(비복원). 같은 품종이 두 번 들어가면 복합 PK 가 막는다."""
+    """
+    # Summary
+    * 가중치를 반영해 서로 다른 품종 n 개(비복원)
+    # info
+    * 같은 품종이 두 번 들어가면 복합 PK 가 막는다
+    # params
+    * category: animal_category_id
+    * n: 뽑을 품종 수
+    # examples
+    * (개, 2) -> 품종 가중치로 뽑되 이미 뽑은 품종은 빼고 다시 뽑음
+    * -> [말티즈 id, 푸들 id]
+    """
     pool = list(BREEDS_BY_CATEGORY[category])
     wts = [BREED_WEIGHT.get(BREED_NAME[b], 1) for b in pool]
     out = []
@@ -726,17 +788,38 @@ CLOSING = {
 
 
 def age_group(age_month):
-    """구매 시점 개월 나이 -> 연령대. NULL 이면 None."""
+    """
+    # Summary
+    * 구매 시점 개월 나이 -> 연령대. NULL 이면 None
+    # params
+    * age_month: 구매 시점 개월 나이
+    # examples
+    * 8 / 36 / 90 -> 12 미만, 84 이상 기준으로 나눔
+    * -> '퍼피' / '성견' / '시니어'. None 이면 None
+    """
     if age_month is None:
         return None
     return "퍼피" if age_month < 12 else "시니어" if age_month >= 84 else "성견"
 
 
 def review_body(pet, product, rating, age_month, allergen, purposes, ingredients):
-    """후기 한 건을 그 구매의 사실만으로 조립한다.
-
-    같은 행의 pet / product / rating 에서만 문장을 고르므로, 축종·체구·분류가
-    본문과 어긋나지 않는다. 슬롯 조합이라 행마다 다른 문장이 나온다.
+    """
+    # Summary
+    * 후기 한 건을 그 구매의 사실만으로 조립한다
+    # info
+    * 같은 행의 pet / product / rating 에서만 문장을 고르므로, 축종·체구·분류가
+      본문과 어긋나지 않는다
+    * 슬롯 조합이라 행마다 다른 문장이 나온다
+    # params
+    * pet, product: gen_pets() / gen_products() 가 만든 행 튜플
+    * rating: 별점
+    * age_month: 구매 시점 개월 나이
+    * allergen: 이 펫의 대표 알러지 이름. 없으면 None
+    * purposes: 이 상품의 급여목적 집합
+    * ingredients: 이 상품의 원료 집합
+    # examples
+    * (펫, 상품, 별점 5, 36개월, '닭고기', {관절}, {연어}) -> 이유·맛·제형·체구·알러지·원료 문장 슬롯을 확률로 고름
+    * -> '콩이에게 주려고 관절 때문에 샀어요. 너무 잘 먹어요. ... 재구매 의사 있어요.'
     """
     reason = (
         rng.choice(PURPOSE_REASON[rng.choice(sorted(purposes))])
@@ -773,11 +856,22 @@ def review_body(pet, product, rating, age_month, allergen, purposes, ingredients
 
 
 def from_source(pets, products, animals_of, allergen_of, purpose_of, ingredient_of):
-    """data/review.csv 를 purchase / review 두 테이블로 나눈다. 파일이 없으면 빈 결과.
-
-    원본에서 가져오는 것은 **구조뿐**이다 — 언제 몇 개 샀고 별점·holdout 이 무엇인지.
-    펫 ID 를 이 시드에 맞게 보정하는 순간 원본의 펫↔제품 짝이 끊어지므로,
-    제품과 체구도 보정된 펫에 맞춰 다시 잡는다. 본문은 review_body() 가 새로 쓴다.
+    """
+    # Summary
+    * data/review.csv 를 purchase / review 두 테이블로 나눈다. 파일이 없으면 빈 결과
+    # info
+    * 원본에서 가져오는 것은 **구조뿐**이다 — 언제 몇 개 샀고 별점·holdout 이 무엇인지
+    * 펫 ID 를 이 시드에 맞게 보정하는 순간 원본의 펫↔제품 짝이 끊어지므로,
+      제품과 체구도 보정된 펫에 맞춰 다시 잡는다. 본문은 review_body() 가 새로 쓴다
+    # params
+    * pets, products: gen_pets() / gen_products() 가 만든 행들
+    * animals_of: product_id -> 축종 id 집합
+    * allergen_of: pet_id -> 대표 알러지 이름
+    * purpose_of: product_id -> 급여목적 집합
+    * ingredient_of: product_id -> 원료 집합
+    # examples
+    * data/review.csv 원본 -> 펫 ID 를 시드에 맞게 보정, 축종·체구에 맞는 상품으로 다시 짝지음, 본문은 새로 씀
+    * -> (purchase 행들, review 행들). 파일이 없으면 ([], [])
     """
     if not SOURCE_REVIEWS.exists():
         print(f"  {SOURCE_REVIEWS.name} 없음 — 구매·후기를 전량 합성한다")
@@ -861,7 +955,19 @@ def from_source(pets, products, animals_of, allergen_of, purpose_of, ingredient_
 
 
 def gen_purchases(pets, products, p_animals, pet_allergies, purposes, p_ings):
-    """원본을 먼저 옮기고, 모자란 만큼 시드끼리 이어 붙여 합성한다."""
+    """
+    # Summary
+    * 원본을 먼저 옮기고, 모자란 만큼 시드끼리 이어 붙여 합성한다
+    # params
+    * pets, products: gen_pets() / gen_products() 가 만든 행들
+    * p_animals: (product_id, 축종 id) 쌍들
+    * pet_allergies: (pet_id, allergen_id) 쌍들
+    * purposes: (product_id, 급여목적 id) 쌍들
+    * p_ings: (product_id, ingredient_id) 쌍들
+    # examples
+    * 펫·상품·알러지·급여목적·원료 -> from_source 로 원본을 옮기고 목표 건수까지 무작위 구매를 합성
+    * -> (purchase 행들, review 행들)
+    """
     # 후기가 인용할 사실. 알러지는 펼쳐 저장돼 있어 그대로 쓰면 한 아이가 29개까지 나온다.
     # 보호자가 실제로 고른 최상위(부모가 함께 선택되지 않은 것)만 남겨 하나 뽑는다.
     by_pet = {}
