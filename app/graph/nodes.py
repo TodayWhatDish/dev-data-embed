@@ -8,8 +8,9 @@ from langgraph.graph import END
 from app.core.trace import log_customer_question
 from app.domain.prompting import build_customer_context
 from app.graph.state import AskState
+from app.repositories import products as products_repo
 from app.repositories import users as users_repo
-from app.services.answering import stream, verify
+from app.services.answering import plan_tools, stream, verify
 from app.services.profile import build_profile, pet_profile
 from app.services.searching import candidates
 
@@ -18,6 +19,16 @@ logger = logging.getLogger(__name__)
 
 def _log(state: AskState, **kw) -> None:
     log_customer_question(user_id=state.get("user_id"), pet_id=state.get("pet_id"), user_query=state["question"], **kw)
+
+
+def plan(state: AskState) -> dict:
+    """질문만 보고 부를 도구를 고른다. retrieve 와 다른 스레드에서 동시에 돌므로 DB 를 만지지 않는다."""
+    try:
+        return {"tools": plan_tools(state["question"])}
+    except Exception:
+        # 계획이 실패해도 답변은 나가야 한다 - 도구 없이 진행
+        logger.exception("plan 실패, 도구 없이 진행")
+        return {"tools": []}
 
 
 def retrieve(state: AskState) -> dict:
@@ -38,12 +49,22 @@ def retrieve(state: AskState) -> dict:
     return {"matches": matches, "detail": detail, "customer_context": customer_context}
 
 
+def run_tools(state: AskState) -> dict:
+    """plan 과 retrieve 가 둘 다 끝난 뒤 돈다. 성분표는 검색된 후보 상품만 조회한다."""
+    if "nutrition" not in state.get("tools", []) or not state["matches"]:
+        return {"nutritions": None}
+    product_ids = list(dict.fromkeys(m["product_id"] for m in state["matches"]))
+    nutritions = products_repo.find_nutritions(product_ids)
+    get_stream_writer()({"type": "tool_result", "tool": "nutrition", "data": nutritions})
+    return {"nutritions": nutritions}
+
+
 def generate(state: AskState) -> dict:
     """답변을 글자 조각(delta)으로 흘려보내고 질문 기록을 남긴다."""
     write = get_stream_writer()
     parts = []
     try:
-        for piece in stream(state["question"], state["matches"], state["customer_context"]):
+        for piece in stream(state["question"], state["matches"], state["customer_context"], state.get("nutritions")):
             parts.append(piece)
             write({"type": "delta", "text": piece})
     except Exception as e:
@@ -68,7 +89,7 @@ def check(state: AskState) -> dict:
     return {}
 
 
-def route_after_retrieve(state: AskState) -> str:
+def route_after_tools(state: AskState) -> str:
     return "generate" if state["matches"] else END
 
 
