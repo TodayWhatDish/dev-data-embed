@@ -18,6 +18,8 @@ logger = logging.getLogger(__name__)
 
 
 def _log(state: AskState, **kw) -> None:
+    if not state.get("log_question", True):
+        return
     log_customer_question(user_id=state.get("user_id"), pet_id=state.get("pet_id"), user_query=state["question"], **kw)
 
 

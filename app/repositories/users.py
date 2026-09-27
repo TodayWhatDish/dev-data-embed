@@ -3,12 +3,12 @@
 """user 테이블에 연결되는 곳. 관리자 화면용 고객 조회."""
 
 from app.core.db import fetch, fetch_one, get_session
-from app.models.user import User
+from app.models.user import NOW, User
 
 
 def find_user_by_email(email: str) -> dict | None:
-    """로그인/가입 시 이메일 중복 확인. email 은 UNIQUE라 최대 한 행."""
-    return fetch_one('SELECT user_id, password_hash FROM "user" WHERE email = %s', (email,))
+    """로그인/가입 시 이메일 중복 확인. email 은 UNIQUE라 최대 한 행. 탈퇴 회원도 돌려준다 - 로그인이 withdrawn_at 으로 막는다."""
+    return fetch_one('SELECT user_id, password_hash, withdrawn_at FROM "user" WHERE email = %s', (email,))
 
 
 def create_user(
@@ -50,6 +50,7 @@ def list_users() -> list[dict]:
                (SELECT pe.gender FROM pet AS pe WHERE pe.user_id = u.user_id ORDER BY pe.pet_id LIMIT 1) AS gender,
                (SELECT pe.birth_date FROM pet AS pe WHERE pe.user_id = u.user_id ORDER BY pe.pet_id LIMIT 1) AS birth_date
         FROM "user" AS u
+        WHERE u.withdrawn_at IS NULL
         ORDER BY u.name
     """)
 
@@ -81,6 +82,7 @@ def get_user_detail(user_id: int) -> dict | None:
         JOIN animal_category AS ac ON ac.animal_category_id = pe.animal_category_id
         LEFT JOIN pet_survey AS ps ON ps.pet_id = pe.pet_id
         WHERE pe.user_id = %s
+        ORDER BY pe.pet_id
     """,
         (user_id,),
     )
@@ -103,3 +105,25 @@ def get_user_detail(user_id: int) -> dict | None:
     )
 
     return user
+
+
+def update_user(user_id: int, values: dict) -> int:
+    """고친 행 수를 돌려준다(없는 id 면 0). updated_at 은 늘 같이 바꾼다 - 그래서 values 가 비어도
+    행 수로 고객이 있는지 안다. 커밋은 부른 쪽 transaction() 이 한다."""
+    return (
+        get_session()
+        .query(User)
+        .filter_by(user_id=user_id)
+        .update({**values, "updated_at": NOW}, synchronize_session=False)
+    )
+
+
+def withdraw_user(user_id: int) -> int:
+    """탈퇴 처리. 행은 지우지 않는다 - 구매 이력이 pet 을 거쳐 이 user 를 참조한다.
+    이미 탈퇴한 고객이면 0. 커밋은 부른 쪽이 한다."""
+    return (
+        get_session()
+        .query(User)
+        .filter(User.user_id == user_id, User.withdrawn_at.is_(None))
+        .update({"withdrawn_at": NOW, "updated_at": NOW}, synchronize_session=False)
+    )

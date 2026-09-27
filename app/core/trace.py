@@ -102,7 +102,7 @@ def log_customer_question(
     error: str | None = None,
     path=LOG_PATH,
 ) -> None:
-    """/ask, /ask/me 로 들어온 질문 한 건을 남긴다. 관리자 대시보드 '질문' 탭이 이 줄들을 읽는다."""
+    """/ask/me 로 들어온 고객 질문 한 건을 남긴다 (관리자 /ask 는 제외). 관리자 대시보드 '질문' 탭이 이 줄들을 읽는다."""
     with open(path, "a", encoding="utf-8") as f:
         f.write(
             json.dumps(

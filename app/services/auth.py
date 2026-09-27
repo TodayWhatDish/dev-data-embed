@@ -21,7 +21,7 @@ DOG_CATEGORY_ID = 1
 MAX_PASSWORD_BYTES = 72
 
 
-def signup(
+def register(
     email: str,
     password: str,
     name: str,
@@ -38,8 +38,8 @@ def signup(
     skin_note: str | None = None,
     pet_species: str | None = None,
 ) -> str:
-    """이메일 중복이면 Conflict. 비밀번호가 72바이트를 넘으면 InvalidInput.
-    통과하면 계정 + 강아지 펫 프로필을 만들고 바로 JWT를 발급한다."""
+    """계정 + 펫 프로필을 만들고 user_id 를 돌려준다. 이메일 중복이면 Conflict, 비밀번호가 72바이트를 넘으면 InvalidInput.
+    회원가입(signup)과 관리자 회원 추가가 같이 쓴다 - 토큰은 회원가입만 필요하다."""
     if len(password.encode()) > MAX_PASSWORD_BYTES:
         raise InvalidInput("비밀번호가 너무 깁니다.")
     password_hash = hash_password(password)
@@ -73,15 +73,21 @@ def signup(
             raise Conflict("이미 가입된 이메일입니다.") from e
         raise
 
-    return create_access_token("user", str(user_id))
+    return user_id
+
+
+def signup(email: str, password: str, name: str, pet_name: str, **profile) -> str:
+    """회원가입. register() 로 만들고 바로 JWT 를 발급한다. profile 은 register() 의 선택 인자 그대로."""
+    return create_access_token("user", str(register(email, password, name, pet_name, **profile)))
 
 
 def login(email: str, password: str) -> str:
-    """이메일/비밀번호 검증하고 JWT 발급. 틀리면(72바이트 초과 포함) Unauthorized."""
+    """이메일/비밀번호 검증하고 JWT 발급. 틀리면(72바이트 초과 포함) 또는 탈퇴 회원이면 Unauthorized."""
     user = find_user_by_email(email)
     if (
         len(password.encode()) > MAX_PASSWORD_BYTES
         or not user
+        or user["withdrawn_at"]
         or not user["password_hash"]
         or not verify_password(password, user["password_hash"])
     ):

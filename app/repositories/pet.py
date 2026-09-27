@@ -12,7 +12,7 @@ import logging
 from sqlalchemy.exc import DBAPIError
 
 from app.core.db import as_dict, fetch, fetch_one, fetch_tuples, get_session
-from app.models.pet import Breed, Pet, PetAllergy, PetSurvey
+from app.models.pet import NOW, Breed, Pet, PetAllergy, PetSurvey
 
 logger = logging.getLogger()
 
@@ -142,3 +142,29 @@ def find_allergen_names(pet_id: int) -> list[str]:
 
     # 튜플을 벗겨서 준다. 부르는 쪽마다 [name for (name,) in ...] 을 반복하지 않게
     return [name for (name,) in rows]
+
+
+def update_pet(pet_id: int, user_id: int, values: dict) -> int:
+    """이 고객의 펫 한 마리를 고치고 고친 행 수를 돌려준다. 남의 펫이거나 없는 id 면 0.
+    updated_at 을 늘 같이 바꿔서 values 가 비어도 행 수로 '이 고객의 펫인지' 를 안다. 커밋은 부른 쪽이 한다."""
+    return (
+        get_session()
+        .query(Pet)
+        .filter_by(pet_id=pet_id, user_id=user_id)
+        .update({**values, "updated_at": NOW}, synchronize_session=False)
+    )
+
+
+def replace_pet_allergies(pet_id: int, allergen_ids: list[int]) -> None:
+    """알러지를 통째로 갈아끼운다 - 빈 목록이면 전부 지운다. 커밋은 부른 쪽이 한다."""
+    get_session().query(PetAllergy).filter_by(pet_id=pet_id).delete(synchronize_session=False)
+    add_pet_allergies(pet_id, allergen_ids)
+
+
+def upsert_pet_survey(pet_id: int, values: dict) -> None:
+    """설문(diet_note/skin_note)을 준 칸만 고친다. 가입 때 설문을 안 받은 펫이면 새로 만든다. 커밋은 부른 쪽이 한다."""
+    session = get_session()
+    survey = session.get(PetSurvey, pet_id) or PetSurvey(pet_id=pet_id)
+    for column, value in values.items():
+        setattr(survey, column, value)
+    session.add(survey)

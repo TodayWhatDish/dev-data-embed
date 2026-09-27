@@ -1,11 +1,18 @@
 # Last Updated : 2026-09-02
 
-"""관리자 화면 고객 조회. GET /api/customers, GET /api/customers/{user_id}."""
+"""관리자 화면 고객 조회·추가·수정·탈퇴. /api/customers."""
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.deps import get_current_admin
-from app.services.customers import customer_detail, customer_list
+from app.api.schemas import CustomerUpdate, SignupRequest
+from app.services.customers import (
+    create_customer,
+    customer_detail,
+    customer_list,
+    update_customer,
+    withdraw_customer,
+)
 from app.services.searching import similar_reviews_for
 from app.services.strategy import generate_strategy
 
@@ -23,6 +30,24 @@ def get_customer(user_id: int):
     if detail is None:
         raise HTTPException(status_code=404, detail="고객을 찾을 수 없습니다.")
     return detail
+
+
+@router.post("/api/customers", status_code=201)
+def add_customer(payload: SignupRequest):
+    """회원 추가 - 회원가입과 같은 바디. 이메일이 이미 있으면 409. 만든 고객의 상세를 돌려준다."""
+    return create_customer(payload.model_dump())
+
+
+@router.patch("/api/customers/{user_id}")
+def edit_customer(user_id: int, patch: CustomerUpdate):
+    """준 필드만 고치고 고친 뒤의 상세를 돌려준다. pet_* 를 고치려면 pet_id 도 준다."""
+    return update_customer(user_id, patch.model_dump(exclude_unset=True))
+
+
+@router.delete("/api/customers/{user_id}", status_code=204)
+def remove_customer(user_id: int):
+    """탈퇴 처리. 행은 남고(구매 이력 보존) 목록·로그인에서만 빠진다."""
+    withdraw_customer(user_id)
 
 
 @router.get("/api/customers/{user_id}/similar-reviews")

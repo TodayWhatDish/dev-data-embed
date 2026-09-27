@@ -53,10 +53,15 @@ ask_graph = build_ask_graph()
 
 
 def ask_stream(
-    user_query: str, pet_id: int | None, user_id: int | None, profile_filters: dict | None = None
+    user_query: str,
+    pet_id: int | None,
+    user_id: int | None,
+    profile_filters: dict | None = None,
+    log_question: bool = True,
 ) -> Iterator[str]:
     """그래프를 돌리며 노드가 쓴 이벤트를 NDJSON 한 줄씩 흘려보낸다."""
-    state = {"question": user_query, "pet_id": pet_id, "user_id": user_id, "profile_filters": profile_filters}
+    state = {"question": user_query, "pet_id": pet_id, "user_id": user_id, "profile_filters": profile_filters,
+             "log_question": log_question}
     try:
         for event in ask_graph.stream(state, stream_mode="custom"):
             yield json.dumps(event, ensure_ascii=False) + "\n"

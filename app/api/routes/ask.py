@@ -21,7 +21,8 @@ router = APIRouter()
 @router.post("/ask", dependencies=[Depends(get_current_admin), Depends(rate_limit(20, 60))])
 def ask(body: AskRequest):
     """관리자 대시보드용. pet_id 가 오면 그 펫의 DB 프로필을 쓰고, 없으면 요청에 직접 적힌 필터를 쓴다."""
-    lines = ask_stream(body.user_query, body.pet_id, body.user_id, body.model_dump())
+    # 관리자 질문은 '질문' 탭(고객 질문 기록)에 남기지 않는다
+    lines = ask_stream(body.user_query, body.pet_id, body.user_id, body.model_dump(), log_question=False)
     return StreamingResponse(lines, media_type="application/x-ndjson")
 
 
