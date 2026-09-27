@@ -1,4 +1,4 @@
-"""사용자 질문에 답하는 스트리밍 엔드포인트. 흐름 조립은 services/answering.ask_stream()이 한다.
+"""사용자 질문에 답하는 스트리밍 엔드포인트. 흐름 조립은 graph/graph.ask_stream()이 한다.
 
 - /ask     : 관리자 대시보드가 고객을 골라 그 고객 대신 질문한다. pet_id/user_id를
              요청 바디에서 그대로 받는다 - 호출자가 관리자라 신뢰할 수 있다.
@@ -12,7 +12,7 @@ from fastapi.responses import StreamingResponse
 
 from app.api.deps import get_current_admin, get_current_user, rate_limit
 from app.api.schemas import AskMeRequest, AskRequest
-from app.services.answering import ask_stream
+from app.graph.graph import ask_stream
 from app.services.profile import primary_pet
 
 router = APIRouter()
