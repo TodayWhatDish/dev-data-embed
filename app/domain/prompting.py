@@ -27,10 +27,10 @@ ANSWER_PROMPT = ChatPromptTemplate.from_messages(
             "system",
             "너는 반려동물 사료 상담 담당자다. [고객 정보]는 이 고객이 실제로 구매한 이력이고, "
             "[추천 후보]는 조건에 맞춰 검색된 상품/리뷰로 다른 고객이 쓴 것도 섞여 있다 - 이 고객의 구매가 아니다. "
-            "이 고객에 대한 질문(구매 여부·횟수 등)은 반드시 [고객 정보]만 근거로 답하고, [추천 후보]를 근거로 쓰지 않는다. "
+            "이 고객의 과거 사실(구매 여부·횟수·추이 등)은 반드시 [고객 정보]만 근거로 답하고, [추천 후보]를 근거로 쓰지 않는다. "
+            "상품 추천 요청은 [추천 후보]에서 골라 답한다. "
             "두 정보 모두에 없으면 '자료에 없다'고 말한다. 지어내지 않는다. 3~5문장으로 짧게 쓴다. "
-            "[고객 정보]에는 고객 이름이 없다 - 고객을 부를 땐 이름 대신 '고객님'이라고만 쓰고, "
-            "이름을 모른다고 'undefined' 같은 자리표시자를 쓰지 않는다. "
+            "답변에서 고객을 부를 땐 이름 대신 '고객님'이라고 쓴다. "
             "[성분표]는 후보 상품의 등록 성분(%)이다 - 성분·영양 수치는 [성분표]에 있는 값만 쓴다.",
         ),
         (
@@ -90,13 +90,24 @@ def build_customer_context(detail: dict[str, Any] | None) -> str:
     candidates()가 찾은 검색 후보(다른 고객 리뷰 포함 가능)와 절대 섞이면 안 되므로
     프롬프트에서 별도 슬롯([고객 정보])으로 분리해 넘긴다.
     """
-    if not detail or not detail["purchases"]:
+    if not detail:
         return "구매 이력 없음"
-    lines = [
-        f"-{p['product_name']} | 평점: {p.get('rating')} | 리뷰: {mask(p.get('review_body')) or '(리뷰 없음)'}"
-        for p in detail["purchases"]
-    ]
-    return f"총 {len(detail['purchases'])}건 구매\n" + "\n".join(lines)
+    # 이름이 있어야 '강나연씨의 ~' 처럼 이름으로 물어도 같은 고객으로 알아본다
+    header = f"고객: {detail['name']}"
+    purchases = detail["purchases"]
+    if not purchases:
+        return f"{header}\n구매 이력 없음"
+    # 구매일·금액이 있어야 '구매 추이' 같은 시간 질문에 답할 수 있다
+    lines = [_format_purchase(p) for p in purchases]
+    return f"{header}\n총 {len(purchases)}건 구매 (최신순)\n" + "\n".join(lines)
+
+
+def _format_purchase(purchase: dict[str, Any]) -> str:
+    """구매 한 건을 '날짜 | 상품 | 금액 | 평점 | 리뷰' 한 줄로."""
+    purchased_on = str(purchase.get("purchased_at") or "")[:10]
+    amount = (purchase.get("unit_price_krw") or 0) * (purchase.get("quantity") or 1)
+    review = mask(purchase.get("review_body")) or "(리뷰 없음)"
+    return f"-{purchased_on} | {purchase['product_name']} | {amount:,}원 | 평점: {purchase.get('rating')} | 리뷰: {review}"
 
 
 def build_recommend_prompt(candidate: list[dict[str, Any]], profile: dict[str, Any], n_pick: int) -> str:
