@@ -42,10 +42,15 @@ _splitter = None
 
 
 def get_tokenizer():
-    """토큰 카운터. 무거우니 한 번만 올리고 계속 쓴다.
-
-    OpenAI 모델은 가중치를 못 받으니 AutoTokenizer 가 안 통한다 - tiktoken 인코딩을 쓴다.
-    둘 다 .encode(text) -> 토큰 id 목록이라 count_tokens 는 갈라질 필요가 없다.
+    """
+    # Summary
+    * 토큰 카운터. 무거우니 한 번만 올리고 계속 쓴다
+    # info
+    * OpenAI 모델은 가중치를 못 받으니 AutoTokenizer 가 안 통한다 - tiktoken 인코딩을 쓴다
+    * 둘 다 .encode(text) -> 토큰 id 목록이라 count_tokens 는 갈라질 필요가 없다
+    # examples
+    * 첫 호출 -> provider 가 openai 면 tiktoken, 아니면 AutoTokenizer 를 올려 캐시
+    * -> 토크나이저 객체 (두 번째 호출부터는 캐시된 것)
     """
     global _tokenizer
     if _tokenizer is None:
@@ -59,7 +64,13 @@ def get_tokenizer():
 
 
 def get_splitter():
-    """한도를 넘는 문서만 문장/구두점 경계에서 자르는 분할기."""
+    """
+    # Summary
+    * 한도를 넘는 문서만 문장/구두점 경계에서 자르는 분할기
+    # examples
+    * 첫 호출 -> CHUNK_SIZE/OVERLAP/SEPARATORS 로 RecursiveCharacterTextSplitter 생성 후 캐시
+    * -> 분할기 객체
+    """
     global _splitter
     if _splitter is None:
         # separators는 많이 늘릴수록 유지보수 부담이 늘어나기도 하고 효과 체감이 크지않다. (트레이드오프 발생)
@@ -81,13 +92,20 @@ def count_tokens(text):
 
 
 def build_review_doc(row: sqlite3.Row) -> str:
-    """리뷰 한 건을 임베딩용 문장으로 조립한다.
-
-    size_category/breed/allergy는 안 넣는다 - retrieve.py의 FILTERS가 이미
-    SQL WHERE로 걸러주는 값이라, 여기 또 넣으면 모든 문서가 거의 같은
-    보일러플레이트가 돼서 코사인 유사도가 내용과 무관하게 뭉친다.
-    ingredients는 반대다 - 필터가 안 걸러주는 값이면서, 같은 카테고리·같은 급여목적
-    안에서 상품을 실제로 가르는 유일한 객관적 신호라서 넣는다.
+    """
+    # Summary
+    * 리뷰 한 건을 임베딩용 문장으로 조립한다
+    # info
+    * size_category/breed/allergy는 안 넣는다 - retrieve.py의 FILTERS가 이미
+      SQL WHERE로 걸러주는 값이라, 여기 또 넣으면 모든 문서가 거의 같은
+      보일러플레이트가 돼서 코사인 유사도가 내용과 무관하게 뭉친다
+    * ingredients는 반대다 - 필터가 안 걸러주는 값이면서, 같은 카테고리·같은 급여목적
+      안에서 상품을 실제로 가르는 유일한 객관적 신호라서 넣는다
+    # params
+    * row: chunk.fetch_rows()가 준 리뷰 한 행
+    # examples
+    * 리뷰 행 1개 -> 카테고리·상품명·급여목적·제형·원료·별점·본문을 한 문장으로 이어 붙임
+    * -> '사료/건식 OO사료 (관절 목적, 건식) 주원료: 연어 별점 5점 후기: ...'
     """
     purpose = f"{row['target_feeding_purpose']} 목적" if row["target_feeding_purpose"] else "목적 미기재"
     category = f"{row['category']}/{row['sub_category']}" if row["category"] else row["sub_category"]
@@ -104,10 +122,19 @@ def build_review_doc(row: sqlite3.Row) -> str:
 #  리뷰 하나가 조각 여러 개로 쪼개질 수 있으니(긴 리뷰의 경우),
 #  쪼갠 뒤에도 "이 조각이 원래 몇 번 리뷰에서 나왔나"를 알아야함.
 def split_review(purchase_id: int, doc: str, product_name: str):
-    """한도 안이면 조각 1개, 넘으면 문장/구두점 경계로 여러 개.
-
-    쪼갠 뒤 조각마다 상품명을 다시 접두어로 붙인다 - 안 그러면 뒤쪽 조각은
-    어느 상품 얘기인지 알려주는 토큰이 하나도 안 남는다.
+    """
+    # Summary
+    * 한도 안이면 조각 1개, 넘으면 문장/구두점 경계로 여러 개
+    # info
+    * 쪼갠 뒤 조각마다 상품명을 다시 접두어로 붙인다 - 안 그러면 뒤쪽 조각은
+      어느 상품 얘기인지 알려주는 토큰이 하나도 안 남는다
+    # params
+    * purchase_id: 조각이 나온 리뷰의 구매 id
+    * doc: build_review_doc()이 만든 문장
+    * product_name: 쪼갠 조각에 접두어로 붙일 상품명
+    # examples
+    * (418, 600토큰 문서, 'OO사료') -> 한도 넘으면 문장 경계로 쪼개고 조각마다 [상품명] 접두어
+    * -> [{purchase_id: 418, chunk_index: 0, body, n_tokens}, {..., chunk_index: 1}, ...]
     """
     n_tokens = count_tokens(doc)
     if n_tokens <= CHUNK_SIZE:
@@ -122,7 +149,15 @@ def split_review(purchase_id: int, doc: str, product_name: str):
 
 
 def split_reviews(docs: list[tuple]):
-    """[(purchase_id, doc), ...] 전체를 조각 목록으로. 부르는 쪽은 이 함수 하나만 알면 된다."""
+    """
+    # Summary
+    * 리뷰 문서 전체를 조각 목록으로. 부르는 쪽은 이 함수 하나만 알면 된다
+    # params
+    * docs: [(purchase_id, doc, product_name), ...]
+    # examples
+    * [(418, doc, 'OO사료'), (419, doc, 'XX간식')] -> 건마다 split_review 호출
+    * -> 모든 조각을 한 목록으로 이어 붙인 것
+    """
     chunks = []
     for purchase_id, doc, product_name in docs:
         chunks.extend(split_review(purchase_id, doc, product_name))

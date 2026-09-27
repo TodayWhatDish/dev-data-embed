@@ -82,7 +82,17 @@ SEED_SQL = re.compile(r"INSERT INTO (\w+)\(([^)]+)\)")
 
 
 def seed_lookup_tables(conn):
-    """animal_category / product_category / feeding_purpose. *_schema.py 의 SEEDS 를 그대로 쓴다."""
+    """
+    # Summary
+    * animal_category / product_category / feeding_purpose 코드표를 채운다
+    # info
+    * *_schema.py 의 SEEDS 를 그대로 쓴다
+    # params
+    * conn: 쓸 DB 커넥션
+    # examples
+    * conn -> *_schema.py 의 SEEDS INSERT 문에서 테이블·컬럼명을 뽑아 ORM insert 로 실행
+    * -> animal_category / product_category / feeding_purpose 가 채워짐
+    """
     for sql, rows in common_schema.SEEDS + product_schema.SEEDS:
         m = SEED_SQL.match(sql)
         table_name, cols = m.group(1), [c.strip() for c in m.group(2).split(",")]
@@ -95,8 +105,20 @@ def seed_lookup_tables(conn):
 
 
 def topo_sort(items, key_of, deps_of, what):
-    """의존 대상이 먼저 오도록 정렬한다(위상 정렬). 테이블 순서 자체는 SQLAlchemy 가 계산해주지만,
-    한 테이블 안의 자기참조 행 순서(allergen.parent_id)는 이걸로 직접 푼다.
+    """
+    # Summary
+    * 의존 대상이 먼저 오도록 정렬한다(위상 정렬)
+    # info
+    * 테이블 순서 자체는 SQLAlchemy 가 계산해주지만,
+      한 테이블 안의 자기참조 행 순서(allergen.parent_id)는 이걸로 직접 푼다
+    # params
+    * items: 정렬할 항목들
+    * key_of: 항목 -> 그 항목의 키
+    * deps_of: 항목 -> 먼저 와야 하는 키 집합
+    * what: 순환 에러 메시지에 붙일 이름
+    # examples
+    * [c(부모 b), a(부모 없음), b(부모 a)] -> 의존이 풀린 것부터 차례로 꺼냄
+    * -> [a, b, c]. 순환이 있으면 RuntimeError
     """
     pending = list(range(len(items)))
     done, out = set(), []
@@ -115,12 +137,30 @@ def topo_sort(items, key_of, deps_of, what):
 
 
 def resolve_order(names):
-    """Base.metadata.sorted_tables 가 FK 기준으로 이미 위상 정렬해서 돌려준다."""
+    """
+    # Summary
+    * names 의 테이블을 적재 순서대로 돌려준다
+    # info
+    * Base.metadata.sorted_tables 가 FK 기준으로 이미 위상 정렬해서 돌려준다
+    # params
+    * names: 적재할 테이블 이름 집합
+    # examples
+    * {'review', 'user', 'pet'} -> sorted_tables 순서로 거름
+    * -> ['user', 'pet', 'review']
+    """
     return [t.name for t in Base.metadata.sorted_tables if t.name in names]
 
 
 def self_fk_column(table):
-    """이 테이블 자신을 참조하는 FK 컬럼명. 없으면 None."""
+    """
+    # Summary
+    * 이 테이블 자신을 참조하는 FK 컬럼명. 없으면 None
+    # params
+    * table: SQLAlchemy Table
+    # examples
+    * allergen 테이블 -> 컬럼의 FK 중 자기 자신을 가리키는 것 찾기
+    * -> 'parent_id'. 없는 테이블이면 None
+    """
     for col in table.columns:
         for fk in col.foreign_keys:
             if fk.column.table.name == table.name:
@@ -129,7 +169,17 @@ def self_fk_column(table):
 
 
 def order_rows_parents_first(rows, pk, fk):
-    """자기참조 테이블(allergen)의 행을 부모부터 나오도록 정렬한다."""
+    """
+    # Summary
+    * 자기참조 테이블(allergen)의 행을 부모부터 나오도록 정렬한다
+    # params
+    * rows: CSV 에서 읽은 행들
+    * pk: 기본키 컬럼명
+    * fk: 부모를 가리키는 컬럼명
+    # examples
+    * allergen 행들, pk='allergen_id', fk='parent_id' -> topo_sort 로 정렬
+    * -> 부모 행이 자식 행보다 앞에 오는 목록
+    """
     return topo_sort(rows, lambda r: r[pk], lambda r: {r[fk]} if r[fk] else set(), f"{fk} 행 순서")
 
 
@@ -175,9 +225,17 @@ def load_table(conn, table_name, path):
 
 
 def verify(conn):
-    """적재 후 검사. 여기를 통과해야 데이터가 쓸 수 있는 상태다.
-    FK 위반은 Postgres 가 INSERT 시점에 즉시 거부하므로(SQLite 의 사후 PRAGMA 검사와 다르다)
-    여기서는 데이터 분포만 본다.
+    """
+    # Summary
+    * 적재 후 검사. 여기를 통과해야 데이터가 쓸 수 있는 상태다
+    # info
+    * FK 위반은 Postgres 가 INSERT 시점에 즉시 거부하므로(SQLite 의 사후 PRAGMA 검사와 다르다)
+      여기서는 데이터 분포만 본다
+    # params
+    * conn: 읽을 DB 커넥션
+    # examples
+    * conn -> v_product_safety 판정별 개수, Safe 후보가 0개인 활성 펫 수를 셈
+    * -> 화면 출력만. 판정이 3종류 미만이거나 후보 없는 펫이 10% 넘으면 [경고]
     """
     verdicts = dict(conn.execute(text("SELECT verdict, count(*) FROM v_product_safety GROUP BY verdict")).all())
     print(

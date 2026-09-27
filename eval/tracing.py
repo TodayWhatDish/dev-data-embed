@@ -17,7 +17,6 @@ import json
 import time
 
 from app.core.config import (
-    DB_PATH,
     EMBED_DIM,
     EMBED_MODEL,
     EVAL_DIR,
@@ -26,6 +25,7 @@ from app.core.config import (
     LLM_MODEL,
     USE_API,
 )
+from app.core.db import engine
 
 try:
     from langsmith import trace as _langsmith_trace
@@ -96,7 +96,7 @@ def banner(title: str) -> None:
     print(f"  백엔드   {'상용 API' if USE_API else '로컬'}")
     print(f"  LLM      {LLM_MODEL}")
     print(f"  임베딩   {EMBED_MODEL} ({EMBED_DIM}차원)")
-    print(f"  DB       {DB_PATH}")
+    print(f"  DB       {engine.url.render_as_string(hide_password=True)}")
 
     if tracing_on():
         print(f"  LangSmith 켜짐 · 프로젝트 '{LANGSMITH_EVAL_PROJECT}'")

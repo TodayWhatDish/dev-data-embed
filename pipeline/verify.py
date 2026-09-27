@@ -2,7 +2,7 @@
 
   1. 개수     표마다 몇 행인가. 벡터가 빠진 행은 없는가
   2. 벡터     차원 · 모델 · 정규화가 맞는가
-  3. 저장     BLOB 실제 크기가 예상과 맞는가
+  3. 저장     저장된 벡터가 전부 설정 차원인가
   4. 토큰     상한을 넘어 잘리는 것은 없는가
   5. 합치기   한 상품의 조각 점수를 max 로 합칠까 mean 으로 합칠까
   6. 눈으로   실제 질문을 던져 본다
@@ -18,13 +18,16 @@ verifying.py 하나에 몰아뒀고 눈으로 보는 검색(inspect.py)만 따�
 실행:  python -m pipeline.verify
 """
 
-import sqlite3
+from sqlalchemy import func, select
 
-from app.core.config import DB_PATH, EMBED_DIM, EMBED_MAX_TOKENS, EMBED_MODEL
+from app.core.config import EMBED_DIM, EMBED_MAX_TOKENS, EMBED_MODEL
+from app.core.db import engine
+from app.models.chunk import Chunk
 from pipeline.prep import verifying
 from pipeline.prep.inspect import inspect
 
-con = sqlite3.connect(DB_PATH)
+# 읽기만 하므로 커밋 없는 connect()로 연다. DB 는 Supabase(Postgres)다.
+con = engine.connect()
 problems = []
 
 # 검사할 테이블 이름. 지금 DB에 실제로 있는 8개.
@@ -85,7 +88,7 @@ inspect(con, "customer", ["민감성 피부인 사람"], top_k=2)
 # '교환·반품' 으로만 적혀 있었는데, 우리 데이터는 어떤지 직접 세어본다.
 print()
 for word in ("환불", "반품", "교환"):
-    n = con.execute("SELECT COUNT(*) FROM chunks WHERE body LIKE ?", (f"%{word}%",)).fetchone()[0]
+    n = con.execute(select(func.count()).select_from(Chunk).where(Chunk.body.like(f"%{word}%"))).scalar_one()
     print(f"  '{word}' 이 들어간 조각: {n:,}개")
 print(f"  지금 임베딩은 {EMBED_MODEL} 이다. 어느 낱말을 쓰든 벡터 검색만 믿으면 안 된다.")
 

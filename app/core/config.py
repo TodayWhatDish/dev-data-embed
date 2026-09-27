@@ -13,7 +13,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = ROOT / "data"
-DB_PATH = DATA_DIR / "pet_reco.db"
 MASTER_DIR = DATA_DIR / "master"
 LOG_PATH = ROOT / "logs" / "query_log.jsonl"
 SEED_DIR = DATA_DIR / "seed"
