@@ -53,7 +53,6 @@ def get_ingredients():
 # 아래는 임베딩 문장 재료. 이름은 마스터 캐시에 있으니 관계 테이블에서 id 만 긁어온다.
 # 1:N 이라 조인하지 않고 전량 스캔 -> domain 에서 product_id 로 묶는다 (합쳐서 1500행 남짓)
 
-
 def get_products():
     rows = get_session().query(Product).filter_by(is_active=1).all()
     return [as_dict(row) for row in rows]
@@ -74,10 +73,12 @@ def get_product_ingredient_ids():
     return [as_dict(row) for row in rows]
 
 
-def get_product_nutritions():
-    rows = get_session().query(ProductNutrition).all()
-    return [as_dict(row) for row in rows]
-
+def find_nutritions(product_ids: list[int]) -> dict[int, dict]:
+    """상품 id 목록의 성분표. {product_id: {crude_protein_pct, ...}} 성분이 없는 상품은 빠짐"""
+    if not product_ids:
+        return {}
+    rows = get_session().query(ProductNutrition).filter(ProductNutrition.product_id.in_(product_ids)).all()
+    return {row.product_id: as_dict(row) for row in rows}
 
 def find_by_id(product_id: int) -> dict | None:
     """상품 한 건 조회. 없으면 None (예외가 아니다 — 부른 쪽이 404 를 정한다)"""
