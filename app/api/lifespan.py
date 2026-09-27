@@ -16,7 +16,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from sqlalchemy import inspect
 
-from app.core.config import ADMIN_PASSWORD, JWT_SECRET
+from app.core.config import ADMIN_PASSWORD, EMBED_API_KEY, EMBED_PROVIDER, JWT_SECRET
 from app.core.db import get_engine, new_session
 from app.domain.domain_init import init_from_db
 
@@ -51,6 +51,9 @@ def check_secrets():
         raise RuntimeError("ADMIN_PASSWORD 환경변수가 비어 있습니다.")
     if len(JWT_SECRET) < 32: # 32 Byte
         raise RuntimeError("JWT_SECRET 은 32자 이상이어야합니다.") 
+    # 없으면 첫 /ask 에서야 임베딩이 실패한다 - 기동에서 막는다
+    if EMBED_PROVIDER == "openai" and not EMBED_API_KEY:
+        raise RuntimeError("EMBED_API_KEY (또는 OPENAI_API_KEY) 환경변수가 비어 있습니다.")
 
 
 @asynccontextmanager

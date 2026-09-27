@@ -124,7 +124,7 @@ EMBED_PROFILES = {
 EMBED_MODEL = env("EMBED_MODEL", "text-embedding-3-small")
 
 if EMBED_MODEL not in EMBED_PROFILES:
-    raise SystemExit(f"EMBED_PROFILES 에 없는 모델입니다: {EMBED_MODEL}")
+    raise RuntimeError(f"EMBED_PROFILES 에 없는 모델입니다: {EMBED_MODEL}")
 
 _profile = EMBED_PROFILES[EMBED_MODEL]
 
