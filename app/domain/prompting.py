@@ -130,7 +130,11 @@ class Citation(BaseModel):
 
 
 class Strategy(BaseModel):
-    strategy: str = Field(description="이 고객 대상 판매전략·마케팅·CS 응대 방향, 3~5문장")
+    # 문자열 한 칸이라 모델이 "다음과 같은 전략을 제안합니다." 같은 서론만 쓰고 닫아 버리는 일이 있다 - 본문을 이 칸에 직접 쓰게 한다
+    strategy: str = Field(
+        description="이 고객 대상 판매전략·마케팅·CS 응대 방향, 3~5문장. 서론 없이 구체적인 전략 내용 자체를 쓴다 - "
+        "'다음과 같은 전략을 제안합니다'처럼 뒤에 내용이 이어질 것처럼 끝내지 않는다"
+    )
     citations: list[Citation]
 
 
