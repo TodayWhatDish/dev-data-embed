@@ -86,10 +86,3 @@ def my_profile(user_id: int = Depends(get_current_user), db: Session = Depends(g
     if detail is None:
         raise HTTPException(status_code=404, detail="회원 정보를 찾을 수 없습니다.")
     return detail
-
-
-@router.get("/allergens")
-def allergens() -> list[str]:
-    """회원가입 폼의 알레르기 체크박스 목록. 기동 시 캐시된 마스터를 그대로 돌려준다 -
-    DB를 또 안 친다(app/api/lifespan.py의 load_domain_cache)."""
-    return CommonMgr.get_inst().get_allergen_names()
