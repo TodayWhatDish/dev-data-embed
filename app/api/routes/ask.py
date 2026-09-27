@@ -15,6 +15,7 @@
 """
 
 import json
+import logging
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
@@ -32,6 +33,8 @@ from app.repositories import users as users_repo
 from app.repositories.pet import find_pets_by_user
 
 router = APIRouter()
+
+logger = logging.getLogger()
 
 
 def _stream_answer(
@@ -75,6 +78,8 @@ def _stream_answer(
                 answer_parts.append(piece)
                 yield json.dumps({"type": "delta", "text": piece}, ensure_ascii=False) + "\n"
         except Exception as e:
+            # 원문 예외는 서버 로그에만 남긴다 - 공급자 오류 문구엔 키 일부나 내부 주소가 섞일 수 있다
+            logger.exception(f"LLM 응답 실패: query={user_query!r}")
             log_customer_question(
                 user_id=user_id,
                 pet_id=pet_id,
@@ -84,7 +89,7 @@ def _stream_answer(
                 ok=False,
                 error=str(e),
             )
-            yield json.dumps({"type": "error", "message": f"LLM 응답 실패: {e}"}, ensure_ascii=False) + "\n"
+            yield json.dumps({"type": "error", "message": "답변을 만들지 못했습니다. 잠시 후 다시 시도해 주세요."}, ensure_ascii=False) + "\n"
             return
         # 관리자 대시보드 '질문' 탭용 기록 - 반증 성패와 무관하게 답변이 나왔으면 성공으로 남긴다.
         log_customer_question(
@@ -99,8 +104,9 @@ def _stream_answer(
         try:
             verification = answering.verify(detail, "".join(answer_parts))
             yield json.dumps({"type": "verification", **verification}, ensure_ascii=False) + "\n"
-        except Exception as e:
-            yield json.dumps({"type": "error", "message": f"반증 실패: {e}"}, ensure_ascii=False) + "\n"
+        except Exception:
+            logger.exception("반증 실패")
+            yield json.dumps({"type": "error", "message": "답변 검증에 실패했습니다."}, ensure_ascii=False) + "\n"
         yield json.dumps({"type": "done"}, ensure_ascii=False) + "\n"
 
     return StreamingResponse(generate(), media_type="application/x-ndjson")
