@@ -41,12 +41,14 @@ app = FastAPI(lifespan=lifespan)
 # dev-web(Next.js, 별도 저장소)이 다른 오리진에서 API를 부른다.
 # 허용 오리진은 app.core.config.FRONTEND_ORIGINS(env FRONTEND_ORIGINS)에서 온다 -
 # 배포 도메인은 코드가 아니라 배포 플랫폼의 환경변수로 넣는다.
+# 인증은 쿠키가 아니라 Authorization 헤더(JWT)라 credentials 가 필요 없다 - 켜 두면 오리진 설정
+# 실수 하나가 쿠키 동반 요청 허용으로 번진다. 메서드/헤더도 라우트가 실제로 쓰는 것만 연다.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=FRONTEND_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PATCH", "DELETE"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 app.include_router(recommend_router)
