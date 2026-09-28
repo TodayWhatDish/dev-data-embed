@@ -23,6 +23,7 @@ import time
 from sqlalchemy import Connection, case, func, select
 
 from app.core.config import EMBED_DIM, EMBED_MODEL, EVAL_DIR, SIZE_LABELS
+from app.core.db import new_session
 from app.models.common import Allergen, AnimalCategory
 from app.models.pet import Pet, PetAllergy
 from app.models.product import IngredientAllergen, Product, ProductIngredient
@@ -233,7 +234,8 @@ def score_llm(holdout: list[tuple], n_pick: int = 5, limit: int | None = None) -
         sample, start=1
     ):
         profile = {"animal_category": animal_category, "size_category": size_category, "allergy": allergy}
-        cands = search_candidates(profile, review)
+        with new_session() as db:
+            cands = search_candidates(db, profile, review)
         picks, retries, error = recommend(cands, profile, n_pick)
         n_retry += retries
         if error:

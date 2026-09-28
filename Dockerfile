@@ -24,12 +24,16 @@ COPY pipeline/ ./pipeline/
 
 # app/core/trace.py 가 logs/query_log.jsonl 을 append 로 여는데 디렉터리는 만들지 않는다.
 # .dockerignore 로 logs/ 를 뺐으므로 여기서 만들어 둔다 - 없으면 첫 /ask 가 FileNotFoundError 로 죽는다.
-RUN mkdir -p logs
+# root 로 돌지 않는다. logs/ 와 log/(app_logger 가 기동 때 mkdir) 는 앱이 써야 하므로 소유자를 넘긴다 -
+# 안 만들어 두면 app 사용자는 /app 에 쓸 권한이 없어 기동 때 PermissionError 로 죽는다.
+RUN mkdir -p logs log && useradd --system --no-create-home app && chown app logs log
+USER app
 
 EXPOSE 8000
 
-# exec form은 $PORT 를 치환 못 한다 - Railway가 컨테이너에 주입하는 PORT를 그대로 듣는다.
-# 로컬처럼 PORT가 없으면 8000으로 기본값을 둔다.
-# --forwarded-allow-ips: Railway 프록시가 붙인 X-Forwarded-For 를 믿어야 요청 제한(api/deps.rate_limit)이 IP별로 센다.
-# 컨테이너에 프록시를 거치지 않고 닿는 길이 없어서 '*' 로 둔다.
-CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --forwarded-allow-ips '*'
+# exec form 은 $PORT 를 치환 못 해 sh -c 로 감싸고, exec 로 uvicorn 이 PID 1 을 넘겨받게 한다 -
+# 그래야 docker stop 의 SIGTERM 이 uvicorn 에 바로 닿는다(shell form 은 sh 가 삼켜 10초 뒤 SIGKILL).
+# Railway 가 주입하는 PORT 를 듣고, 없으면 8000.
+# --proxy-headers: 앞단 프록시의 X-Forwarded-For/Proto 를 믿는다. 컨테이너가 프록시 뒤에서만
+# 노출되므로 --forwarded-allow-ips='*' 로 둔다 - 기본값(127.0.0.1)이면 Railway 에서 무시된다.
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*'"]

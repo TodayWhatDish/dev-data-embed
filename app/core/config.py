@@ -193,6 +193,15 @@ ADMIN_PASSWORD = settings.admin_password
 # 시연용 원클릭 계정(POST /poc/login). 켜지 않으면 그 라우트는 404 다.
 POC_ENABLED = settings.poc_enabled
 
+# 호출 횟수 제한 - api/ratelimit.py 가 쓴다. seconds 초 안에 times 번을 넘으면 429.
+# 카운트가 프로세스 메모리라 워커 N개면 실효 한도가 N배다 - 워커를 늘리면 여기서 낮춘다.
+# 로그인: 사람이 틀려 가며 치는 횟수는 넉넉히, 대입 공격은 막는 선
+LOGIN_LIMIT_TIMES = 5
+LOGIN_LIMIT_SECONDS = 60
+# 질문: 한 번이 LLM 호출 2회(답변+반증)라 요금 기준으로 잡는다
+ASK_LIMIT_TIMES = 10
+ASK_LIMIT_SECONDS = 60
+
 # 고객 페이지 배경 이미지용 (app/api/routes/background.py)
 UNSPLASH_ACCESS_KEY = settings.unsplash_access_key
 

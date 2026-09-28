@@ -1,26 +1,36 @@
-"""ask 그래프의 노드. 각 노드는 NDJSON 이벤트를 get_stream_writer() 로 흘려보낸다."""
+"""ask 그래프의 노드. 각 노드는 NDJSON 이벤트를 get_stream_writer() 로 흘려보낸다.
+
+DB 세션은 상태(state)가 아니라 실행 설정(config["configurable"]["db"])으로 받는다 - 상태는 노드가
+주고받는 값이고, 세션은 라우트의 Depends(get_db) 가 빌려준 실행 도구다.
+"""
 
 import logging
 
+from langchain_core.runnables import RunnableConfig
 from langgraph.config import get_stream_writer
 from langgraph.graph import END
+from sqlalchemy.orm import Session
 
-from app.core.trace import log_customer_question
 from app.domain.prompting import build_customer_context
 from app.graph.state import AskState
 from app.repositories import products as products_repo
 from app.repositories import users as users_repo
 from app.services.answering import plan_tools, stream, verify
 from app.services.profile import build_profile, pet_profile
+from app.services.questions import log_customer_question
 from app.services.searching import candidates
 
 logger = logging.getLogger(__name__)
 
 
-def _log(state: AskState, **kw) -> None:
+def _db(config: RunnableConfig) -> Session:
+    return config["configurable"]["db"]
+
+
+def _log(db: Session, state: AskState, **kw) -> None:
     if not state.get("log_question", True):
         return
-    log_customer_question(user_id=state.get("user_id"), pet_id=state.get("pet_id"), user_query=state["question"], **kw)
+    log_customer_question(db, user_id=state.get("user_id"), pet_id=state.get("pet_id"), user_query=state["question"], **kw)
 
 
 def plan(state: AskState) -> dict:
@@ -33,17 +43,18 @@ def plan(state: AskState) -> dict:
         return {"tools": []}
 
 
-def retrieve(state: AskState) -> dict:
+def retrieve(state: AskState, config: RunnableConfig) -> dict:
     """프로필 -> 후보 검색 -> 고객 정보. 근거(customer_facts, sources)를 답변보다 먼저 보낸다."""
     write = get_stream_writer()
+    db = _db(config)
     pet_id = state.get("pet_id")
-    profile = pet_profile(pet_id) if pet_id else build_profile(state.get("profile_filters") or {})
-    matches = candidates(profile, state["question"])
-    detail = users_repo.get_user_detail(state["user_id"]) if state.get("user_id") else None
+    profile = pet_profile(db, pet_id) if pet_id else build_profile(state.get("profile_filters") or {})
+    matches = candidates(db, profile, state["question"])
+    detail = users_repo.get_user_detail(db, state["user_id"]) if state.get("user_id") else None
     customer_context = build_customer_context(detail)
 
     if not matches:
-        _log(state, matches=[], answer="", ok=False, error="후보 없음")
+        _log(db, state, matches=[], answer="", ok=False, error="후보 없음")
         write({"type": "error", "message": "조건에 맞는 후보를 찾지 못했습니다."})
     else:
         write({"type": "customer_facts", "text": customer_context})
@@ -51,19 +62,20 @@ def retrieve(state: AskState) -> dict:
     return {"matches": matches, "detail": detail, "customer_context": customer_context}
 
 
-def run_tools(state: AskState) -> dict:
+def run_tools(state: AskState, config: RunnableConfig) -> dict:
     """plan 과 retrieve 가 둘 다 끝난 뒤 돈다. 성분표는 검색된 후보 상품만 조회한다."""
     if "nutrition" not in state.get("tools", []) or not state["matches"]:
         return {"nutritions": None}
     product_ids = list(dict.fromkeys(m["product_id"] for m in state["matches"]))
-    nutritions = products_repo.find_nutritions(product_ids)
+    nutritions = products_repo.find_nutritions(_db(config), product_ids)
     get_stream_writer()({"type": "tool_result", "tool": "nutrition", "data": nutritions})
     return {"nutritions": nutritions}
 
 
-def generate(state: AskState) -> dict:
+def generate(state: AskState, config: RunnableConfig) -> dict:
     """답변을 글자 조각(delta)으로 흘려보내고 질문 기록을 남긴다."""
     write = get_stream_writer()
+    db = _db(config)
     parts = []
     try:
         for piece in stream(state["question"], state["matches"], state["customer_context"], state.get("nutritions")):
@@ -72,10 +84,10 @@ def generate(state: AskState) -> dict:
     except Exception as e:
         # 원문(키·스택이 섞일 수 있다)은 서버 로그와 질문 기록에만, 클라이언트엔 고정 문구만
         logger.exception("LLM 답변 스트리밍 실패")
-        _log(state, matches=state["matches"], answer="".join(parts), ok=False, error=str(e))
+        _log(db, state, matches=state["matches"], answer="".join(parts), ok=False, error=str(e))
         write({"type": "error", "message": "답변을 만들지 못했습니다. 잠시 후 다시 시도해 주세요."})
         return {"answer": "".join(parts), "failed": True}
-    _log(state, matches=state["matches"], answer="".join(parts), ok=True)
+    _log(db, state, matches=state["matches"], answer="".join(parts), ok=True)
     return {"answer": "".join(parts)}
 
 

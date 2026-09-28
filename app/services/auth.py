@@ -10,6 +10,8 @@
 
 import secrets
 
+from sqlalchemy.orm import Session
+
 from app.core.db import QueryError, transaction
 from app.core.exceptions import Conflict, InvalidInput, Unauthorized
 from app.core.security import create_access_token, hash_password, verify_password
@@ -26,6 +28,7 @@ MAX_PASSWORD_BYTES = 72
 
 
 def register(
+    db: Session,
     email: str,
     password: str,
     name: str,
@@ -50,9 +53,10 @@ def register(
     # 축종을 안 주거나 못 찾은 이름이면 기존 동작(강아지)으로 유지 - 하위 호환
     animal_category_id = CommonMgr.get_inst().resolve_animal_category_id(pet_species) or DOG_CATEGORY_ID
     try:
-        with transaction("user"):
-            user_id = create_user(email, name, password_hash, phone, region)
+        with transaction(db, "user"):
+            user_id = create_user(db, email, name, password_hash, phone, region)
             pet_id = create_pet(
+                db,
                 user_id,
                 animal_category_id,
                 pet_name,
@@ -66,10 +70,10 @@ def register(
             if pet_allergies:
                 allergen_ids = CommonMgr.get_inst().resolve_allergen_ids(pet_allergies)
                 if allergen_ids:
-                    add_pet_allergies(pet_id, allergen_ids)
+                    add_pet_allergies(db, pet_id, allergen_ids)
 
             if diet_note or skin_note:
-                save_pet_survey(pet_id, diet_note, skin_note)
+                save_pet_survey(db, pet_id, diet_note, skin_note)
     except QueryError as e:
         # 가입에서 unique 가 걸리는 건 user.email / (auth_provider, auth_uid=email) 뿐이다
         # (알러지 id 는 set 이라 pet_allergy PK 는 안 겹친다)
@@ -80,14 +84,14 @@ def register(
     return user_id
 
 
-def signup(email: str, password: str, name: str, pet_name: str, **profile) -> str:
+def signup(db: Session, email: str, password: str, name: str, pet_name: str, **profile) -> str:
     """회원가입. register() 로 만들고 바로 JWT 를 발급한다. profile 은 register() 의 선택 인자 그대로."""
-    return create_access_token("user", str(register(email, password, name, pet_name, **profile)))
+    return create_access_token("user", str(register(db, email, password, name, pet_name, **profile)))
 
 
-def login(email: str, password: str) -> str:
+def login(db: Session, email: str, password: str) -> str:
     """이메일/비밀번호 검증하고 JWT 발급. 틀리면(72바이트 초과 포함) 또는 탈퇴 회원이면 Unauthorized."""
-    user = find_user_by_email(email)
+    user = find_user_by_email(db, email)
     if (
         len(password.encode()) > MAX_PASSWORD_BYTES
         or not user
@@ -107,11 +111,12 @@ POC_REVIEWS = [
 ]
 
 
-def poc_signup() -> str:
+def poc_signup(db: Session) -> str:
     """시연용 계정을 바로 만든다: 펫 프로필 + 알러지 + 설문 + 구매/후기 3건까지 채워서 JWT 발급.
     비밀번호는 아무도 모르는 랜덤값이라 이 토큰으로만 들어올 수 있다.
     ponytail: 누를 때마다 계정이 하나씩 쌓인다 - 쌓이는 게 문제가 되면 poc-% 계정 정리 배치를 만든다."""
     user_id = register(
+        db,
         f"poc-{secrets.token_hex(4)}@demo.local",
         secrets.token_urlsafe(16),
         "시연 고객",
@@ -129,16 +134,16 @@ def poc_signup() -> str:
     )
     dog_ids = {
         r["product_id"]
-        for r in product_repo.get_product_animal_category_ids()
+        for r in product_repo.get_product_animal_category_ids(db)
         if r["animal_category_id"] == DOG_CATEGORY_ID
     }
     products = [
         p
-        for p in product_repo.get_products()
+        for p in product_repo.get_products(db)
         if p["product_id"] in dog_ids and "닭" not in p["name"] and "치킨" not in p["name"]
     ]
     for product, (rating, body) in zip(
         secrets.SystemRandom().sample(products, len(POC_REVIEWS)), POC_REVIEWS
     ):
-        write_review(user_id, buy(user_id, product["product_id"]), rating, body)
+        write_review(db, user_id, buy(db, user_id, product["product_id"]), rating, body)
     return create_access_token("user", str(user_id))

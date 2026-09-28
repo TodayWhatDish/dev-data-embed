@@ -22,7 +22,7 @@ from app.app_logger.logger import init_logger
 init_logger("bench_rows")
 logging.getLogger().setLevel(logging.WARNING)  # 벤치 중 INFO 로그가 측정값에 섞이지 않게
 
-from app.core.db import fetch_tuple_one, fetch_tuples
+from app.core.db import fetch_tuple_one, fetch_tuples, new_session
 from tests.bench.sqlbench import throughput_fn
 
 THREADS = (1, 4, 8)
@@ -30,11 +30,12 @@ THREADS = (1, 4, 8)
 
 def q(sql):
     """인자 없는 호출로 만든다. throughput_fn 이 그 모양만 받는다"""
-    return lambda: fetch_tuples(sql)
+    return lambda: fetch_tuples(db, sql)
 
 
 if __name__ == "__main__":
-    (n,) = fetch_tuple_one("SELECT count(*) FROM review")
+    db = new_session()
+    (n,) = fetch_tuple_one(db, "SELECT count(*) FROM review")
 
     print()
     print("1. LIMIT 만 바꾼다 - 반환 행이 늘면 무너지는가 (스캔량도 같이 늘어 원인은 못 가림)")
@@ -66,11 +67,11 @@ if __name__ == "__main__":
 
     load_domain_cache()
     load_schema_cache()
-    rows = len(users_repo.list_users())
+    rows = len(users_repo.list_users(db))
     throughput_fn(
         {
             f"list_users        {rows}행 (GET /api/customers)": users_repo.list_users,
-            "find_pets_by_user   3행 (프로필 조회)": lambda: pet_repo.find_pets_by_user(1),
+            "find_pets_by_user   3행 (프로필 조회)": lambda: pet_repo.find_pets_by_user(db, 1),
         },
         threads=THREADS,
     )
