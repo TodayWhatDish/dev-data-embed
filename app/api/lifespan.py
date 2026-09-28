@@ -18,7 +18,7 @@ from fastapi import FastAPI
 from sqlalchemy import inspect
 
 from app.core.config import ADMIN_PASSWORD, EMBED_API_KEY, EMBED_PROVIDER, JWT_SECRET
-from app.core.db import SessionLocal, engine
+from app.core.db import engine, new_session
 from app.domain.domain_init import init_from_db
 from app.services.retrieve import check_freshness
 
@@ -30,11 +30,11 @@ def load_domain_cache():
 
     이게 없으면 CommonMgr 이 빈 채로 남아 services.profile.resolve_allergy() 가
     첫 요청에서 AttributeError 로 죽는다. 지금까지 fake_main.py 만 이걸 불렀다.
-    요청 밖이라 SessionPerRequest 가 세션을 안 닫아준다 - 직접 닫지 않으면 이 조회의 트랜잭션이
+    요청 밖이라 get_db 가 세션을 안 닫아준다 - with 로 닫지 않으면 이 조회의 트랜잭션이
     서버가 꺼질 때까지 'idle in transaction' 으로 커넥션 하나를 붙잡는다.
     """
-    init_from_db()
-    SessionLocal.remove()
+    with new_session() as db:
+        init_from_db(db)
 
 
 def load_schema_cache():

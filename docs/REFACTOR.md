@@ -46,7 +46,7 @@
 
 > BE-01·02: `lifespan.check_secrets()`로 처리함 (`52e7cb1`). 코드 리뷰로 확인했고, 빈 env로 실제 기동해 보는 확인은 아직 하지 않았다.
 > 이슈: BE-03~06 → [#14](https://github.com/TodayWhatDish/dev-data-embed/issues/14) · BE-10 → [#15](https://github.com/TodayWhatDish/dev-data-embed/issues/15) · BE-12 → [#16](https://github.com/TodayWhatDish/dev-data-embed/issues/16) · BE-14 → [#17](https://github.com/TodayWhatDish/dev-data-embed/issues/17) · BE-09 → [#18](https://github.com/TodayWhatDish/dev-data-embed/issues/18). 나머지 P0는 작아서 체크리스트로만 관리한다.
-> BE-04: yield 의존성 대신 ASGI 미들웨어(`main.SessionPerRequest`)로 세션을 닫는다 - 의존성 정리는 StreamingResponse가 끝나기 전에 돌아서 `/ask` 스트림 도중 세션이 닫힌다. 기동 시 `init_from_db` 세션도 lifespan에서 닫는다(안 닫으면 서버 수명 내내 idle in transaction 1건). BE-10: slowapi 대신 `api/deps.rate_limit` 메모리 카운터(워커 1개 전제). 확인: `tests.api.rate_limit`, `tests.services.signup_tx`(slow).
+> BE-04: 라우트가 `Depends(get_db)`로 요청마다 세션을 받아 서비스·리포지토리에 `db`로 넘긴다 - FastAPI 0.118부터 yield 의존성 정리가 StreamingResponse가 끝난 뒤에 돌아 `/ask` 스트림 도중 세션이 닫히지 않는다(pyproject에 `fastapi>=0.118` 고정). 기동 시 `init_from_db` 세션도 lifespan에서 닫는다(안 닫으면 서버 수명 내내 idle in transaction 1건). BE-10: slowapi 대신 `api/ratelimit.RateLimit` 메모리 카운터(한도는 `config.py` 상수, 워커 1개 전제). 확인: `tests.api.rate_limit`, `tests.services.signup_tx`(slow).
 
 ## P1 — 구조 (계층 · 책임 분리)
 

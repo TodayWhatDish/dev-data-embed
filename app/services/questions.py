@@ -4,12 +4,15 @@
 
 import logging
 
+from sqlalchemy.orm import Session
+
 from app.repositories import questions as question_repo
 
 logger = logging.getLogger()
 
 
 def log_customer_question(
+    db: Session,
     *,
     user_id: int | None,
     pet_id: int | None,
@@ -28,11 +31,11 @@ def log_customer_question(
         for m in matches
     ]
     try:
-        question_repo.create_question(user_id, pet_id, user_query, matched, answer, ok, error)
+        question_repo.create_question(db, user_id, pet_id, user_query, matched, answer, ok, error)
     except Exception:
         logger.exception(f"질문 기록 실패: user_id={user_id}, query={user_query!r}")
 
 
-def list_questions(limit: int) -> list[dict]:
+def list_questions(db: Session, limit: int) -> list[dict]:
     """최근 고객 질문부터 최대 limit개."""
-    return question_repo.list_recent(limit)
+    return question_repo.list_recent(db, limit)

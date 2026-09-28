@@ -9,10 +9,12 @@
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
+from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_admin, get_current_user
 from app.api.ratelimit import ask_limit
 from app.api.schemas import AskMeRequest, AskRequest
+from app.core.db import get_db
 from app.graph.graph import ask_stream
 from app.services.profile import primary_pet
 
@@ -20,17 +22,17 @@ router = APIRouter()
 
 
 @router.post("/ask", dependencies=[Depends(get_current_admin), Depends(ask_limit)])
-def ask(body: AskRequest):
+def ask(body: AskRequest, db: Session = Depends(get_db)):
     """관리자 대시보드용. pet_id 가 오면 그 펫의 DB 프로필을 쓰고, 없으면 요청에 직접 적힌 필터를 쓴다."""
     # 관리자 질문은 '질문' 탭(고객 질문 기록)에 남기지 않는다
-    lines = ask_stream(body.user_query, body.pet_id, body.user_id, body.model_dump(), log_question=False)
+    lines = ask_stream(db, body.user_query, body.pet_id, body.user_id, body.model_dump(), log_question=False)
     return StreamingResponse(lines, media_type="application/x-ndjson")
 
 
 # LLM 호출 두 번(답변+반증)이 붙는 경로라 비용 상한 겸 한도를 둔다
 @router.post("/ask/me", dependencies=[Depends(ask_limit)])
-def ask_me(body: AskMeRequest, user_id: int = Depends(get_current_user)):
+def ask_me(body: AskMeRequest, user_id: int = Depends(get_current_user), db: Session = Depends(get_db)):
     """일반 회원용. 로그인한 본인의 첫 번째 펫 프로필로 묻는다."""
-    pet = primary_pet(user_id)
-    lines = ask_stream(body.user_query, pet["pet_id"] if pet else None, user_id)
+    pet = primary_pet(db, user_id)
+    lines = ask_stream(db, body.user_query, pet["pet_id"] if pet else None, user_id)
     return StreamingResponse(lines, media_type="application/x-ndjson")

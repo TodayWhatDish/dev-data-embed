@@ -56,9 +56,11 @@ def warm_domain() -> None:
     global _warmed
     if _warmed:
         return
+    from app.core.db import new_session
     from app.domain.domain_init import init_from_db
 
-    init_from_db()
+    with new_session() as db:
+        init_from_db(db)
     _warmed = True
 
 

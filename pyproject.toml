@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "dev-data-embed"
 version = "1.1.0"
 dependencies = [
-    "fastapi",
+    "fastapi>=0.118",  # yield 의존성(get_db) 정리가 StreamingResponse 뒤에 돌기 시작한 버전
     "uvicorn[standard]",
     "pgvector",
     "pyjwt",
