@@ -10,6 +10,7 @@ Access Key는 서버 .env에만 두고, 프론트는 이 엔드포인트만 부�
 import requests
 from fastapi import APIRouter, HTTPException
 
+from app.adapters.unsplash import fetch_photo
 from app.core.config import UNSPLASH_ACCESS_KEY
 
 router = APIRouter()
@@ -28,20 +29,6 @@ def background() -> dict:
         raise HTTPException(status_code=503, detail="UNSPLASH_ACCESS_KEY가 설정되지 않았습니다.")
 
     try:
-        res = requests.get(
-            f"https://api.unsplash.com/photos/{FIXED_PHOTO_ID}",
-            headers={"Authorization": f"Client-ID {UNSPLASH_ACCESS_KEY}"},
-            timeout=5,
-        )
+        return fetch_photo(FIXED_PHOTO_ID)
     except requests.RequestException as exc:
-        raise HTTPException(status_code=502, detail="Unsplash에 연결할 수 없습니다.") from exc
-
-    if not res.ok:
-        raise HTTPException(status_code=502, detail="Unsplash 요청에 실패했습니다.")
-
-    photo = res.json()
-    return {
-        "url": photo["urls"]["regular"],
-        "credit_name": photo["user"]["name"],
-        "credit_link": photo["user"]["links"]["html"],
-    }
+        raise HTTPException(status_code=502, detail="Unsplash 요청에 실패했습니다.") from exc

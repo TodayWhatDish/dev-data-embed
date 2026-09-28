@@ -1,12 +1,12 @@
-# Last Updated : 2026-09-03
+# Last Updated : 2026-09-26
 
 """내용이 바뀐 조각만 찾아 벡터를 최신 상태로 맞춘다.
 
 무엇을 다시 만들지 고르는 일만 한다 — 자르는 건 pipeline/prep/chunking.py 가,
-넣고 빼는 건 adapters/stores/sqlite_store.py 가 안다.
+넣고 빼는 건 adapters/vector_store.py 가 안다.
 """
 
-from app.adapters.stores import get_store
+from app.adapters.vector_store import PgVectorStore
 from app.core.config import EMBED_DIM, EMBED_MODEL
 from app.core.embedder import embed_documents
 from app.domain.embedding_text import source_hash
@@ -24,7 +24,7 @@ def sync(
 
     ids[i] 와 texts[i] 가 같은 조각을 가리킨다는 것이 이 함수의 유일한 전제다.
     """
-    store = get_store(con)
+    store = PgVectorStore(con)
     marks = [fingerprint(text, model) for text in texts]
 
     # 전량이면 저장된 지문을 안 본다 - 어차피 표를 새로 만든다.

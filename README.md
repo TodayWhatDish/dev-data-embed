@@ -1,128 +1,141 @@
-# dev-data-embed
+<div align="center">
+
+# 오늘뭐멍냥 — Backend
+
+펫 정보와 구매 · 리뷰 이력을 근거로 상품을 추천하고 질문에 답하는<br/>
+RAG 서비스의 API 서버 · 데이터 파이프라인
+
+![Python](https://img.shields.io/badge/Python_3.12-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
+![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy_2.0-D71F00?logo=sqlalchemy&logoColor=white)
+![LangChain](https://img.shields.io/badge/LangChain-1C3C3C?logo=langchain&logoColor=white)
+![pgvector](https://img.shields.io/badge/pgvector-4169E1?logo=postgresql&logoColor=white)
+![Railway](https://img.shields.io/badge/Railway-0B0D0E?logo=railway&logoColor=white)
+
+</div>
 
 <br/>
 
-![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)
-![SQLite](https://img.shields.io/badge/SQLite-vec-003B57?style=for-the-badge&logo=sqlite&logoColor=white)
-![LangChain](https://img.shields.io/badge/LangChain-1C3C3C?style=for-the-badge&logo=langchain&logoColor=white)
-![License](https://img.shields.io/badge/License-Apache_2.0-007EC6?style=for-the-badge)
+## 소개
 
-<br/>
+알러지가 있는 아이의 보호자는 사료 성분표를 하나하나 확인해야 합니다.
+이 서버는 가입 때 받은 **펫 정보(축종 · 체급 · 알러지 · 식성 메모)** 와 **실제 구매 · 리뷰 이력**으로 조건에 맞는 상품만 먼저 걸러 낸 뒤,
+AI가 그 안에서 추천하고 질문에 답합니다. 화면은 [dev-web](https://github.com/TodayWhatDish/dev-web)이 이 API를 직접 호출합니다.
 
-'오늘 뭐먹냥' — 개·고양이 사료·간식 AI 추천 서비스의 **백엔드**.
-더미 데이터 파이프라인(CSV → SQLite → 임베딩)과 그 위에서 도는 FastAPI 서비스(`app/`)를 담습니다.
+## 주요 기능
 
-## 스택
-
-| 영역 | 사용 |
+| 기능 | 설명 |
 |---|---|
-| 웹 서버 | FastAPI, Uvicorn |
-| 벡터 검색 | sqlite-vec (SQLite 확장), sentence-transformers (로컬 임베딩) |
-| LLM 연동 | LangChain (`langchain-core`/`-openai`/`-anthropic`/`-text-splitters`) — `LLM_PROVIDER`로 스위칭 (`app/core/config.py`). 로컬은 Ollama(`qwen2.5:3b`, OpenAI 호환 엔드포인트), 상용은 Anthropic(답변용 `claude-sonnet-5` / 검증용 `claude-haiku-4-5`를 분리해 자기평가 편향 방지) |
-| 토크나이징 | transformers, tiktoken |
-| 인증/보안 | pyjwt, bcrypt |
-| 평가 (`eval`, 선택 설치) | ragas, langchain-community |
-| 트레이싱 (선택 설치) | langsmith |
-| 테스트/린트 (`dev`, 선택 설치) | pytest, httpx, ruff |
+| **맞춤 추천** | 알러지 · 축종 · 체급 필터를 건 벡터 검색 후 LLM이 후보 중에서 선택. 후보 밖 상품은 걸러 재시도 |
+| **AI 상담** | 유사 리뷰와 고객 구매 이력을 넣어 답하고, NDJSON으로 스트리밍 |
+| **답변 반증** | 답변 모델과 **다른 모델**이 고객 정보와 대조해 정확도 채점 (자기평가 편향 회피) |
+| **고객 분석 · 판매 전략** | 구매 이력 · 유사 리뷰 · 판매 전략 제공. LLM이 인용한 근거 구매는 SQL로 대조 |
+| **회원 · 펫 · 구매** | 회원가입과 펫 등록을 한 트랜잭션으로 처리하고 구매 · 리뷰 기록 |
+| **품질 평가** | `python -m eval all` 한 줄로 recall@k · MRR · RAGAS · 형식 검사 |
 
 ## 아키텍처
 
-`app/`은 6개 층으로 나뉘고 의존 방향은 한쪽으로만 흐릅니다 (`tests/test_layers.py`가 import 문을 AST로 훑어 이 방향을 강제합니다).
-
 ```mermaid
-flowchart TB
-    api["api (4)<br/>HTTP · 인증 · 상태코드"]
-    services["services (3)<br/>추천 · 검색 비즈니스 로직"]
-    repo["repositories (2)<br/>SQL 조회"]
-    adapters["adapters (2)<br/>LLM · 벡터 스토어"]
-    core["core (1)<br/>DB 연결 · 설정 · 인증 · 트레이스"]
-    domain["domain (0)<br/>순수 비즈니스 규칙"]
+flowchart LR
+    U[dev-web] -->|HTTPS · JWT| API
 
-    api --> services
-    api --> repo
-    api --> domain
-    services --> repo
-    services --> adapters
-    services --> domain
-    repo --> core
-    adapters --> core
-    adapters -.->|"domain 포트(Protocol) 구현"| domain
+    subgraph Railway
+        API[FastAPI<br/>인증 · 요청 제한 · 스트리밍]
+    end
 
-    repo -.->|"금지 (SQL만 하는 층)"| domain
-    repo -.->|"금지 (SQL만 하는 층)"| services
+    API -->|transaction pooler| PG[(Supabase<br/>Postgres · pgvector)]
+    API --> LLM[Claude Sonnet · OpenAI<br/>답변 · 반증 · 임베딩]
 ```
 
-데이터는 CSV → SQLite → 임베딩 순으로 오프라인 파이프라인이 만들고, 서비스는 그 결과만 읽습니다.
+- **LLM을 그대로 믿지 않습니다.** 추천은 후보 밖 상품을 걸러 재시도하고, 판매 전략의 근거 구매는 SQL로 대조하며, 상담 답변은 다른 모델이 반증합니다.
+- **민감 정보는 서버 안에 둡니다.** LLM 오류 원문은 로그에만 남기고, 로그인 · AI 경로는 IP별 요청 제한을 둡니다.
+- **의존은 한 방향입니다.** `api → services → repositories · adapters → core`, 규칙은 `domain`에 모았고 `tests/test_layers.py`가 import를 검사해 강제합니다.
+- **모델은 설정으로 교체합니다.** 임베딩은 `EMBED_PROFILES` 표 하나, LLM은 `.env`의 `LLM_PROVIDER` · `API_MODEL`만 바꿉니다.
+
+### 질문 하나가 답이 되기까지
+
+근거(고객 정보 · 참고 리뷰)를 답변보다 먼저 보내 화면에서 대조할 수 있게 했습니다.
 
 ```mermaid
 flowchart LR
-    A["data/master, data/seed<br/>(*.csv)"] -->|pipeline.load_csv| B[("pet_reco.db")]
-    B -->|pipeline.chunk| C["chunks 테이블"]
-    C -->|pipeline.embed| D["chunk_vectors 테이블"]
-    B -->|pipeline.prep_rec| E["product_vectors /<br/>customer_vectors<br/>(평가용 홀드아웃)"]
-    B -->|pipeline.verify| F["정합성 점검<br/>(개수 · FK · 벡터 차원 · recall)"]
-    D --> G["app.services.searching<br/>검색 → 추천"]
-    G --> H["FastAPI (app/)"]
+    Q[질문] --> P[profile<br/>축종 · 체급 · 알러지]
+    P --> S[candidates<br/>필터 + pgvector 검색]
+    H[구매 이력] --> G
+    S --> G[answer<br/>답변 스트리밍]
+    G --> V[verify<br/>다른 모델로 반증]
 ```
 
-## 문서
+응답 스트림 순서: `customer_facts → sources → delta… → verification → done`
 
-| 파일 | 내용 |
+### 데이터 파이프라인
+
+CSV에서 임베딩까지 오프라인으로 만들고, 서버는 결과를 읽기만 합니다.
+
+| 단계 | 내용 |
 |---|---|
-| [`docs/design/GOAL.md`](docs/design/GOAL.md) | 프로젝트 방향·요구사항. 무엇이 필요한지의 기준 |
-| [`docs/schema/`](docs/schema/README.md) | **컬럼 레퍼런스** — 테이블별 컬럼·인덱스·설계 노트 |
-| [`docs/design/DESIGN.md`](docs/design/DESIGN.md) | DB 스키마 설계 배경 |
-| [`docs/DATAINFO.md`](docs/DATAINFO.md) | 더미 CSV 데이터 사전 |
-| [`docs/WORK.md`](docs/WORK.md) | 작업일지 |
+| `load_csv` | 테이블을 FK 순서로 정렬해 CSV 적재 (스키마 원천은 `app/models/`) |
+| `chunk` | 리뷰 + 상품 정보를 문서로 조립하고 토큰 한도로 자르기 |
+| `embed` | 문서를 벡터로 바꿔 pgvector에 저장 |
+| `prep_rec` | 평가용 홀드아웃 지정 · 상품 / 고객 벡터 생성 |
+| `verify` | 개수 · FK · 벡터 차원 · recall · 샘플 질의 점검 |
 
-## 설치
+## 기술 스택
 
-```bash
-python -m pip install -e .           # 서버 실행에 필요한 최소 의존성
-python -m pip install -e ".[dev]"    # + pytest, httpx, ruff (테스트/린트)
-python -m pip install -e ".[eval]"   # + ragas, langchain-community (채점기, python -m eval)
-python -m pip install -e ".[trace]"  # + langsmith (LangSmith 트레이싱, 선택)
-```
-
-## 실행
-
-스크립트는 상대 경로를 쓰므로 **저장소 루트에서, `-m` 모듈 형태로** 실행합니다. DB가 두 갈래([`AGENTS.md`](AGENTS.md) 참고)로 나뉘니 섞지 마세요.
-
-### Track A — `pet_reco.db` (활성 파이프라인)
-
-```bash
-python -m pipeline.make_data.gen_seed   # (선택) data/master + review.csv -> data/seed/*.csv 합성
-python -m pipeline.load_csv             # data/master + data/seed -> pet_reco.db 적재
-python -m pipeline.chunk                # 리뷰 -> 임베딩용 문서 조립 -> chunks 테이블
-python -m pipeline.embed                # chunks -> 벡터 -> chunk_vectors 테이블
-python -m pipeline.prep_rec             # 홀드아웃 지정 + product_vectors/customer_vectors 생성 (평가용)
-python -m pipeline.verify               # 데이터 개수·FK·벡터 차원·recall 한 번에 점검
-python -m eval golden                   # 홀드아웃 리뷰로 recall@1/3/10 · MRR 측정
-python -m app.query                     # 프로필+질문 받아 유사 리뷰 찾는 대화형 CLI
-uvicorn app.main:app --reload           # FastAPI 서버 기동
-```
-
-### Track B — `user.db` (설계 중, 아직 데이터 미적재)
-
-```bash
-py pipeline/create_schema/execute_schema.py   # user.db 스키마 생성 (16 테이블 + 2 뷰)
-```
-
-`python` 이 아니라 `py` 인 이유: 스키마가 STRICT 테이블을 쓰므로 **SQLite 3.37+** 가 필요합니다.
-PATH 의 `python` 이 구버전(3.9 / SQLite 3.35)이면 `malformed database schema` 로 실패합니다.
-
-`user.db`는 생성 결과물입니다. 직접 편집하지 말고 스크립트로 다시 만드세요.
-
-## 스키마 코드 구성
-
-`pipeline/create_schema/` 는 `docs/schema/` 문서 구성과 1:1 로 대응합니다.
-
-| 파일 | 내용 |
+| 영역 | 사용 기술 |
 |---|---|
-| `execute_schema.py` | **진입점.** 아래 모듈에서 DDL 을 모아 순서대로 실행 + 설계 규칙 전문 |
-| `common_schema.py` | `animal_category`, `allergen` (두 도메인이 공유하는 코드표) |
-| `user_schema.py` | `user` |
-| `pet_schema.py` | `breed`, `pet`, `pet_breed`, `pet_allergy` |
-| `product_schema.py` | 제품 8테이블 + 뷰 2개 |
-| `purchase_schema.py` | `purchase`, `review` |
+| API Server | Python 3.12, FastAPI, Uvicorn, Pydantic v2 |
+| Auth | PyJWT, bcrypt |
+| Database | Supabase Postgres, pgvector, SQLAlchemy 2.0, SQLite (스키마 설계) |
+| LLM · RAG | LangChain, Claude Sonnet (답변), OpenAI (임베딩 · 반증), NumPy, tiktoken |
+| Evaluation | RAGAS, 골든셋 recall@k · MRR |
+| Infra | Railway (Docker), Supabase |
+| Quality | pytest, Ruff |
+
+## 프로젝트 구조
+
+```
+app/
+  api/            HTTP — 라우트 · 인증 · 요청 제한 · 에러 매핑
+  services/       추천 · 검색 · 상담 · 판매 전략 · 회원
+  repositories/   SQL 조회
+  adapters/       LLM · 벡터 스토어
+  domain/         알러지 판정 · 마스킹 · 프롬프트
+  core/           DB 세션 · 설정 · 보안 · 임베더
+  models/         SQLAlchemy 모델 (스키마 원천)
+pipeline/         CSV → DB → 임베딩
+eval/             추천 · 답변 품질 채점기
+tests/            계층 규칙 + 자체검증
+data/             master · seed CSV (더미 데이터)
+```
+
+## 로컬 실행
+
+Python 3.12, Supabase 프로젝트, LLM API 키(`.env`)가 필요합니다. 명령은 저장소 루트에서 `-m` 모듈 형태로 실행합니다.
+
+```bash
+python -m pip install -e ".[dev]"   # 선택: .[local] 로컬 임베딩 · .[eval] 채점기
+uvicorn app.main:app --reload       # http://localhost:8000/docs
+
+# 데이터 적재
+python -m pipeline.load_csv
+python -m pipeline.chunk
+python -m pipeline.embed
+python -m pipeline.prep_rec
+python -m pipeline.verify
+
+# 검사
+pytest
+python -m eval all                  # --with-llm 으로 요금 드는 채점 포함
+```
+
+배포는 루트 `Dockerfile`로 Railway에서 빌드하며, 헬스체크는 `/health`입니다.
+
+## 더 보기
+
+- [개발 규칙](./AGENTS.md) — 명령어 · 코드 스타일 · 계층 규칙
+- [설계 배경](./docs/design/GOAL.md) — 프로젝트 방향 · 요구사항, [DB 설계](./docs/design/DESIGN.md)
+- [스키마 레퍼런스](./docs/schema/README.md) — 테이블별 컬럼 · 인덱스
+- [데이터 사전](./docs/DATAINFO.md) — 더미 CSV 설명
+- [리팩터링 체크리스트](./docs/REFACTOR.md)
+
+Apache-2.0

@@ -20,32 +20,31 @@ init_logger("test_services")
 
 from app.api.lifespan import load_domain_cache, load_schema_cache
 from app.core.db import execute, fetch_tuple_one
+from app.core.exceptions import AppError, InvalidInput, NotFound
+from app.repositories import products as product_repo
 from app.services import products as product_feat
 from app.services import profile, retrieve, searching
-from app.services.metric.sqlbench import elapsed_time
-from app.services.products import ProductError
-from app.repositories import products as product_repo
+from tests.bench.sqlbench import elapsed_time
 
 logger = logging.getLogger()
 
 
-def raises(kind, fn, *args):
-    """그 kind 로 ProductError 가 나는지 본다. 통과했거나 kind 가 다르면 실패다.
+def raises(exc_cls, fn, *args):
+    """그 종류의 예외가 나는지 본다. 통과했거나 종류가 다르면 실패다.
 
-    '터졌다' 만 보면 엉뚱한 이유로 터져도 통과해버린다. kind 까지 봐야 의미가 있다
-    (tests/services/products.py 의 rejects 와 같은 이유, 예외 종류만 다르다).
+    '터졌다' 만 보면 엉뚱한 이유로 터져도 통과해버린다. 종류까지 봐야 의미가 있다.
     """
     try:
         fn(*args)
-    except ProductError as e:
-        assert e.kind == kind, f"kind 가 다르다: {e.kind} != {kind}"
-        logger.info(f"\t{kind:12} <- {e.message}")
+    except AppError as e:
+        assert type(e) is exc_cls, f"종류가 다르다: {type(e).__name__} != {exc_cls.__name__}"
+        logger.info(f"\t{exc_cls.__name__:12} <- {e.msg}")
         return
-    raise AssertionError(f"ProductError({kind}) 가 나야 하는데 통과했다")
+    raise AssertionError(f"{exc_cls.__name__} 가 나야 하는데 통과했다")
 
 
 def timed(label, fn):
-    """부르고 걸린 시간을 남긴다. services 호출 인터페이스를 재는 게 metric/sqlbench 의 목적이다."""
+    """부르고 걸린 시간을 남긴다. services 호출 인터페이스를 재는 게 tests/bench/sqlbench 의 목적이다."""
     with elapsed_time(quiet=True) as t:
         got = fn()
     logger.info(f"\t{label:34} {t.ms:7.2f} ms")
@@ -111,12 +110,12 @@ if __name__ == "__main__":
     # ------------------------------------------------------------------ 4
     logger.info("4. products - 관리자 CRUD 의 경계")
 
-    # 없는 상품은 404 로 이어질 not_found 다 (repositories 는 None 을 줬고 여기서 예외가 된다)
-    raises("not_found", product_feat.get_product, -1)
+    # 없는 상품은 404 로 이어질 NotFound 다 (repositories 는 None 을 줬고 여기서 예외가 된다)
+    raises(NotFound, product_feat.get_product, -1)
 
-    # page/size 는 클라이언트가 보낸 값이라 서버 버그가 아니다 -> params_error(400)
-    raises("params_error", product_feat.list_products, 0, 0)
-    raises("params_error", product_feat.list_products, -1, 5)
+    # page/size 는 클라이언트가 보낸 값이라 서버 버그가 아니다 -> InvalidInput(400)
+    raises(InvalidInput, product_feat.list_products, 0, 0)
+    raises(InvalidInput, product_feat.list_products, -1, 5)
 
     # 페이지가 겹치면 목록에 같은 상품이 두 번 뜬다. find_page 의 ORDER BY 가 그걸 막는다
     page0 = product_feat.list_products(0, 5)
@@ -150,13 +149,13 @@ if __name__ == "__main__":
         assert rows == 1 and after_update["price_krw"] == 2000, after_update
 
         # 빈 바디 PATCH 는 'SET  WHERE' 라는 깨진 SQL 이 되므로 services 에서 막는다
-        raises("params_error", product_feat.update_product, product_id, {})
+        raises(InvalidInput, product_feat.update_product, product_id, {})
 
-        # DB CHECK 위반은 sqlite3 예외가 아니라 ProductError 로 번역돼 올라온다
-        raises("params_error", product_feat.update_product, product_id, {"price_krw": -1})
+        # DB CHECK 위반은 sqlite3 예외가 아니라 InvalidInput 로 번역돼 올라온다
+        raises(InvalidInput, product_feat.update_product, product_id, {"price_krw": -1})
 
-        # 없는 상품 수정은 0행이라 not_found 다
-        raises("not_found", product_feat.update_after_select_product, -1, {"price_krw": 1})
+        # 없는 상품 수정은 0행이라 NotFound 다
+        raises(NotFound, product_feat.update_after_select_product, -1, {"price_krw": 1})
 
         # 위 세 개 중 하나라도 돌았으면 값이 바뀌어 있다
         assert product_feat.get_product(product_id)["price_krw"] == 2000
@@ -167,8 +166,8 @@ if __name__ == "__main__":
         if product_id is not None:
             product_feat.delete_product(product_id)
             assert product_feat.get_product(product_id)["is_active"] == 0
-            raises("not_found", product_feat.delete_product, -1)
-            execute("DELETE FROM product WHERE product_id = ?", (product_id,), "product")
+            raises(NotFound, product_feat.delete_product, -1)
+            execute("DELETE FROM product WHERE product_id = %s", (product_id,), "product")
             assert product_repo.find_by_id(product_id) is None
     logger.info("#" * 20)
 
@@ -181,7 +180,7 @@ if __name__ == "__main__":
     )
     assert hits, "후보가 하나도 안 나왔다"
     # LLM 에 넘길 모양이 맞는지. 키가 빠지면 프롬프트가 조용히 비어서 나간다
-    need = {"product_id", "name", "brand", "price_krw", "score", "review"}
+    need = {"product_id", "name", "brand", "price_krw", "product_type", "score", "review"}
     assert all(need == set(h) for h in hits), hits[0].keys()
     for h in hits[:3]:
         logger.info(f"\t{h['product_id']:>4} {h['name']} {h['price_krw']}원 score={h['score']:.4f}")

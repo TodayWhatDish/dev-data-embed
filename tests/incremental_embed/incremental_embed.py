@@ -19,8 +19,8 @@ import sys
 from app.app_logger.logger import init_logger
 from app.core.db import execute, fetch_one
 from app.core.security import hash_password
-from app.repositories.general_query.insert import insert_query
 from app.repositories.pet import create_pet
+from app.repositories.purchases import create_purchase, create_review
 from app.repositories.users import create_user, find_user_by_email
 
 logger = logging.getLogger()
@@ -38,24 +38,12 @@ def setup():
     user_id = create_user(email=EMAIL, name="임베딩테스트", password_hash=hash_password("pw12345"))
     pet_id = create_pet(user_id=user_id, animal_category_id=1, name="테스트펫", size=3)
 
-    # purchase 와 review 는 전용 함수가 없다. 회원가입이 쓰는 것과 같은 범용 INSERT 로 넣는다.
-    purchase_id = insert_query(
-        "purchase",
-        {
-            "pet_id": pet_id,
-            "product_id": 1,
-            "unit_price_krw": 10000,
-            "purchased_at": "2026-09-03 12:00:00",
-        },
-    )
-    insert_query(
-        "review",
-        {
-            "purchase_id": purchase_id,
-            "rating": 5,
-            "body": "증분 임베딩 테스트용 리뷰입니다. 아이가 아주 잘 먹고 소화도 잘 시킵니다.",
-            "reviewed_at": "2026-09-03 12:00:00",
-        },
+    # purchase 와 review 는 회원가입/구매 경로가 쓰는 것과 같은 repository 함수로 넣는다.
+    purchase_id = create_purchase(pet_id=pet_id, product_id=1, quantity=1, unit_price_krw=10000)
+    create_review(
+        purchase_id=purchase_id,
+        rating=5,
+        body="증분 임베딩 테스트용 리뷰입니다. 아이가 아주 잘 먹고 소화도 잘 시킵니다.",
     )
     # is_holdout 은 안 넣는다 - 기본값 0 이라 그대로 색인 대상이 된다.
 

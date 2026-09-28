@@ -1,6 +1,7 @@
 import logging
 
 from app.app_logger.logger import init_logger
+from app.core.config import PASSAGE_PREFIX
 from app.domain.common import CommonMgr
 from app.domain.embedding_text import build_product_rows, product_text
 from app.domain.products import ProductMgr
@@ -52,7 +53,7 @@ if __name__ == "__main__":
     logger.info("#" * 20)
 
     for row in rows[:3]:
-        logger.info(product_text(row))
+        logger.info(product_text(row, PASSAGE_PREFIX))
         logger.info("-" * 20)
     logger.info("#" * 20)
 

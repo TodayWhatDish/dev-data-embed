@@ -3,9 +3,9 @@
 
 """LLM 호출 하나하나를 logs/query_log.jsonl 에 한 줄씩 남기는 LangChain 콜백.
 
-app/adapters/stores/llm.py 가 chat/chat_answer 를 만들 때 이 tracer 를 꽂아 두면,
+app/adapters/llm.py 가 LLM 클라이언트를 만들 때 이 tracer 를 꽂아 두면,
 services/* 가 어떤 프로바이더를 부르든(anthropic/openai 호환) 호출마다 자동으로
-걸린 시간·토큰 수·성공 여부가 남는다. 지금까지는 app/query.py(CLI)만 수동으로
+걸린 시간·토큰 수·성공 여부가 남는다. 지금까지는 pipeline/query.py(CLI)만 수동으로
 로그를 남겨서, API 경로(ask.py/recommend.py)로 들어온 호출은 기록이 전혀 없었다.
 """
 
@@ -102,7 +102,7 @@ def log_customer_question(
     error: str | None = None,
     path=LOG_PATH,
 ) -> None:
-    """/ask, /ask/me 로 들어온 질문 한 건을 남긴다. 관리자 대시보드 '질문' 탭이 이 줄들을 읽는다."""
+    """/ask/me 로 들어온 고객 질문 한 건을 남긴다 (관리자 /ask 는 제외). 관리자 대시보드 '질문' 탭이 이 줄들을 읽는다."""
     with open(path, "a", encoding="utf-8") as f:
         f.write(
             json.dumps(

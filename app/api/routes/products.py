@@ -4,9 +4,8 @@
 
 from fastapi import APIRouter, Depends
 
-from app.api.errors import product_http
 from app.api.schemas import Product, ProductCreate, ProductUpdate
-from app.core.auth import get_current_admin
+from app.api.deps import get_current_admin
 from app.services import products
 
 router = APIRouter(prefix="/admin/products", tags=["관리자-상품"], dependencies=[Depends(get_current_admin)])
@@ -20,12 +19,9 @@ def product_list(page: int = 0, size: int = 20):
 
 @router.get("/{product_id}", response_model=Product)
 def product_get(product_id: int):
-    """product_id로 제품 정보를 출력, 없으면 에러"""
-    try:
-        return products.get_product(product_id)
-    except products.ProductError as exc:
-        raise product_http(exc) from exc
-
+    """product_id로 제품 정보를 출력, 없으면 404"""
+    return products.get_product(product_id)
+    
 
 @router.post("", response_model=Product, status_code=201)
 def product_create(draft: ProductCreate):
@@ -35,17 +31,11 @@ def product_create(draft: ProductCreate):
 
 @router.patch("/{product_id}", response_model=Product)
 def product_update(product_id: int, patch: ProductUpdate):
-    try:
-        # 고친 행 수가 아니라 고친 뒤의 상품을 돌려줘야 한다 (response_model=Product)
-        _, product = products.update_after_select_product(product_id, patch.model_dump(exclude_unset=True))
-        return product
-    except products.ProductError as exc:
-        raise product_http(exc) from exc
+    # 고친 행 수가 아니라 고친 뒤의 상품을 돌려줘야 한다 (response_model=Product)
+    _, product = products.update_after_select_product(product_id, patch.model_dump(exclude_unset=True))
+    return product
 
 
 @router.delete("/{product_id}", status_code=204)
 def product_delete(product_id: int):
-    try:
-        products.delete_product(product_id)
-    except products.ProductError as exc:
-        raise product_http(exc) from exc
+    products.delete_product(product_id)

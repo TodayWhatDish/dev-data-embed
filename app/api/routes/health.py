@@ -6,10 +6,11 @@
 /ready : 서버가 실제로 요청을 처리할 준비가 됐는지 확인하는 Readiness Check. 배포 환경에서 로드밸런서가 주기적으로 호출
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
+from sqlalchemy import text
 
 from app.core.config import LLM_API_KEY
-from app.core.db import get_con
+from app.core.db import get_session
 
 router = APIRouter()
 
@@ -21,19 +22,21 @@ def health() -> dict:
 
 
 @router.get("/ready")
-def ready() -> dict:
-    """DB와 LLM이 실제로 준비됐는지 확인한다."""
+def ready(response: Response) -> dict:
+    """DB와 LLM이 실제로 준비됐는지 확인한다. 하나라도 안 되면 503 - 모니터링은 본문이 아니라 상태코드를 본다."""
     db_ok = False
     llm_ok = False
 
     try:
-        get_con().execute("SELECT 1").fetchone()
+        get_session().execute(text("SELECT 1")).fetchone()
         db_ok = True
     except Exception:
         db_ok = False
 
     llm_ok = bool(LLM_API_KEY)
 
+    if not (db_ok and llm_ok):
+        response.status_code = 503
     return {
         "db": db_ok,
         "llm": llm_ok,

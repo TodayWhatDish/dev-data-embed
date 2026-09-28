@@ -13,18 +13,17 @@
 
 import threading
 
-from app.core.db import fetch, get_con
-from app.repositories.general_query import select
+from app.core.db import fetch, get_session
 
 THREADS, LOOPS = 4, 1500
 
 
 def hammer(errors, done):
-    """repositories 가 실제로 쓰는 경로 그대로 두들긴다 (fetch 와 general_query 둘 다)"""
+    """repositories 가 실제로 쓰는 경로 그대로 두들긴다"""
     for _ in range(LOOPS):
         try:
-            fetch("SELECT pet_id, name FROM pet WHERE user_id = ?", (1,))
-            select("pet", {"user_id": 1}, cols=["pet_id"])
+            fetch("SELECT pet_id, name FROM pet WHERE user_id = %s", (1,))
+            fetch("SELECT pet_id FROM pet WHERE user_id = %s", (1,))
             done.append(1)
         except Exception as e:  # noqa: BLE001 - 무슨 예외든 여기선 실패다
             errors.append(f"{type(e).__name__}: {e}")
@@ -35,7 +34,7 @@ if __name__ == "__main__":
     seen = {}
 
     def note():
-        seen[threading.current_thread().name] = id(get_con())
+        seen[threading.current_thread().name] = id(get_session())
 
     workers = [threading.Thread(target=note) for _ in range(3)]
     [t.start() for t in workers]

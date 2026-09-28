@@ -1,5 +1,7 @@
 {
-    "python-envs.defaultEnvManager": "ms-python.python:system",
+    // 이 저장소는 전용 .venv 를 쓴다 (tasks.json "가상환경 준비"). conda 로 두면 터미널을 열 때마다
+    // conda activate 가 돌고, 이 PC 에선 PATH 의 깨진 한글 때문에 cp949 에러로 죽는다
+    "python-envs.defaultEnvManager": "ms-python.python:venv",
     "python-envs.defaultPackageManager": "ms-python.python:pip",
     "liveServer.settings.port": 5501
 }

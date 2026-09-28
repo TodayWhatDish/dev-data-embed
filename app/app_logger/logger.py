@@ -103,7 +103,7 @@ def init_logger(file_name="pet_rec", level=logging.DEBUG, console=True):
         logger.addHandler(console_handler)
 
     logger.info("Start Logger!!!")
-    logger.info("admin 대시보드: dev-web 저장소(http://localhost:3000/admin/admin.html)에서 연다.")
+    logger.info("admin 대시보드: dev-web 저장소(http://localhost:3000/admin)에서 연다.")
 
     # logger.debug('Log level Test')
     # logger.info('Log level Test')

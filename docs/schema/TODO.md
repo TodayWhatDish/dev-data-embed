@@ -1,8 +1,8 @@
-> 설치·실행 순서는 [`../README.md`](../README.md)로 옮겼습니다.
+> 설치·실행 순서는 [`../../README.md`](../../README.md)로 옮겼습니다.
 
 # TODO
 
-스키마(`schema/`)에는 담기지 않지만 지켜야 하는 것들. **DB 가 강제하지 못하므로 앱·운영이 책임진다.**
+이 폴더(`schema/`)의 스키마 문서에는 담기지 않지만 지켜야 하는 것들. **DB 가 강제하지 못하므로 앱·운영이 책임진다.**
 
 ---
 
@@ -148,5 +148,5 @@ SELECT pet_id, :new_id FROM pet_allergy WHERE allergen_id = :parent_id;
 - [ ] CSV 의 `age`(정수) → `birth_date` 역산 규칙 정하기.
       기준일을 오늘로 잡느냐 `updated_at` 으로 잡느냐에 따라 최대 1년 어긋나고,
       그렇게 만든 생일은 추정값인데 정확한 값과 구별되지 않는다.
-- [ ] `docu/schema/*.md` 문단 구조 정리 — `purchase_schema.md` 는 컬럼별 `####` 로 나눴다(2026-08-26).
+- [ ] 이 폴더의 `*.md` 문단 구조 정리 — `purchase_schema.md` 는 컬럼별 `####` 로 나눴다(2026-08-26).
       나머지 넷은 굵은 문단이 평평하게 이어진다 (`product_schema.md` 47개, `pet_schema.md` 29개).

@@ -28,7 +28,7 @@ DB가 두 갈래로 나뉜다: pet_reco.db (실제 데이터가 적재되고 파
 > python -m eval all                     # 채점기 전부 (요금 드는 것 제외)
 > python -m eval golden                  # 홀드아웃 리뷰로 recall@1/3/10 · MRR 측정
 > python -m pipeline.verify              # 데이터 개수·FK, 벡터 차원·모델명, 토큰 초과, recall, 샘플 질의까지 한 번에 점검
-> python -m app.query                    # 프로필+질문 받아 유사 리뷰 찾는 대화형 CLI (검색 로직 자체는 app/services/retrieve.py, pipeline/vector_db.py)
+> python -m pipeline.query               # 프로필+질문 받아 유사 리뷰 찾는 대화형 CLI (검색 로직 자체는 app/services/retrieve.py, pipeline/vector_db.py)
 > uvicorn app.main:app --reload          # FastAPI 서버 기동
 <!-- 빌드·실행·테스트 명령어. CLAUDE.md의 Commands 섹션을 여기로 옮길지 검토. -->
 

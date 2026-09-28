@@ -77,9 +77,8 @@ if __name__ == "__main__":
     # 사료/간식 접기 - 예전 SQL 의 COALESCE(parent_id, product_category_id) = 1 과 답이 같아야 한다.
     # 그 CASE 가 web/admin.js 의 필터 값이라 '사료'/'간식' 글자가 바뀌면 화면이 빈다
     from app.domain.products import attach_product_type, root_category_name
-    from app.repositories.general_query import select_all
 
-    for row in select_all("product_category"):
+    for row in get_product_categories():
         cid, parent = row["product_category_id"], row["parent_id"]
         before = "사료" if (parent or cid) == 1 else "간식"
         assert root_category_name(cid) == before, f"{row['name_ko']}({cid}) != {before}"

@@ -8,8 +8,9 @@ services/products.py 가 이미 그 모양이라 결을 맞춘다.
 """
 
 import logging
-import sqlite3
 from typing import Any
+
+from sqlalchemy.engine import Connection
 
 from app.core.config import PASSAGE_PREFIX
 from app.domain.products import root_category_name
@@ -23,15 +24,14 @@ logger = logging.getLogger()
 
 
 def candidates(
-    profiles: dict[str, Any], user_query: str, limit: int = 20, con: sqlite3.Connection | None = None
+    profiles: dict[str, Any], user_query: str, limit: int = 20, con: Connection | None = None
 ) -> list[dict[str, Any]]:
     """프로필에 맞는 상품 후보를 반환한다.
 
     별점/알레르기/체급/축종 필터는 build_where()가 이미 SQL로 처리한다.
     여기서는 리뷰 단위의 결과를 product 테이블과 합쳐 LLM이 판단할 수 있는 모양으로 바꾼다.
 
-    con 을 안 넘기면(=CLI/eval 처럼 혼자 쓰는 자리) 예전처럼 직접 열고 닫는다.
-    API 라우트처럼 요청마다 불릴 땐 app.state.con 을 넘겨 커넥션을 재사용한다.
+    con 을 안 넘기면 풀에서 하나 빌려 쓰고 닫는다 - API 요청도 이 경로다(커넥션을 스레드끼리 공유하지 않게).
     """
     owns_con = con is None
     if owns_con:
