@@ -3,7 +3,7 @@
 """5단계 검증에 필요한 데이터를 만든다: holdout 지정 + product_vectors + customer_vectors.
 
 예전엔 로컬 SQLite(pet_reco.db)에 BLOB 으로 썼는데, DB 가 Supabase(Postgres)로 이관되면서
-pgvector 의 vector 컬럼에 쓴다. 연결은 load_csv/chunk/embed 와 같은 app.core.db.get_engine() 이다.
+pgvector 의 vector 컬럼에 쓴다. 연결은 load_csv/chunk/embed 와 같은 app.core.db.engine 이다.
 """
 
 import sys
@@ -15,11 +15,10 @@ from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import aliased
 
-from app.core.config import EMBED_DIM
-from app.core.db import get_engine
+from app.core.config import EMBED_DIM, PASSAGE_PREFIX
+from app.core.db import engine
 from app.core.embedder import embed_documents
 from app.domain.embedding_text import product_text
-from app.services.embedding_sync import fingerprint
 from app.models.chunk import ChunkVector, CustomerVector, ProductVector
 from app.models.pet import Pet
 from app.models.product import (
@@ -31,6 +30,7 @@ from app.models.product import (
     ProductIngredient,
 )
 from app.models.purchase import Purchase, Review
+from pipeline.embedding_sync import fingerprint
 
 
 def mark_holdout(con: Connection):
@@ -162,7 +162,7 @@ def build_product_vectors(con: Connection):
     * -> '[product_vectors] 상품 200개 / 새로 3 / 그대로 197 / 지움 0'
     """
     products = [dict(row) for row in con.execute(product_rows_stmt()).mappings()]
-    texts = [product_text(p) for p in products]
+    texts = [product_text(p, PASSAGE_PREFIX) for p in products]
     marks = [fingerprint(t) for t in texts]
 
     known = known_product_hashes(con)
@@ -256,10 +256,10 @@ def main():
     step = sys.argv[1] if len(sys.argv) > 1 else "all"
     # 단계마다 따로 커밋한다 - 벡터 빌드가 실패해도 앞 단계의 홀드아웃 표시는 남는다.
     if step in ("holdout", "all"):
-        with get_engine().begin() as con:
+        with engine.begin() as con:
             mark_holdout(con)
     if step in ("vectors", "all"):
-        with get_engine().begin() as con:
+        with engine.begin() as con:
             build_product_vectors(con)
             build_customer_vectors(con)
 

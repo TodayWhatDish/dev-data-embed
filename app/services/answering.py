@@ -4,30 +4,50 @@
 구조화 출력(추천)과 달리 여기는 형식 검증이 없다 - 자유 문장이라 검증할 스키마가 없기 때문이다.
 """
 
+import logging
 from typing import Any, Iterator
 
 from langchain_core.output_parsers import StrOutputParser
 
-from app.adapters.stores.llm import chat_answer, chat_verify
+from app.adapters.llm import get_chat, get_chat_answer, get_chat_verify
 from app.domain.prompting import (
     ANSWER_PROMPT,
     FactCheck,
+    Plan,
     build_answer_context,
     build_customer_context,
     build_factcheck_prompt,
+    build_nutrition_context,
+    build_plan_prompt,
 )
 
-ANSWER_CHAIN = ANSWER_PROMPT | chat_answer | StrOutputParser()
+logger = logging.getLogger(__name__)
 
 
 def stream(
-    user_query: str, candidates: list[dict[str, Any]], customer_context: str = "정보 없음"
+    user_query: str,
+    candidates: list[dict[str, Any]],
+    customer_context: str = "정보 없음",
+    nutritions: dict[int, dict] | None = None,
 ) -> Iterator[str]:
     """검색 후보와 실제 고객 구매 이력을 분리된 슬롯으로 넘기고, 모델이 흘려보내는 글자 조각을 그대로 다시 흘려보낸다."""
     context = build_answer_context(candidates)
-    yield from ANSWER_CHAIN.stream(
-        {"context": context, "customer_context": customer_context, "question": user_query}
+    chain = ANSWER_PROMPT | get_chat_answer() | StrOutputParser()
+    yield from chain.stream(
+        {
+            "context": context,
+            "customer_context": customer_context,
+            "nutrition_context": build_nutrition_context(candidates, nutritions),
+            "question": user_query,
+        }
     )
+
+
+def plan_tools(user_query: str) -> list[str]:
+    """질문에 필요한 도구 이름들. 지금 도구는 성분표(nutrition) 하나뿐이다."""
+    planner = get_chat().with_structured_output(Plan).with_retry(stop_after_attempt=2)
+    decided: Plan = planner.invoke(build_plan_prompt(user_query))
+    return ["nutrition"] if decided.nutrition else []
 
 
 def verify(detail: dict[str, Any] | None, answer: str) -> dict[str, Any]:
@@ -55,7 +75,7 @@ def verify(detail: dict[str, Any] | None, answer: str) -> dict[str, Any]:
     if detail:
         customer_context = build_customer_context(detail)
         prompt = build_factcheck_prompt(customer_context, answer)
-        verifier = chat_verify.with_structured_output(FactCheck).with_retry(stop_after_attempt=3)
+        verifier = get_chat_verify().with_structured_output(FactCheck).with_retry(stop_after_attempt=3)
         judged: FactCheck = verifier.invoke(prompt)
         result.update(judged.model_dump())
         result["llm_checked"] = True

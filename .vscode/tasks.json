@@ -1,26 +1,97 @@
 {
-    // 실행 순서가 고정된 파이프라인이라 태스크로 묶어둔다.
-    //   data/*.csv --[load_db]--> pet_reco.db --[chunk]--> chunks --[embed]--> chunk_vectors --[query]--> 검색
-    // load_db 를 돌리면 pet_purchases 가 새로 만들어지므로 chunk 와 embed 도 다시 돌려야 한다.
-    // 잊더라도 retrieve.py 의 check_freshness() 가 검색 시작 시 경고한다.
+    // 실행: Ctrl+Shift+P → "Tasks: Run Task". 처음 클론했으면 "의존성 설치" 부터 (가상환경 준비가 먼저 돈다).
     //
-    // 각 스크립트가 app.core 를 import 하므로 파일 경로가 아니라 모듈(-m)로 실행한다.
-    // 저장소 루트에서 실행돼야 import 가 성립한다.
+    // 파이프라인 순서:
+    //   data/*.csv --[load_csv]--> pet_reco.db --[chunk]--> chunks --[embed]--> chunk_vectors --[query]--> 검색
+    // load_csv 를 돌리면 구매·리뷰가 새로 만들어지므로 chunk 와 embed 도 다시 돌려야 한다.
+    //
+    // 지우면 안 되는 것
+    //
+    // 1. 모든 작업은 이 저장소의 .venv 파이썬을 직접 부른다 ("가상환경 준비" 만 예외).
+    //    ${command:python.interpreterPath} 는 VS Code 에서 고른 인터프리터를 그대로 써서, 고른 게
+    //    없거나 다른 프로젝트 환경이면 작업이 조용히 취소되거나 엉뚱한 패키지로 돈다.
+    //    conda activate 에도 기대지 않는다 - 이 PC 에선 PATH 의 깨진 한글 때문에 activate 가 죽는다.
+    //
+    // 2. "type": "shell" + "quoting": "strong". 경로에 공백이 있어도 되고, ".[dev,local]" 의 대괄호가
+    //    셸 글롭으로 해석되지 않는다. PowerShell 이면 VS Code 가 & 를 알아서 붙인다.
+    //
+    // 3. 서버 실행은 8000 을 물고 있는 옛 서버부터 끈다 - 옛 uvicorn 이 포트를 물고 있으면 새 코드가
+    //    반영 안 된 것처럼 보인다. lsof 는 Windows 에 없어서 scripts/free_port.py 로 OS 별 처리를 한다.
     "version": "2.0.0",
     "tasks": [
+        {
+            "label": "가상환경 준비 (.venv)",
+            "detail": "이 저장소 전용 .venv 를 만든다. 이미 있으면 그대로 둔다(멱등). 처음 한 번만",
+            "type": "shell",
+            "command": {
+                "value": "${command:python.interpreterPath}",
+                "quoting": "strong"
+            },
+            "args": [
+                "-m",
+                "venv",
+                ".venv"
+            ],
+            "presentation": {
+                "clear": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "의존성 설치",
+            "detail": "pyproject.toml 의 dependencies + dev(pytest·ruff) + local(색인용 sentence-transformers) 를 .venv 에 설치한다",
+            "type": "shell",
+            "command": {
+                "value": "${workspaceFolder}/.venv/bin/python",
+                "quoting": "strong"
+            },
+            "windows": {
+                "command": {
+                    "value": "${workspaceFolder}/.venv/Scripts/python.exe",
+                    "quoting": "strong"
+                }
+            },
+            "args": [
+                "-m",
+                "pip",
+                "install",
+                "-e",
+                {
+                    "value": ".[dev,local]",
+                    "quoting": "strong"
+                }
+            ],
+            "dependsOn": [
+                "가상환경 준비 (.venv)"
+            ],
+            "dependsOrder": "sequence",
+            "presentation": {
+                "clear": true
+            },
+            "problemMatcher": []
+        },
         {
             "label": "1. DB 적재 (load_csv)",
             "detail": "data/../*.csv 를 pet_reco.db 로 적재한다.",
             "type": "shell",
-            "command": "${command:python.interpreterPath}",
+            "command": {
+                "value": "${workspaceFolder}/.venv/bin/python",
+                "quoting": "strong"
+            },
+            "windows": {
+                "command": {
+                    "value": "${workspaceFolder}/.venv/Scripts/python.exe",
+                    "quoting": "strong"
+                }
+            },
             "args": [
                 "-m",
                 "pipeline.load_csv"
             ],
-            "problemMatcher": [],
             "presentation": {
                 "clear": true
-            }
+            },
+            "problemMatcher": []
         },
         {
             "label": "🗄️ DB 마이그레이션 (alembic upgrade head)",
@@ -45,29 +116,47 @@
             "label": "2. 조각 만들기 (chunk)",
             "detail": "리뷰를 임베딩용 문서로 조립하고 토큰 한도에 맞게 잘라 chunks 에 저장한다. 벡터는 만들지 않아 몇 초면 끝난다.",
             "type": "shell",
-            "command": "${command:python.interpreterPath}",
+            "command": {
+                "value": "${workspaceFolder}/.venv/bin/python",
+                "quoting": "strong"
+            },
+            "windows": {
+                "command": {
+                    "value": "${workspaceFolder}/.venv/Scripts/python.exe",
+                    "quoting": "strong"
+                }
+            },
             "args": [
                 "-m",
                 "pipeline.chunk"
             ],
-            "problemMatcher": [],
             "presentation": {
                 "clear": true
-            }
+            },
+            "problemMatcher": []
         },
         {
             "label": "3. 색인 생성 (embed)",
             "detail": "chunks 의 조각을 벡터로 변환해 chunk_vectors 에 저장한다. 모델 로딩 포함 20초 남짓 걸린다.",
             "type": "shell",
-            "command": "${command:python.interpreterPath}",
+            "command": {
+                "value": "${workspaceFolder}/.venv/bin/python",
+                "quoting": "strong"
+            },
+            "windows": {
+                "command": {
+                    "value": "${workspaceFolder}/.venv/Scripts/python.exe",
+                    "quoting": "strong"
+                }
+            },
             "args": [
                 "-m",
                 "pipeline.embed"
             ],
-            "problemMatcher": [],
             "presentation": {
                 "clear": true
-            }
+            },
+            "problemMatcher": []
         },
         {
             "label": "전체 재구축 (적재 -> 조각 -> 색인)",
@@ -88,173 +177,174 @@
             "label": "📊 모델 비교 (조각 -> 색인 -> 평가)",
             "detail": "모델을 하나 골라 chunk -> embed -> eval 을 한 번에 돌린다. bge-m3 는 CPU 에서 20~40분 걸릴 수 있다.",
             "type": "shell",
-            // Windows PowerShell 5.1 에는 && 가 없다(파서 에러). 그렇다고 ; 로 잇기만 하면
-            // chunk 가 실패해도 embed 가 낡은 chunks 를 그대로 임베딩해 조용히 오염된
-            // 비교 결과가 남는다. 그래서 $LASTEXITCODE 로 앞 단계 성공을 직접 확인한다.
-            // $py: 인터프리터 경로에 공백이 있을 수 있어 & (호출 연산자)로 부른다.
-            "command": "$py = '${command:python.interpreterPath}'; & $py -m pipeline.chunk; if ($LASTEXITCODE -eq 0) { & $py -m pipeline.embed }; if ($LASTEXITCODE -eq 0) { & $py -m eval golden }",
+            // Windows PowerShell 5.1 에는 && 가 없다(파서 에러). 그렇다고 ; 로 잇기만 하면 chunk 가
+            // 실패해도 embed 가 낡은 chunks 를 그대로 임베딩해 조용히 오염된 비교 결과가 남는다.
+            // 그래서 Windows 는 $LASTEXITCODE 로 앞 단계 성공을 직접 확인한다.
+            "command": "py='${workspaceFolder}/.venv/bin/python'; \"$py\" -m pipeline.chunk && \"$py\" -m pipeline.embed && \"$py\" -m eval golden",
+            "windows": {
+                "command": "$py = '${workspaceFolder}/.venv/Scripts/python.exe'; & $py -m pipeline.chunk; if ($LASTEXITCODE -eq 0) { & $py -m pipeline.embed }; if ($LASTEXITCODE -eq 0) { & $py -m eval golden }"
+            },
             "options": {
                 "env": {
                     "EMBED_MODEL": "${input:embedModel}"
                 }
             },
-            "problemMatcher": [],
             "presentation": {
                 "clear": true,
                 "reveal": "always"
-            }
+            },
+            "problemMatcher": []
         },
-        
         {
             "label": "검색 CLI (query)",
             "detail": "질문을 입력받아 유사 리뷰를 찾는다. 입력을 받아야 하므로 전용 터미널에서 연다.",
             "type": "shell",
-            "command": "${command:python.interpreterPath}",
+            "command": {
+                "value": "${workspaceFolder}/.venv/bin/python",
+                "quoting": "strong"
+            },
+            "windows": {
+                "command": {
+                    "value": "${workspaceFolder}/.venv/Scripts/python.exe",
+                    "quoting": "strong"
+                }
+            },
             "args": [
                 "-m",
-                "app.query"
+                "pipeline.query"
             ],
-            "problemMatcher": [],
             "presentation": {
                 "panel": "dedicated",
                 "clear": true
-            }
+            },
+            "problemMatcher": []
         },
-         {
+        {
             "label": "🦙 Ollama 확인",
             "detail": "로컬 Ollama가 떠 있고 qwen2.5:3b가 있는지 확인한다. 안 뜨면 recommend 요청이 조용히 멈춘다.",
             "type": "shell",
             "command": "curl",
+            "windows": {
+                "command": "curl.exe"
+            },
             "args": [
                 "-s",
                 "http://localhost:11434/api/tags"
             ],
-            "problemMatcher": [],
             "presentation": {
                 "clear": true
-            }
+            },
+            "problemMatcher": []
         },
         {
             "label": "🔑 서버 실행 (uvicorn)",
-            "detail": "FastAPI 개발 서버를 띄운다. --reload 라 코드 저장 시 자동 재시작.",
+            "detail": "8000 을 물고 있던 옛 서버를 끄고 FastAPI 개발 서버를 띄운다(localhost:8000). --reload 라 코드 저장 시 자동 재시작.",
             "type": "shell",
-            "command": "${command:python.interpreterPath}",
-            "args": [
-                "-m",
-                "uvicorn",
-                "app.main:app",
-                "--reload"
-            ],
-            "problemMatcher": [],
+            "command": "py='${workspaceFolder}/.venv/bin/python'; \"$py\" scripts/free_port.py 8000 && \"$py\" -m uvicorn app.main:app --reload",
+            "windows": {
+                "command": "$py = '${workspaceFolder}/.venv/Scripts/python.exe'; & $py scripts/free_port.py 8000; & $py -m uvicorn app.main:app --reload"
+            },
+            "isBackground": true,
             "presentation": {
                 "panel": "dedicated",
                 "clear": true
-            }
-        },
-        {
-            "label": "🔑 서버 실행 (uvicorn, 8001)",
-            "detail": "8000 을 못 쓰는 PC용. 프론트는 web/.env.local 에 NEXT_PUBLIC_API_URL=http://localhost:8001 을 넣는다.",
-            "type": "shell",
-            "command": "${command:python.interpreterPath}",
-            "args": [
-                "-m",
-                "uvicorn",
-                "app.main:app",
-                "--reload",
-                "--port",
-                "8001"
-            ],
-            "problemMatcher": [],
-            "presentation": {
-                "panel": "dedicated",
-                "clear": true
-            }
-        },
-        {
-            "label": "📩 recommend 테스트",
-            "detail": "서버 실행 태스크를 먼저 띄운 상태에서 /recommend 를 한 번 찔러본다.",
-            "type": "shell",
-            "command": "${command:python.interpreterPath}",
-            "args": [
-                "-m",
-                "app.smoke_recommend"
-            ],
-            "problemMatcher": [],
-            "presentation": {
-                "clear": true
-            }
-        },
-        {
-            "label": "🛑 포트 8000 죽이기",
-            "detail": "--reload 프로세스가 창을 닫아도 안 죽고 남아 포트를 잡고 있을 때 쓴다.",
-            "type": "shell",
-            "command": "lsof -ti:8000 | xargs kill -9",
-            "problemMatcher": [],
-            "presentation": {
-                "clear": true
-            }
-        },
-        {
-            "label": "의존성 설치 (requirements)",
-            "detail": "pyproject.toml 의 dependencies + optional-dependencies.dev (pytest, httpx) 를 설치한다. 한 번만 실행하면 됨.",
-            "type": "shell",
-            "command": "${command:python.interpreterPath}",
-            "args": [
-                "-m",
-                "pip",
-                "install",
-                "-e",
-                ".[dev]"
-            ],
-            "problemMatcher": [],
-            "presentation": {
-                "clear": true
-            }
+            },
+            "problemMatcher": []
         },
         {
             "label": "🧪 자체검증 (pytest)",
             "detail": "tests/test_selfchecks.py 가 자체검증 스크립트를 모아 돌린다. 느린 것(smoke)은 빠진다.",
             "type": "shell",
-            "command": "${command:python.interpreterPath}",
+            "command": {
+                "value": "${workspaceFolder}/.venv/bin/python",
+                "quoting": "strong"
+            },
+            "windows": {
+                "command": {
+                    "value": "${workspaceFolder}/.venv/Scripts/python.exe",
+                    "quoting": "strong"
+                }
+            },
             "args": [
                 "-m",
                 "pytest"
             ],
             "group": "test",
-            "problemMatcher": [],
             "presentation": {
                 "clear": true
-            }
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "🧪 services 스모크 (smoke)",
+            "detail": "services 함수가 repositories 를 거쳐 DB 까지 갔다 오는지 한 번에 훑는다. 서버 없이 돈다.",
+            "type": "shell",
+            "command": {
+                "value": "${workspaceFolder}/.venv/bin/python",
+                "quoting": "strong"
+            },
+            "windows": {
+                "command": {
+                    "value": "${workspaceFolder}/.venv/Scripts/python.exe",
+                    "quoting": "strong"
+                }
+            },
+            "args": [
+                "-m",
+                "tests.services.smoke"
+            ],
+            "presentation": {
+                "clear": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "🧪 청킹 자체검증 (단독 실행)",
+            "detail": "AutoTokenizer.from_pretrained 가 pytest 프로세스 안에서만 죽는 환경이 있어 SLOW_SELFCHECKS 에서 뺐다. 이걸로 단독 실행해서 확인한다.",
+            "type": "shell",
+            "command": {
+                "value": "${workspaceFolder}/.venv/bin/python",
+                "quoting": "strong"
+            },
+            "windows": {
+                "command": {
+                    "value": "${workspaceFolder}/.venv/Scripts/python.exe",
+                    "quoting": "strong"
+                }
+            },
+            "args": [
+                "-m",
+                "tests.pipeline.chunking"
+            ],
+            "presentation": {
+                "clear": true
+            },
+            "problemMatcher": []
         },
         {
             "label": "🤖 LLM 품질 검사 (golden/format_check/ragas_check)",
-            "detail": "상용 LLM을 호출해 채점한다 (토큰 비용 발생). ragas_check는 이 PC에서 ragas 의존성이 깨져 있어 자동으로 건너뛴다.",
+            "detail": "상용 LLM을 호출해 채점한다 (토큰 비용 발생). ragas 는 eval 그룹이라 안 깔려 있으면 ragas_check 는 자동으로 건너뛴다.",
             "type": "shell",
-            "command": "${command:python.interpreterPath}",
+            "command": {
+                "value": "${workspaceFolder}/.venv/bin/python",
+                "quoting": "strong"
+            },
+            "windows": {
+                "command": {
+                    "value": "${workspaceFolder}/.venv/Scripts/python.exe",
+                    "quoting": "strong"
+                }
+            },
             "args": [
                 "-m",
                 "eval",
                 "all",
                 "--with-llm"
             ],
-            "problemMatcher": [],
             "presentation": {
                 "clear": true
-            }
-        },
-        {
-            "label": "🧪 청킹 자체검증 (단독 실행)",
-            "detail": "AutoTokenizer.from_pretrained 가 pytest 프로세스 안에서만 죽는 환경이 있어 SLOW_SELFCHECKS 에서 뺐다. 이걸로 단독 실행해서 확인한다.",
-            "type": "shell",
-            "command": "${command:python.interpreterPath}",
-            "args": [
-                "-m",
-                "tests.pipeline.chunking"
-            ],
-            "problemMatcher": [],
-            "presentation": {
-                "clear": true
-            }
+            },
+            "problemMatcher": []
         }
     ],
     // 모델 목록은 app/core/config.py 의 EMBED_PROFILES 와 같아야 한다.

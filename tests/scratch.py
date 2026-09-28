@@ -1,13 +1,14 @@
-from app.core.db import get_engine
+from app.core.config import PASSAGE_PREFIX
+from app.core.db import engine
 from app.core.embedder import get_embeddings
 from app.domain.embedding_text import product_text
 from pipeline.prep_rec import product_rows_stmt
 
 # 상품 문장은 prep_rec 이 실제로 임베딩하는 쿼리 그대로 만든다.
-with get_engine().connect() as con:
+with engine.connect() as con:
     rows = con.execute(product_rows_stmt().limit(5)).mappings().all()
 
-docs = [product_text(r) for r in rows]
+docs = [product_text(r, PASSAGE_PREFIX) for r in rows]
 for d in docs:
     print(d)
 

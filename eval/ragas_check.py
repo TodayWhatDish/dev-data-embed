@@ -41,9 +41,8 @@ except ImportError as why:
 
 from langchain_core.embeddings import Embeddings
 
-from app.adapters.stores.llm import chat_verify
+from app.adapters.llm import get_chat_verify
 from app.core.config import EMBED_MODEL, LLM_MODEL, VERIFY_MODEL
-from app.core.db import new_session
 from app.core.embedder import embed_documents, embed_query
 from app.services import answering
 from app.services.searching import candidates as search_candidates
@@ -71,8 +70,7 @@ class LocalEmbeddings(Embeddings):
 
 def answer_one(question: str, profile: dict) -> tuple[str, list[dict]]:
     """실제 배포 경로 그대로 답을 만든다. 채점 전용 경로를 따로 두면 배포된 걸 안 재게 된다."""
-    with new_session() as db:  # LLM 호출 전에 닫아 연결을 붙잡지 않는다
-        cands = search_candidates(db, profile, question, limit=K)
+    cands = search_candidates(profile, question, limit=K)
     answer = "".join(answering.stream(question, cands))
     return answer, cands
 
@@ -164,9 +162,9 @@ def main(argv: list[str]) -> int:
         # 동시에 도는 다른 심판이 n 을 1 로 되돌려 놓는다. ResponseRelevancy 는 n=3 을
         # 요구하는데 1 만 받고 표본 1개로 점수를 낸다 - 조용히 틀린 숫자가 더 나쁘다.
         metrics = [
-            Faithfulness(llm=LangchainLLMWrapper(chat_verify.model_copy())),
-            ResponseRelevancy(llm=LangchainLLMWrapper(chat_verify.model_copy())),
-            LLMContextPrecisionWithoutReference(llm=LangchainLLMWrapper(chat_verify.model_copy())),
+            Faithfulness(llm=LangchainLLMWrapper(get_chat_verify().model_copy())),
+            ResponseRelevancy(llm=LangchainLLMWrapper(get_chat_verify().model_copy())),
+            LLMContextPrecisionWithoutReference(llm=LangchainLLMWrapper(get_chat_verify().model_copy())),
         ]
 
         # ragas 는 자기 추적 트리를 새로 세운다. 우리 부모 run 안에서 돌면 부딪혀 IndexError 가 난다.

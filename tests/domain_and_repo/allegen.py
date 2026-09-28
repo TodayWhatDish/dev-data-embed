@@ -3,7 +3,6 @@ import logging
 from app.app_logger.logger import init_logger
 from app.domain.common import CommonMgr
 from app.repositories.common import get_allergens
-from app.core.db import new_session
 
 
 def print_allerge_child(child, parent_allergen: str | None = None, tab_cnt=0):
@@ -48,8 +47,7 @@ if __name__ == "__main__":
     init_logger("test_allegen")
     mgr = CommonMgr.get_inst()
 
-    with new_session() as db:
-        mgr.set_allergen_info(get_allergens(db))
+    mgr.set_allergen_info(get_allergens())
 
     root = mgr.get_allergen()
     for r in root:

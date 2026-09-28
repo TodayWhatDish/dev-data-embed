@@ -15,7 +15,8 @@ dependencies = [
     "langchain-core",
     "langchain-openai",
     "langchain-anthropic",
-    "langchain-text-splitters",    
+    "langchain-text-splitters",  
+    "langgraph",  
     "bcrypt",
     # EMBED_PROFILES 의 provider='openai' 프로파일용. langchain-openai 가 둘 다 끌고 오지만,
     # app/core/embedder.py 와 pipeline/prep/chunking.py 가 직접 import 하므로 명시해 둔다.
@@ -30,6 +31,7 @@ dependencies = [
     "numpy",
     # 스키마 모델이 직접 import 한다. fastapi 가 항상 끌고 오지만 위와 같은 이유로 명시한다.
     "pydantic",
+    "pydantic-settings",
 ]
 
 # 테스트에서만 쓰는 것들. 배포에 pytest 가 끼면 안 되니 dependencies 와 갈라 둔다.

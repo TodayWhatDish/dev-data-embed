@@ -4,7 +4,7 @@
 """리뷰를 임베딩용 문서로 조립하고(embedding) 토큰 한도에 맞게 자른다(chunking).
 
 자르는 건 몇 초, 임베딩은 모델 로딩 포함 수십 초 - 값이 다른 작업이라 나눴다.
-DB는 Supabase(Postgres) - app.core.db.get_engine() 하나로 관계형 테이블과 chunks 를 같이 읽고 쓴다.
+DB는 Supabase(Postgres) - app.core.db.engine 하나로 관계형 테이블과 chunks 를 같이 읽고 쓴다.
 """
 
 import statistics
@@ -15,7 +15,8 @@ sys.stdout.reconfigure(errors="replace")
 
 from sqlalchemy import text
 
-from app.core.config import EMBED_MAX_TOKENS, EMBED_PROVIDER, INDEX_FILTER, SIZE_CASE
+from app.core.config import EMBED_MAX_TOKENS, EMBED_PROVIDER
+from app.repositories.vector import INDEX_FILTER, SIZE_CASE
 
 # transformers는 provider='st'(로컬)에서만 깔린다(pyproject.toml 'local' 그룹) - openai 배포
 # 환경엔 없어 import 자체가 실패한다. 순수 로그 억제용이라 없으면 그냥 넘어간다.
@@ -30,7 +31,7 @@ if EMBED_PROVIDER != "openai":
         hf_logging.set_verbosity_error()
     except ImportError:
         pass
-from app.core.db import Base, get_engine
+from app.core.db import Base, engine
 from app.models.chunk import Chunk, ChunkVector  # noqa: F401 (Base.metadata 등록용)
 from pipeline.prep import chunking
 
@@ -72,7 +73,7 @@ def fetch_rows(conn):
     # Summary
     * 자를 대상 리뷰를 펫·상품 정보와 함께 읽어온다
     # info
-    * 대상 조건인 INDEX_FILTER는 config.py에 명시
+    * 대상 조건인 INDEX_FILTER는 repositories/vector.py에 명시
     * 새 스키마는 정규화돼 있어 견종/알러지/급여목적이 전부 다대다다.
       한 리뷰당 여러 행으로 불어나는 걸 STRING_AGG(DISTINCT ...)로 다시 한 줄로 뭉친다
     # params
@@ -107,7 +108,7 @@ def save_chunks(conn, chunks: list[dict]):
 
 
 def main():
-    with get_engine().begin() as conn:
+    with engine.begin() as conn:
         rows = fetch_rows(conn)
         if not rows:
             raise SystemExit("자를 리뷰가 없습니다. 먼저 python -m pipeline.load_csv 를 실행하세요.")

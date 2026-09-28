@@ -8,9 +8,9 @@ import json
 from datetime import datetime
 
 from app.core.config import LOG_PATH, PASSAGE_PREFIX, SIZE_LABELS
-from app.core.db import new_session
 from app.services.profile import list_pets, pet_profile
 from app.services.retrieve import build_where, fmt_purchase_id, search
+from pipeline.vector_db import connect
 
 
 def log_result(profile, query, hits):
@@ -27,14 +27,14 @@ def log_result(profile, query, hits):
         f.write(json.dumps(record, ensure_ascii=False) + "\n")  # 한 줄 = 한 JSON (jsonl)
 
 
-def choose_pet(db):
+def choose_pet():
     """user_id 를 받아 그 사용자의 펫 하나를 고르게 한다. 못 고르면 None."""
     raw = input("user_id: ").strip()
     if not raw.isdigit():
         print("  숫자로 입력하세요.")
         return None
 
-    pets = list_pets(db, int(raw))
+    pets = list_pets(int(raw))
     if not pets:
         print("  등록된 펫이 없습니다.")
         return None
@@ -56,16 +56,13 @@ def choose_pet(db):
 
 
 def main():
-    with new_session() as db:
-        run(db)
+    con = connect()
 
-
-def run(db):
     pet_id = None
     while pet_id is None:
-        pet_id = choose_pet(db)
+        pet_id = choose_pet()
 
-    profile = pet_profile(db, pet_id)  # 종/체급/알레르기를 DB 에서 확정한다. 사람이 다시 안 친다.
+    profile = pet_profile(pet_id)  # 종/체급/알레르기를 DB 에서 확정한다. 사람이 다시 안 친다.
     print(f"\n적용된 프로필: {profile}")
     print("질문을 입력하세요 (빈 줄 입력 시 종료)")
     while True:
@@ -74,7 +71,7 @@ def run(db):
             break
 
         where, params = build_where(profile)
-        hits = search(db.connection(), query, where=where, params=params)
+        hits = search(con, query, where=where, params=params)
 
         for pid, score, doc in hits:
             text = doc.removeprefix(PASSAGE_PREFIX)
@@ -82,6 +79,8 @@ def run(db):
             print(f"  {text}")
 
         log_result(profile, query, hits)
+
+    con.close()
 
 
 if __name__ == "__main__":

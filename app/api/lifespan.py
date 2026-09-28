@@ -5,7 +5,8 @@
 main.py 는 앱을 조립하고 라우터를 등록하는 일만 한다(그 파일 독스트링). 기동 시 1회 적재는
 전부 여기로 모은다 — uvicorn 이 요청을 받기 전에 도는 자리가 여기뿐이라서다.
 
-담는 것은 두 가지고, 서로 성격이 다르다:
+담는 것은 세 가지고, 서로 성격이 다르다:
+  * 비밀값 검사   : ADMIN_PASSWORD/JWT_SECRET 이 비었거나 짧으면 기동 자체를 막는다
   * 도메인 마스터 : DB 값을 도메인 싱글턴에 얹는다 (알러지/축종/품종/카테고리...)
   * 스키마 확인   : ORM Base.metadata 에 매핑된 테이블이 실제 DB 에도 있는지 기동 때 미리 본다
 """
@@ -17,7 +18,7 @@ from fastapi import FastAPI
 from sqlalchemy import inspect
 
 from app.core.config import ADMIN_PASSWORD, EMBED_API_KEY, EMBED_PROVIDER, JWT_SECRET
-from app.core.db import get_engine, new_session
+from app.core.db import SessionLocal, engine
 from app.domain.domain_init import init_from_db
 from app.services.retrieve import check_freshness
 
@@ -29,9 +30,11 @@ def load_domain_cache():
 
     이게 없으면 CommonMgr 이 빈 채로 남아 services.profile.resolve_allergy() 가
     첫 요청에서 AttributeError 로 죽는다. 지금까지 fake_main.py 만 이걸 불렀다.
+    요청 밖이라 SessionPerRequest 가 세션을 안 닫아준다 - 직접 닫지 않으면 이 조회의 트랜잭션이
+    서버가 꺼질 때까지 'idle in transaction' 으로 커넥션 하나를 붙잡는다.
     """
-    with new_session() as db:  # 적재가 끝나면 닫아 연결을 풀에 돌려준다
-        init_from_db(db)
+    init_from_db()
+    SessionLocal.remove()
 
 
 def load_schema_cache():
@@ -41,7 +44,7 @@ def load_schema_cache():
     더 이상 필요 없다. 그래도 여기서 한 번 접속해 보는 이유는 남아 있다 — DB 가 비었거나
     파일이 없으면 첫 요청이 아니라 기동에서 티가 난다.
     """
-    tables = inspect(get_engine()).get_table_names()
+    tables = inspect(engine).get_table_names()
     logger.info(f"Cached schema: table={len(tables)}")
     return tables
 
@@ -51,18 +54,18 @@ def check_index_freshness():
 
     어긋난 내용은 check_freshness() 가 이미 warning 으로 찍는다. 여기선 확인했다는 사실만 남긴다.
     """
-    with new_session() as db:
-        problems = check_freshness(db.connection())
+    with engine.connect() as con:
+        problems = check_freshness(con)
     if not problems:
         logger.info("색인 신선도 확인 완료 - 이상 없음")
 
 
 def check_secrets():
-    """비밀값이 비면 빈 비밀번호 로그인,토큰 위조가 가능해지기에 기동을 막는다."""
+    """비밀값이 비면 빈 비밀번호 로그인·토큰 위조가 가능해지므로 기동을 막는다."""
     if not ADMIN_PASSWORD:
         raise RuntimeError("ADMIN_PASSWORD 환경변수가 비어 있습니다.")
-    if len(JWT_SECRET) < 32: # 32 Byte
-        raise RuntimeError("JWT_SECRET 은 32자 이상이어야합니다.") 
+    if len(JWT_SECRET) < 32:  # HS256 권장 최소 키 길이(256bit)
+        raise RuntimeError("JWT_SECRET 은 32자 이상이어야 합니다.")
     # 없으면 첫 /ask 에서야 임베딩이 실패한다 - 기동에서 막는다
     if EMBED_PROVIDER == "openai" and not EMBED_API_KEY:
         raise RuntimeError("EMBED_API_KEY (또는 OPENAI_API_KEY) 환경변수가 비어 있습니다.")
@@ -77,14 +80,12 @@ async def lifespan(app: FastAPI):
         load_schema_cache()
         check_index_freshness()
     except Exception:
-        # 실패 사유와 트레이스백은 아래 층(repositories)이 이미 찍었다. 여기서 남기는 건
-        # '그래서 서버가 안 떴다' 는 사실이다 - 예외를 삼키지 않아 uvicorn 이 기동을 멈춘다.
-        # 캐시가 빈 채로 요청을 받으면 첫 호출에서야 죽는데, 그때는 원인이 훨씬 멀어져 있다
-        logger.critical("기동 실패 - 캐시를 못 채웠습니다. 서버를 띄우지 않습니다")
+        # 원인은 위 예외 메시지가 말한다. 여기서는 '서버가 안 떴다'는 사실만 남기고 다시 던진다 -
+        # 삼키면 설정·캐시가 빈 채로 요청을 받아, 첫 호출에서야 원인에서 먼 곳이 죽는다.
+        logger.critical("기동 실패 - 서버를 띄우지 않습니다")
         raise
 
     logger.info("Lifespan startup done")
     yield
 
-    get_engine().dispose()
     logger.info("Lifespan shutdown done")

@@ -25,7 +25,7 @@ from app.core.config import (
     LLM_MODEL,
     USE_API,
 )
-from app.core.db import get_engine, new_session
+from app.core.db import engine
 
 try:
     from langsmith import trace as _langsmith_trace
@@ -58,8 +58,7 @@ def warm_domain() -> None:
         return
     from app.domain.domain_init import init_from_db
 
-    with new_session() as db:
-        init_from_db(db)
+    init_from_db()
     _warmed = True
 
 
@@ -70,10 +69,10 @@ def require_llm() -> bool:
     화면이 예외로 뒤덮여 '모델이 안 떠 있다'는 한 줄이 묻힌다. 채점을 시작하기 전에
     한 번만 확인하고, 실패는 실패라고 말한다.
     """
-    from app.adapters.stores.llm import chat
+    from app.adapters.llm import get_chat
 
     try:
-        chat.invoke("ok")
+        get_chat().invoke("ok")
         return True
     except Exception as broke:
         print(f"  LLM 을 못 부른다: {type(broke).__name__}: {broke}")
@@ -97,7 +96,7 @@ def banner(title: str) -> None:
     print(f"  백엔드   {'상용 API' if USE_API else '로컬'}")
     print(f"  LLM      {LLM_MODEL}")
     print(f"  임베딩   {EMBED_MODEL} ({EMBED_DIM}차원)")
-    print(f"  DB       {get_engine().url.render_as_string(hide_password=True)}")
+    print(f"  DB       {engine.url.render_as_string(hide_password=True)}")
 
     if tracing_on():
         print(f"  LangSmith 켜짐 · 프로젝트 '{LANGSMITH_EVAL_PROJECT}'")

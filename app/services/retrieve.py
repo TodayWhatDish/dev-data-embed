@@ -18,15 +18,16 @@ import logging
 
 from sqlalchemy import text
 
-from app.core.config import EMBED_DIM, EMBED_MODEL, SIZE_CASE
+from app.core.config import EMBED_DIM, EMBED_MODEL
 from app.core.embedder import embed_query
+from app.repositories.vector import SIZE_CASE
 
 logger = logging.getLogger()
 
 
 # 프로필 키 -> SQL 조건절. 값이 들어온 키만 WHERE 에 붙는다. 자리표시자는 build_where()가
 # :p0, :p1 ... 로 채운다(포지션 하나당 ? 하나 - SQLAlchemy text()는 이름 바인딩만 받는다).
-# size_at_purchase 는 1~5 코드라 SIZE_CASE(config.py)로 사람이 쓰는 말로 바꿔 비교한다.
+# size_at_purchase 는 1~5 코드라 SIZE_CASE(repositories/vector.py)로 사람이 쓰는 말로 바꿔 비교한다.
 # 알러지는 pet_allergy 가 다대다라 EXISTS 로 "그 알러지가 등록돼 있는가"를 확인한다.
 FILTERS = {
     "size_category": f"""

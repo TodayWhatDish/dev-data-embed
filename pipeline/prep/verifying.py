@@ -19,6 +19,7 @@ from numpy.typing import NDArray
 from sqlalchemy import Connection, distinct, func, select
 from sqlalchemy import inspect as sa_inspect
 
+from app.core.config import PASSAGE_PREFIX
 from app.core.db import Base
 from app.domain.embedding_text import product_text
 from app.models import chunk, common, pet, product, purchase, user  # noqa: F401 (Base.metadata 등록용)
@@ -360,7 +361,7 @@ def compare_recommendations(
     # embed.py/prep_rec.py가 실제로 쓰는 그 함수(product_text)로 다시 문장을 만들어 토큰을 센다.
     # 손으로 다시 조립하면 만들 때와 잴 때가 어긋나도 아무도 모른다.
     product_rows = [dict(row) for row in con.execute(select(Product.__table__)).mappings()]
-    average_product_tokens = sum(count_tokens(product_text(row)) for row in product_rows) / len(product_rows)
+    average_product_tokens = sum(count_tokens(product_text(row, PASSAGE_PREFIX)) for row in product_rows) / len(product_rows)
 
     average_tokens = {
         "상품 요약 벡터 (기준선)": average_product_tokens,

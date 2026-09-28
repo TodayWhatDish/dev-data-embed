@@ -11,7 +11,7 @@ DB 에서 하지 않는다. SQLite 로 개월 나이를 내려면 julianday 차�
 
 여기서는 달력으로 센다. 근사가 없다.
 
-    py src/petcalc.py     # self-check
+    python -m pipeline.make_data.petcalc   # self-check
 """
 
 
