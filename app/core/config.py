@@ -1,4 +1,4 @@
-# Last Updated: 2026-09-26
+# Last Updated: 2026-09-28
 
 """모든 스크립트가 공유하는 설정값과 상수를 모아둔다
 
@@ -103,6 +103,7 @@ class Settings(BaseSettings):
     langsmith_eval_project: str = "pet-reco-eval"
     jwt_secret: str = ""
     admin_password: str = ""
+    poc_enabled: bool = False
     unsplash_access_key: str = ""
     frontend_origins: str = "http://localhost:3000"
 
@@ -189,6 +190,8 @@ JWT_SECRET = settings.jwt_secret
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = 60 * 24 * 7  # 7일
 ADMIN_PASSWORD = settings.admin_password
+# 시연용 원클릭 계정(POST /poc/login). 켜지 않으면 그 라우트는 404 다.
+POC_ENABLED = settings.poc_enabled
 
 # 고객 페이지 배경 이미지용 (app/api/routes/background.py)
 UNSPLASH_ACCESS_KEY = settings.unsplash_access_key

@@ -1,13 +1,14 @@
-# Last Updated: 2026-09-24
+# Last Updated: 2026-09-28
 
 """일반 회원 가입/로그인 엔드포인트. admin_auth.py 라우트와 같은 모양."""
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.api.schemas import AuthResponse, LoginRequest, SignupRequest
 from app.api.deps import get_current_user, rate_limit
+from app.api.schemas import AuthResponse, LoginRequest, SignupRequest
+from app.core.config import POC_ENABLED
 from app.domain.common import CommonMgr
-from app.services.auth import login, signup
+from app.services.auth import login, poc_signup, signup
 from app.services.customers import customer_detail
 from app.services.profile import list_pets
 
@@ -49,6 +50,14 @@ def login_route(payload: LoginRequest) -> AuthResponse:
     """일반 회원 로그인. 이메일/비밀번호가 안 맞으면 401."""
     token = login(payload.email, payload.password)
     return AuthResponse(access_token=token)
+
+
+@router.post("/poc/login", response_model=AuthResponse, dependencies=[Depends(rate_limit(5, 60))])
+def poc_login_route() -> AuthResponse:
+    """시연용 원클릭 로그인. 데이터가 채워진 새 계정을 만들어 토큰을 준다. POC_ENABLED 가 아니면 없는 라우트(404)."""
+    if not POC_ENABLED:
+        raise HTTPException(status_code=404)
+    return AuthResponse(access_token=poc_signup())
 
 
 @router.get("/me", dependencies=[Depends(get_current_user)])

@@ -8,12 +8,16 @@
 같은 이메일 가입이 끼어드는 경쟁을 DB 가 막아준다.
 """
 
+import secrets
+
 from app.core.db import QueryError, transaction
 from app.core.exceptions import Conflict, InvalidInput, Unauthorized
 from app.core.security import create_access_token, hash_password, verify_password
 from app.domain.common import CommonMgr
+from app.repositories import products as product_repo
 from app.repositories.pet import add_pet_allergies, create_pet, save_pet_survey
 from app.repositories.users import create_user, find_user_by_email
+from app.services.purchases import buy, write_review
 
 # animal_category_id 1 = '개'(common_schema.py 시드값). pet_species를 안 주거나 못 찾으면 이 값으로 대체한다.
 DOG_CATEGORY_ID = 1
@@ -93,3 +97,48 @@ def login(email: str, password: str) -> str:
     ):
         raise Unauthorized("이메일 또는 비밀번호가 틀립니다.")
     return create_access_token("user", str(user["user_id"]))
+
+
+# 시연 계정에 채울 구매 후기 - 알러지(닭고기)와 안 겹치는 상품에 붙인다
+POC_REVIEWS = [
+    (5, "기호성이 좋아서 한 그릇 다 비웠어요. 변 상태도 괜찮아요."),
+    (4, "알갱이가 작아서 먹기 편해 보여요. 재구매 생각 있어요."),
+    (3, "처음엔 잘 먹다가 요즘은 조금 남겨요."),
+]
+
+
+def poc_signup() -> str:
+    """시연용 계정을 바로 만든다: 펫 프로필 + 알러지 + 설문 + 구매/후기 3건까지 채워서 JWT 발급.
+    비밀번호는 아무도 모르는 랜덤값이라 이 토큰으로만 들어올 수 있다.
+    ponytail: 누를 때마다 계정이 하나씩 쌓인다 - 쌓이는 게 문제가 되면 poc-% 계정 정리 배치를 만든다."""
+    user_id = register(
+        f"poc-{secrets.token_hex(4)}@demo.local",
+        secrets.token_urlsafe(16),
+        "시연 고객",
+        "콩이",
+        region="서울",
+        pet_species="개",
+        pet_gender="F",
+        pet_birth_date="2021-05-10",
+        pet_weight_kg=4.2,
+        pet_size=2,
+        pet_activity_level=3,
+        pet_allergies=["닭고기"],
+        diet_note="입이 짧아 사료를 자주 남겨요",
+        skin_note="귀 주변이 가끔 붉어져요",
+    )
+    dog_ids = {
+        r["product_id"]
+        for r in product_repo.get_product_animal_category_ids()
+        if r["animal_category_id"] == DOG_CATEGORY_ID
+    }
+    products = [
+        p
+        for p in product_repo.get_products()
+        if p["product_id"] in dog_ids and "닭" not in p["name"] and "치킨" not in p["name"]
+    ]
+    for product, (rating, body) in zip(
+        secrets.SystemRandom().sample(products, len(POC_REVIEWS)), POC_REVIEWS
+    ):
+        write_review(user_id, buy(user_id, product["product_id"]), rating, body)
+    return create_access_token("user", str(user_id))
