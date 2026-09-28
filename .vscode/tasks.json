@@ -23,6 +23,25 @@
             }
         },
         {
+            "label": "🗄️ DB 마이그레이션 (alembic upgrade head)",
+            "detail": "migrations/versions/ 중 아직 적용 안 된 리비전만 운영 DB 에 반영한다. load_csv 로 새로 만든 DB 는 대신 stamp head.",
+            "type": "shell",
+            "command": "${command:python.interpreterPath}",
+            "args": [
+                "-m",
+                "alembic",
+                "upgrade",
+                "head"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "clear": true
+            }
+        },
+        {
             "label": "2. 조각 만들기 (chunk)",
             "detail": "리뷰를 임베딩용 문서로 조립하고 토큰 한도에 맞게 잘라 chunks 에 저장한다. 벡터는 만들지 않아 몇 초면 끝난다.",
             "type": "shell",

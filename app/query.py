@@ -24,7 +24,7 @@ def log_result(profile, query, hits):
         ],
     }
     with open(LOG_PATH, "a", encoding="utf-8") as f:
-        f.write(json.dumps(record, ensure_ascii=False, indent=2) + "\n")
+        f.write(json.dumps(record, ensure_ascii=False) + "\n")  # 한 줄 = 한 JSON (jsonl)
 
 
 def choose_pet(db):
