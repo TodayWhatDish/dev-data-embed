@@ -137,6 +137,20 @@ def commit(db: Session, table: str | None = None) -> None:
         db.rollback()
         raise as_query_error(e, table) from e
 
+
+def flush(db: Session, table: str | None = None) -> None:
+    """커밋하지 않고 INSERT 만 DB 로 보낸다. commit() 과 같은 변환·롤백을 한다.
+
+    여러 테이블을 한 트랜잭션으로 묶을 때 쓴다(회원가입 = user + pet + 알러지 + 설문).
+    flush 해야 자동 증가 PK 가 채워져 다음 행의 FK 로 쓸 수 있다. 커밋은 묶는 쪽이 한 번 한다.
+    """
+    try:
+        db.flush()
+    except IntegrityError as e:
+        db.rollback()
+        raise as_query_error(e, table) from e
+
+
 def _exec_driver_sql(db: Session, sql, params=()):
     """실제 SQL 실행 지점 - execute/fetch 전부 여기를 거치며, 실패하면 세션을 롤백해야 다음 쿼리가 산다.
     Postgress는 트랜잭션 안 문장 하나만 실패해도 롤백 전까진 그 커넥션 전체가 죽는다. 

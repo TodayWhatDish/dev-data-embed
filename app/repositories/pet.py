@@ -12,7 +12,7 @@ import logging
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
-from app.core.db import as_dict, commit, fetch, fetch_one, fetch_tuples
+from app.core.db import as_dict, fetch, fetch_one, fetch_tuples, flush
 from app.models.pet import Breed, Pet, PetAllergy, PetSurvey
 
 logger = logging.getLogger()
@@ -30,7 +30,7 @@ db: Session,
     body_type: int = None,
     activity_level: int = None,
 ) -> int:
-    """반려동물 등록. 값이 없는 선택 컬럼은 뺀다 - DB 기본값/NULL 로 채워진다."""
+    """반려동물 등록. 값이 없는 선택 컬럼은 뺀다 - DB 기본값/NULL 로 채워진다. 커밋은 부른 쪽 몫(flush 만)."""
     values = {"user_id": user_id, "animal_category_id": animal_category_id, "name": name}
     for k, v in (
         ("gender", gender),
@@ -44,7 +44,7 @@ db: Session,
             values[k] = v
     pet = Pet(**values)
     db.add(pet)
-    commit(db, "pet")
+    flush(db, "pet")
     return pet.pet_id
 
 
@@ -56,7 +56,7 @@ def save_pet_survey(db: Session, pet_id: int, diet_note: str = None, skin_note: 
         if v is not None:
             values[k] = v
     db.add(PetSurvey(**values))
-    commit(db, "pet_survey")
+    flush(db, "pet_survey")
 
 
 def get_pet_survey(db: Session, pet_id: int) -> dict | None:
@@ -125,10 +125,10 @@ def resolve_allergen_ids(db: Session, names: list[str]) -> list[int]:
 
 
 def add_pet_allergies(db: Session, pet_id: int, allergen_ids: list[int]) -> None:
-    """pet_allergy에 (pet_id, allergen_id) 행을 하나씩 넣는다. 다대다라 여러 행이 나온다."""
+    """pet_allergy에 (pet_id, allergen_id) 행을 하나씩 넣는다. 다대다라 여러 행이 나온다. 커밋은 부른 쪽 몫."""
     for allergen_id in allergen_ids:
         db.add(PetAllergy(pet_id=pet_id, allergen_id=allergen_id))
-        commit(db, "pet_allergy")
+    flush(db, "pet_allergy")
 
 
 def find_allergen_names(db: Session, pet_id: int) -> list[str]:

@@ -3,9 +3,8 @@
 
 """일반 회원 가입/로그인 - admin_auth.py와 같은 급의 파일이다.
 
-회원가입은 계정(user) + 반려동물(pet) 두 행을 만든다. 두 insert는 각자 따로 커밋된다
-(app/core/db.py의 execute()가 호출마다 커밋) - user는 만들어졌는데 pet insert만 실패하는
-경우가 이론적으로 남는다. 이 프로젝트 규모에선 감내하고, 문제되면 트랜잭션으로 묶을 것.
+회원가입은 계정(user) + 반려동물(pet) + 알러지 + 설문을 한 트랜잭션으로 만든다. repositories 는
+flush 만 하고 커밋은 signup() 이 마지막에 한 번 한다 - 중간에 실패하면 user 만 남는 일이 없다.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -15,6 +14,7 @@ import jwt
 from sqlalchemy.orm import Session
 
 from app.core.config import JWT_ALGORITHM, JWT_EXPIRE_MINUTES, JWT_SECRET
+from app.core.db import QueryError, commit
 from app.domain.common import CommonMgr
 from app.repositories.pet import add_pet_allergies, create_pet, save_pet_survey
 from app.repositories.users import create_user, find_user_by_email
@@ -51,32 +51,39 @@ def signup(
     skin_note: str | None = None,
     pet_species: str | None = None,
 ) -> str:
-    """이메일 중복이면 ValueError. 통과하면 계정 + 강아지 펫 프로필을 만들고 바로 JWT를 발급한다."""
-    if find_user_by_email(db, email):
-        raise ValueError("이미 가입된 이메일입니다.")
+    """이메일 중복이면 ValueError. 통과하면 계정 + 펫 프로필을 만들고 바로 JWT를 발급한다.
 
+    중복은 미리 SELECT 하지 않고 user 의 UNIQUE 위반으로 판정한다 - 조회와 INSERT 사이에
+    같은 이메일 가입이 끼어들면 SELECT 로는 못 막는다.
+    """
     password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-    user_id = create_user(db, email, name, password_hash, phone, region)
     # 축종을 안 주거나 못 찾은 이름이면 기존 동작(강아지)으로 유지 - 하위 호환
     animal_category_id = CommonMgr.get_inst().resolve_animal_category_id(pet_species) or DOG_CATEGORY_ID
-    pet_id = create_pet(db, 
-        user_id,
-        animal_category_id,
-        pet_name,
-        gender=pet_gender,
-        birth_date=pet_birth_date,
-        weight_kg=pet_weight_kg,
-        size=pet_size,
-        activity_level=pet_activity_level,
-    )
+    allergen_ids = CommonMgr.get_inst().resolve_allergen_ids(pet_allergies) if pet_allergies else []
 
-    if pet_allergies:
-        allergen_ids = CommonMgr.get_inst().resolve_allergen_ids(pet_allergies)
+    # user -> pet -> 알러지 -> 설문을 flush 로 쌓고 마지막에 한 번 커밋한다
+    try:
+        user_id = create_user(db, email, name, password_hash, phone, region)
+        pet_id = create_pet(db,
+            user_id,
+            animal_category_id,
+            pet_name,
+            gender=pet_gender,
+            birth_date=pet_birth_date,
+            weight_kg=pet_weight_kg,
+            size=pet_size,
+            activity_level=pet_activity_level,
+        )
         if allergen_ids:
             add_pet_allergies(db, pet_id, allergen_ids)
-
-    if diet_note or skin_note:
-        save_pet_survey(db, pet_id, diet_note, skin_note)
+        if diet_note or skin_note:
+            save_pet_survey(db, pet_id, diet_note, skin_note)
+        commit(db, "signup")
+    except QueryError as e:
+        # flush/commit 이 이미 롤백했다
+        if e.reason == "constraint_unique" and e.table == "user":
+            raise ValueError("이미 가입된 이메일입니다.") from e
+        raise
 
     return _issue_token(user_id)
 

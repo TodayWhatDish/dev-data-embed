@@ -4,7 +4,7 @@
 
 from sqlalchemy.orm import Session
 
-from app.core.db import commit, fetch, fetch_one
+from app.core.db import fetch, fetch_one, flush
 from app.models.user import User
 
 
@@ -17,7 +17,8 @@ def create_user(
 db: Session,
     email: str, name: str, password_hash: str, phone: str | None = None, region: str | None = None
 ) -> int:
-    """local 회원가입. auth_uid는 로컬 계정엔 별도 외부 ID가 없어 email을 그대로 쓴다."""
+    """local 회원가입. auth_uid는 로컬 계정엔 별도 외부 ID가 없어 email을 그대로 쓴다.
+    flush 만 한다 - 커밋은 가입 트랜잭션을 묶는 services/auth.signup() 몫이다."""
     values = {
         "auth_provider": "local",
         "auth_uid": email,
@@ -31,7 +32,7 @@ db: Session,
         values["region"] = region
     user = User(**values)
     db.add(user)
-    commit(db, "user")
+    flush(db, "user")
     return user.user_id
 
 
