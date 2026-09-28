@@ -19,6 +19,7 @@ from sqlalchemy import inspect
 from app.core.config import ADMIN_PASSWORD, EMBED_API_KEY, EMBED_PROVIDER, JWT_SECRET
 from app.core.db import get_engine, new_session
 from app.domain.domain_init import init_from_db
+from app.services.retrieve import check_freshness
 
 logger = logging.getLogger()
 
@@ -45,6 +46,17 @@ def load_schema_cache():
     return tables
 
 
+def check_index_freshness():
+    """색인이 지금 모델/데이터와 맞는지 기동 때 한 번 본다. 어긋나도 서버는 띄운다 - 경고만 남긴다.
+
+    어긋난 내용은 check_freshness() 가 이미 warning 으로 찍는다. 여기선 확인했다는 사실만 남긴다.
+    """
+    with new_session() as db:
+        problems = check_freshness(db.connection())
+    if not problems:
+        logger.info("색인 신선도 확인 완료 - 이상 없음")
+
+
 def check_secrets():
     """비밀값이 비면 빈 비밀번호 로그인,토큰 위조가 가능해지기에 기동을 막는다."""
     if not ADMIN_PASSWORD:
@@ -63,6 +75,7 @@ async def lifespan(app: FastAPI):
         check_secrets()
         load_domain_cache()
         load_schema_cache()
+        check_index_freshness()
     except Exception:
         # 실패 사유와 트레이스백은 아래 층(repositories)이 이미 찍었다. 여기서 남기는 건
         # '그래서 서버가 안 떴다' 는 사실이다 - 예외를 삼키지 않아 uvicorn 이 기동을 멈춘다.

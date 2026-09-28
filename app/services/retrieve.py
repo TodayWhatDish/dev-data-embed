@@ -136,10 +136,10 @@ def check_freshness(con):
 
 def search(con, query, where="1=1", params: tuple = (), top_k: int = 3):
     """입력된 자연어 질문 하나를 받아서, DB에 저장된 리뷰 조각들 중 질문과 의미가 가장 비슷한 것을 최대 top_k개 뽑아준다.
-    질문 -> 벡터 -> DB안 벡터들과 거리 비교 -> 정렬 -> 중복 제거 -> 최종 까지의 프로세스를 거친다."""
+    질문 -> 벡터 -> DB안 벡터들과 거리 비교 -> 정렬 -> 중복 제거 -> 최종 까지의 프로세스를 거친다.
 
-    for line in check_freshness(con):
-        print(f"[경고] {line}")
+    색인 신선도(check_freshness)는 여기서 안 본다 - 색인은 서버가 떠 있는 동안 안 바뀌므로
+    기동 때 한 번(api/lifespan.py)이면 된다. 매 검색마다 보면 chunks 전체 집계가 요청마다 돈다."""
 
     # embed_query()가 QUERY_PREFIX와 정규화를 다 챙긴다 - 모델이 로컬이든 API든 여기는 안 바뀐다.
     # pgvector는 문자열 리터럴 "[v1,v2,...]"을 :: vector 로 캐스팅해서 받는다.
