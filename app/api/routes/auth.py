@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.api.schemas import AuthResponse, LoginRequest, SignupRequest
 from app.core.auth import get_current_user
 from app.core.db import get_db
+from app.core.ratelimit import login_limit
 from app.domain.common import CommonMgr
 from app.domain.pet import attach_names
 from app.services.auth import login, signup
@@ -52,7 +53,7 @@ def allergens() -> list[str]:
     return CommonMgr.get_inst().get_allergen_names()
 
 
-@router.post("/login", response_model=AuthResponse)
+@router.post("/login", response_model=AuthResponse, dependencies=[Depends(login_limit)])
 def login_route(payload: LoginRequest, db: Session = Depends(get_db)) -> AuthResponse:
     """일반 회원 로그인. 이메일/비밀번호가 안 맞으면 401."""
     try:

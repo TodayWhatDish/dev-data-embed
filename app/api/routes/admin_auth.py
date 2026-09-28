@@ -6,12 +6,13 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.schemas import AdminLoginRequest, AuthResponse
 from app.core.auth import get_current_admin
+from app.core.ratelimit import login_limit
 from app.services.admin_auth import login
 
 router = APIRouter()
 
 
-@router.post("/admin/login", response_model=AuthResponse)
+@router.post("/admin/login", response_model=AuthResponse, dependencies=[Depends(login_limit)])
 def admin_login(payload: AdminLoginRequest) -> AuthResponse:
     """관리자 로그인. username과 password를 검증하고, 맞으면 JWT 토큰을 발급한다."""
     try:

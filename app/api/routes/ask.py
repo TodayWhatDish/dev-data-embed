@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 from app.api.schemas import AskMeRequest, AskRequest
 from app.core.auth import get_current_admin, get_current_user
 from app.core.db import get_db
+from app.core.ratelimit import ask_limit
 from app.core.trace import log_customer_question
 from app.domain.prompting import build_customer_context
 from app.services import answering
@@ -112,7 +113,7 @@ def _stream_answer(
     return StreamingResponse(generate(), media_type="application/x-ndjson")
 
 
-@router.post("/ask", dependencies=[Depends(get_current_admin)])
+@router.post("/ask", dependencies=[Depends(get_current_admin), Depends(ask_limit)])
 def ask(body: AskRequest, db: Session = Depends(get_db, scope="function")):
     """관리자 대시보드용. pet_id 가 오면 그 펫의 DB 프로필을 쓰고, 없으면 요청에 직접 적힌 필터를 쓴다.
 
@@ -122,7 +123,7 @@ def ask(body: AskRequest, db: Session = Depends(get_db, scope="function")):
     return _stream_answer(db, body.user_query, body.pet_id, body.user_id, body.model_dump())
 
 
-@router.post("/ask/me")
+@router.post("/ask/me", dependencies=[Depends(ask_limit)])
 def ask_me(
     body: AskMeRequest,
     user_id: int = Depends(get_current_user),

@@ -69,6 +69,15 @@ DB_MAX_OVERFLOW = int(env("DB_MAX_OVERFLOW", "0"))
 DB_POOL_RECYCLE = int(env("DB_POOL_RECYCLE", "300"))  # 초. pooler 가 먼저 끊기 전에 갈아 끼운다
 DB_CONNECT_TIMEOUT = int(env("DB_CONNECT_TIMEOUT", "10"))  # 초
 
+# 호출 횟수 제한 - core/ratelimit.py 가 쓴다. seconds 초 안에 times 번을 넘으면 429.
+# 카운트가 프로세스 메모리라 워커 N개면 실효 한도가 N배다 - 워커를 늘리면 여기서 낮춘다.
+# 로그인: 사람이 틀려 가며 치는 횟수는 넉넉히, 대입 공격은 막는 선
+LOGIN_LIMIT_TIMES = 5
+LOGIN_LIMIT_SECONDS = 60
+# 질문: 한 번이 LLM 호출 2회(답변+반증)라 요금 기준으로 잡는다
+ASK_LIMIT_TIMES = 10
+ASK_LIMIT_SECONDS = 60
+
 # query_prefix/passage_prefix: e5 계열은 필수, bge 계열은 붙이면 오히려 성능이 떨어진다.
 # 모델을 비교할 때 이 표만 늘리고 코드는 건드리지 않는 것이 목표다.
 #
