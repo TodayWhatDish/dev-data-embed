@@ -1,15 +1,12 @@
 # Last Updated : 2026-09-13
 """데이터베이스에 닿는 자리를 여기 하나로 모은다. SQLAlchemy 엔진/세션/Base 가 전부 여기 있다."""
 
-import itertools
-import threading
-from contextlib import asynccontextmanager, contextmanager
-from contextvars import ContextVar
+from collections.abc import Iterator
+from contextlib import contextmanager
 
-import anyio
 from sqlalchemy import create_engine
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import DeclarativeBase, Session, scoped_session, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.core.config import SUPABASE_DB_URL
 
@@ -38,34 +35,30 @@ engine = create_engine(
     pool_recycle=300,
 )
 
-# 세션은 요청마다 하나다. app/main.py 의 session_per_request 미들웨어가 요청 id 를 넣고,
-# 응답(스트리밍 포함)이 끝나면 remove() 로 닫는다 - 닫아야 커넥션이 풀로 돌아가고
-# 요청 사이에 idle in transaction 이 남지 않는다.
-# 요청 밖(CLI/eval/테스트)은 요청 id 가 없어 예전처럼 스레드마다 하나다.
-# ContextVar 인 이유: 동기 라우트·의존성·스트리밍 조각이 매번 다른 풀 스레드에서 돌 수 있는데,
-# anyio 가 스레드로 넘길 때 컨텍스트를 복사하므로 요청 id 는 따라간다 (스레드 id 는 안 따라간다).
-_request_id: ContextVar[int | None] = ContextVar("request_id", default=None)
-_request_ids = itertools.count(1)
-SessionLocal = scoped_session(
-    sessionmaker(bind=engine), scopefunc=lambda: _request_id.get() or threading.get_ident()
-)
+# 세션은 요청마다 하나다. 라우트가 `db: Session = Depends(get_db)` 로 받아 service/repository 에
+# 인자로 넘긴다 - 어느 함수가 DB 에 닿는지 시그니처에 드러난다.
+# 요청 밖(lifespan/CLI/eval/테스트)은 `with new_session() as db:` 로 직접 열고 닫는다.
+SessionLocal = sessionmaker(bind=engine)
 
 
-def get_session() -> Session:
-    """지금 요청(요청 밖이면 스레드) 전용 세션. DB 에 닿는 모든 함수가 여기를 거친다."""
+def new_session() -> Session:
+    """요청 밖용 세션. 부른 쪽이 닫는다 - `with new_session() as db:`"""
     return SessionLocal()
 
 
-@asynccontextmanager
-async def request_scope():
-    """요청 하나의 세션 수명. 끝나면 열린 트랜잭션을 롤백하고 커넥션을 풀에 돌려준다.
-    remove() 는 ROLLBACK 을 DB 로 보내는 블로킹 호출이라 이벤트 루프가 아니라 스레드에서 돈다."""
-    token = _request_id.set(next(_request_ids))
+def get_db() -> Iterator[Session]:
+    """FastAPI 의존성. 요청 하나당 세션 하나를 내어주고, 응답이 끝나면 닫는다.
+
+    close() 는 커밋 안 된 트랜잭션을 롤백하고 연결을 풀에 돌려준다 - 요청이 끝나도
+    트랜잭션이 열린 채(idle in transaction) 연결을 붙잡는 일이 없다.
+    FastAPI 0.118 부터 yield 의존성의 정리 코드는 응답(StreamingResponse 포함)을 다 보낸 뒤에 돈다 -
+    /ask 스트림 도중에 세션이 닫히지 않는다.
+    """
+    db = new_session()
     try:
-        yield
+        yield db
     finally:
-        await anyio.to_thread.run_sync(SessionLocal.remove)
-        _request_id.reset(token)
+        db.close()
 
 
 def as_dict(row) -> dict:
@@ -116,8 +109,8 @@ def as_query_error(e: IntegrityError, table: str | None) -> QueryError:
     )
 
 
-def commit(table: str | None = None) -> None:
-    """이 스레드 세션을 커밋한다. 제약 위반(IntegrityError)만 QueryError 로 갈아끼운다.
+def commit(db: Session, table: str | None = None) -> None:
+    """세션을 커밋한다. 제약 위반(IntegrityError)만 QueryError 로 갈아끼운다.
 
     쓰기는 전부 이걸 통한다 — session.commit() 을 직접 부르면 이 변환을 건너뛴다.
     실패하면 롤백까지 한다. 안 하면 죽은 트랜잭션을 다음 쿼리가 그대로 물고 간다.
@@ -125,73 +118,70 @@ def commit(table: str | None = None) -> None:
     주의: Query.update()/delete() 같은 벌크 연산은 flush 를 기다리지 않고 그 자리에서 바로
     UPDATE/DELETE 를 실행한다 - 그 IntegrityError 는 여기가 아니라 부른 쪽에서 잡아야 한다.
     """
-    session = get_session()
     try:
-        session.commit()
+        db.commit()
     except IntegrityError as e:
-        session.rollback()
+        db.rollback()
         raise as_query_error(e, table) from e
 
 
 @contextmanager
-def transaction(table: str | None = None):
+def transaction(db: Session, table: str | None = None):
     """블록 안의 쓰기를 커밋 한 번으로 묶는다. 중간에 하나라도 실패하면 전부 롤백한다.
     블록 안의 repositories 는 commit() 대신 flush 만 한다 - 제약 위반은 flush 에서도 터지므로 여기서 같이 바꾼다.
     """
-    session = get_session()
     try:
         yield
-        session.commit()
+        db.commit()
     except IntegrityError as e:
-        session.rollback()
+        db.rollback()
         raise as_query_error(e, table) from e
     except Exception:
-        session.rollback()
+        db.rollback()
         raise
 
 
-def _exec_driver_sql(sql, params=()):
+def _exec_driver_sql(db: Session, sql, params=()):
     """실제 SQL 실행 지점 - execute/fetch 전부 여기를 거치며, 실패하면 세션을 롤백해야 다음 쿼리가 산다.
     Postgress는 트랜잭션 안 문장 하나만 실패해도 롤백 전까진 그 커넥션 전체가 죽는다. 
-    이걸 하지 않으면, 스레드풀이 이 스레드를 재사용할 때마다 PendingRollbackError가 영구히 반복된다.
+    이걸 하지 않으면, 같은 세션의 다음 쿼리가 전부 PendingRollbackError 로 죽는다.
     """
-    session = get_session()
     try:
-        return session.connection().exec_driver_sql(sql,params)
+        return db.connection().exec_driver_sql(sql, params)
     except Exception:
-        session.rollback()
+        db.rollback()
         raise
 
-def execute(sql, params=(), table: str | None = None) -> int:
+def execute(db: Session, sql, params=(), table: str | None = None) -> int:
     """ORM 모델이 없는 자리(관계 없는 자유 SQL DELETE 등)를 위한 쓰기 한 문장 + 커밋.
     영향받은 행 수를 돌려준다. 실패하면 _exec_driver_sql 이 롤백한다.
     """
-    cur = _exec_driver_sql(sql, params)
-    commit(table)
+    cur = _exec_driver_sql(db, sql, params)
+    commit(db, table)
     return cur.rowcount
 
 
-def fetch(sql, params=()) -> list[dict]:
+def fetch(db: Session, sql, params=()) -> list[dict]:
     """SELECT 결과를 행마다 dict 로 꺼낸다. 조인·집계처럼 ORM 모델 하나로 안 떨어지는 쿼리용.
 
     exec_driver_sql 은 SQLAlchemy 의 :name 바인딩을 거치지 않고 드라이버(sqlite3)의 ? 자리표시자를
     그대로 쓴다 — 기존 SQL 문자열을 하나도 안 고치고 세션을 통해서만 돌릴 수 있는 이유다.
     """
-    cur = _exec_driver_sql(sql, params)
+    cur = _exec_driver_sql(db, sql, params)
     return [dict(row) for row in cur.mappings()]
 
 
-def fetch_one(sql, params=()) -> dict | None:
+def fetch_one(db: Session, sql, params=()) -> dict | None:
     """SELECT 결과의 첫 행만 dict 로 꺼낸다. 없으면 None."""
-    rows = fetch(sql, params)
+    rows = fetch(db, sql, params)
     return rows[0] if rows else None
 
 
-def fetch_tuples(sql, params=()) -> list[tuple]:
+def fetch_tuples(db: Session, sql, params=()) -> list[tuple]:
     """SELECT 결과를 행마다 튜플로 꺼낸다. 컬럼 이름은 안 붙는다."""
-    return _exec_driver_sql(sql, params).fetchall()
+    return _exec_driver_sql(db, sql, params).fetchall()
 
 
-def fetch_tuple_one(sql, params=()) -> tuple | None:
+def fetch_tuple_one(db: Session, sql, params=()) -> tuple | None:
     """fetch_tuples 의 한 행짜리. 없으면 None."""
-    return _exec_driver_sql(sql, params).fetchone()
+    return _exec_driver_sql(db, sql, params).fetchone()

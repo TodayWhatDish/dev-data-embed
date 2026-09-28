@@ -8,24 +8,25 @@ from collections import Counter
 
 from app.api.lifespan import load_domain_cache
 from app.app_logger.logger import init_logger
+from app.core.db import fetch, new_session
 from app.domain import pet as pet_domain
-from app.core.db import fetch
 from app.repositories import pet as pet_repo
 
 logger = logging.getLogger()
 
 
 if __name__ == "__main__":
+    db = new_session()
     init_logger("test_pet")
     load_domain_cache()
 
     # 픽스처는 fetch 로 읽고 세는 건 파이썬에서 한다.
-    pets = [r for r in fetch("SELECT * FROM pet") if r["inactive_at"] is None]
+    pets = [r for r in fetch(db, "SELECT * FROM pet") if r["inactive_at"] is None]
     counted = Counter(r["user_id"] for r in pets)
     user_id, pet_n = counted.most_common(1)[0]
 
     # 1. repo 는 마스터 이름을 안 붙인다. 여기서 이름이 오면 조인이 다시 기어들어온 것이다
-    raw = pet_repo.find_pets_by_user(user_id)
+    raw = pet_repo.find_pets_by_user(db, user_id)
     logger.info(f"user {user_id} 펫 {len(raw)}마리 (원본): {raw[0]}")
     assert len(raw) == pet_n
     assert "animal_category_id" in raw[0] and "animal_category" not in raw[0], raw[0]
@@ -38,9 +39,9 @@ if __name__ == "__main__":
     assert "animal_category" not in raw[0], "원본이 오염됐다"
 
     # 3. 알레르기가 여럿인 펫에서 콤마 문자열이 제대로 갈라지는지. 한 마리짜리 경로도 같이 본다
-    allergy_rows = fetch("SELECT * FROM pet_allergy")
+    allergy_rows = fetch(db, "SELECT * FROM pet_allergy")
     heavy, cnt = Counter(r["pet_id"] for r in allergy_rows).most_common(1)[0]
-    one = pet_domain.attach_names_one(pet_repo.find_pet(heavy))
+    one = pet_domain.attach_names_one(pet_repo.find_pet(db, heavy))
     logger.info(f"pet {heavy} 알레르기 {len(one['allergies'])}종: {one['allergies'][:3]} ...")
     assert len(one["allergies"]) == cnt, one["allergies"]
     assert all(isinstance(a, str) for a in one["allergies"])
@@ -48,10 +49,10 @@ if __name__ == "__main__":
     # 4. 알레르기가 없으면 None 이 아니라 빈 목록이다 (부르는 쪽이 None 검사를 안 하도록)
     has_allergy = {r["pet_id"] for r in allergy_rows}
     empty = next(r["pet_id"] for r in pets if r["pet_id"] not in has_allergy)
-    assert pet_domain.attach_names_one(pet_repo.find_pet(empty))["allergies"] == []
+    assert pet_domain.attach_names_one(pet_repo.find_pet(db, empty))["allergies"] == []
 
     # 5. 없는 id 는 예외가 아니라 None 이고, domain 도 그 None 을 그대로 통과시킨다
-    assert pet_repo.find_pet(-1) is None
+    assert pet_repo.find_pet(db, -1) is None
     assert pet_domain.attach_names_one(None) is None
 
     # 6. 예전 조인 구현과 결과가 같은가. 이 리팩터링이 깨는 게 있다면 여기서 잡힌다
@@ -76,7 +77,7 @@ if __name__ == "__main__":
             "size": r["size"],
             "allergies": sorted(r["allergies"]),
         }
-        for r in pet_domain.attach_names(pet_repo.find_pets_by_user(user_id))
+        for r in pet_domain.attach_names(pet_repo.find_pets_by_user(db, user_id))
     ]
     assert before == after, f"조인판과 결과가 다르다: {before} != {after}"
 

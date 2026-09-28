@@ -22,6 +22,7 @@ from tests.bench.master_join import (
     c_cached,
     c_cached_one,
     c_join_subquery,
+    db,
     load_domain_cache,
     load_schema_cache,
 )
@@ -35,6 +36,7 @@ if __name__ == "__main__":
     load_schema_cache()
 
     user_id, pet_n = fetch_tuple_one(
+        db,
         "SELECT user_id, count(*) FROM pet WHERE inactive_at IS NULL GROUP BY user_id ORDER BY 2 DESC LIMIT 1"
     )
 

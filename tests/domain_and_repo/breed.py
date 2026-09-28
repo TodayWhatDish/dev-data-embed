@@ -1,6 +1,7 @@
 import logging
 
 from app.app_logger.logger import init_logger
+from app.core.db import new_session
 from app.domain.pet import PetMgr
 from app.repositories.pet import get_breeds
 
@@ -8,10 +9,11 @@ logger = logging.getLogger()
 
 
 if __name__ == "__main__":
+    db = new_session()
     init_logger("test_breed")
     mgr = PetMgr.get_inst()
 
-    mgr.set_breeds(get_breeds())
+    mgr.set_breeds(get_breeds(db))
 
     logger.info("축종별 품종 - {animal_category_id: [품종...]}")
     all_breeds = mgr.get_all_breeds()
@@ -27,7 +29,7 @@ if __name__ == "__main__":
     assert not (
         set(b["breed_id"] for b in dog_breeds) & set(b["breed_id"] for b in cat_breeds)
     )  # 교집합 체크
-    assert len(dog_breeds) + len(cat_breeds) == len(get_breeds())
+    assert len(dog_breeds) + len(cat_breeds) == len(get_breeds(db))
     logger.info("#" * 20)
 
     logger.info("존재하지 않는 축종 id")

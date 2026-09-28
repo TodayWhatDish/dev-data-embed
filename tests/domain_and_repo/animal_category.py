@@ -1,6 +1,7 @@
 import logging
 
 from app.app_logger.logger import init_logger
+from app.core.db import new_session
 from app.domain.common import CommonMgr
 from app.repositories.common import get_animal_categories
 
@@ -8,10 +9,11 @@ logger = logging.getLogger()
 
 
 if __name__ == "__main__":
+    db = new_session()
     init_logger("test_animal_category")
     mgr = CommonMgr.get_inst()
 
-    mgr.set_animal_category(get_animal_categories())
+    mgr.set_animal_category(get_animal_categories(db))
 
     logger.info("전체 축종 - {id: 축종 정보}")
     all_category = mgr.get_animal_category()

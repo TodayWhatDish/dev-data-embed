@@ -59,11 +59,15 @@ def get_embeddings() -> "SentenceTransformer":
 
 
 def _get_client():
-    """OpenAI 클라이언트. 키가 없으면 첫 호출에서 바로 세운다 - 요청을 다 보낸 뒤 401 로 알면 늦다."""
+    """OpenAI 클라이언트. 키가 없으면 첫 호출에서 바로 세운다 - 요청을 다 보낸 뒤 401 로 알면 늦다.
+
+    프로세스 종료 예외는 except Exception 을 뚫고 요청 스레드를 죽이므로 RuntimeError 로 올린다.
+    서버는 기동 때 check_secrets() 가 같은 키를 먼저 본다(api/lifespan.py).
+    """
     global _client
     if _client is None:
         if not EMBED_API_KEY:
-            raise SystemExit(
+            raise RuntimeError(
                 f"{EMBED_MODEL} 을 쓰려면 .env 에 EMBED_API_KEY (또는 OPENAI_API_KEY) 가 있어야 합니다."
             )
         from openai import OpenAI

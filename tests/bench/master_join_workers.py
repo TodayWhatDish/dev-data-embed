@@ -30,6 +30,7 @@ from tests.bench.master_join import (
     c_cached_raw,
     c_join_subquery,
     c_join_two_selects,
+    db,
     load_domain_cache,
     load_schema_cache,
 )
@@ -52,12 +53,15 @@ if __name__ == "__main__":
     load_schema_cache()
 
     (typical_pet,) = fetch_tuple_one(
+        db,
         "SELECT pet_id FROM pet_allergy GROUP BY pet_id HAVING count(*) = 3 LIMIT 1"
     )
     heavy_pet, heavy_n = fetch_tuple_one(
+        db,
         "SELECT pet_id, count(*) FROM pet_allergy GROUP BY pet_id ORDER BY 2 DESC LIMIT 1"
     )
     user_id, pet_n = fetch_tuple_one(
+        db,
         "SELECT user_id, count(*) FROM pet WHERE inactive_at IS NULL GROUP BY user_id ORDER BY 2 DESC LIMIT 1"
     )
 

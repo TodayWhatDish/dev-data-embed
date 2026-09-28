@@ -1,4 +1,6 @@
-# 두 저장소를 한 번에 띄운다. 저장소 루트(dev-data-embed)에서 실행한다.
+# API 서버를 띄운다. 저장소 루트(dev-data-embed)에서 실행한다.
+# 프론트(dev-web/web, Next.js)는 Vercel 로 배포해 여기 없다 - 예전 web 서비스는 죽은 코드
+# (dev-web/frontend)를 틀린 경로로 가리키고 있어 뺐다. Docker 로 옮기면 그때 다시 넣는다(FE-28).
 services:
   api:
     build: .
@@ -9,10 +11,3 @@ services:
       - "8000:8000"         # 디버깅용. 프록시가 안정되면 expose 로 바꿔 밖에서 막는다
     restart: unless-stopped
 
-  web:
-    build: ../dev-web/dev-web/frontend
-    ports:
-      - "8080:80"           # 브라우저는 여기로만 들어온다
-    depends_on:
-      - api
-    restart: unless-stopped
