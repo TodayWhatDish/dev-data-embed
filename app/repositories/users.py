@@ -48,7 +48,7 @@ def spend_credit(db: Session, user_id: int, amount: int) -> int | None:
 
 
 def list_users(db: Session) -> list[dict]:
-    """관리자 화면 왼쪽 목록용. 고객 전체를 이름순으로.
+    """관리자 화면 왼쪽 목록용. 고객 전체를 최근 가입순으로 - 방금 가입한(시연) 계정이 맨 위에 온다.
 
     species는 이 고객이 키우는 반려동물 종을 콤마로 합친 값(예: "개,고양이") - 목록에서
     강아지/고양이/모두 카테고리를 나누는 데 쓴다. gender/birth_date는 첫 번째로 등록된
@@ -64,7 +64,7 @@ def list_users(db: Session) -> list[dict]:
                (SELECT pe.birth_date FROM pet AS pe WHERE pe.user_id = u.user_id ORDER BY pe.pet_id LIMIT 1) AS birth_date
         FROM "user" AS u
         WHERE u.withdrawn_at IS NULL
-        ORDER BY u.name
+        ORDER BY u.user_id DESC
     """)
 
 

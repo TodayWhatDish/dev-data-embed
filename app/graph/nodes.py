@@ -58,7 +58,8 @@ def retrieve(state: AskState, config: RunnableConfig) -> dict:
         write({"type": "error", "message": "조건에 맞는 후보를 찾지 못했습니다."})
     else:
         write({"type": "customer_facts", "text": customer_context})
-        write({"type": "sources", "sources": matches})
+        # 점수 0 = 질문과 무관한 후보(날씨 질문 등). LLM 엔 그대로 주되 화면엔 '매칭 0%' 카드로 안 띄운다
+        write({"type": "sources", "sources": [m for m in matches if m["score"] > 0]})
     return {"matches": matches, "detail": detail, "customer_context": customer_context}
 
 
@@ -95,7 +96,7 @@ def check(state: AskState) -> dict:
     """답변을 만든 모델과 다른 모델로 반증(팩트체크)한다."""
     write = get_stream_writer()
     try:
-        write({"type": "verification", **verify(state.get("detail"), state["answer"])})
+        write({"type": "verification", **verify(state.get("detail"), state["answer"], state["matches"], state.get("nutritions"))})
     except Exception:
         logger.exception("반증(팩트체크) 실패")
         write({"type": "error", "message": "답변 검증에 실패했습니다."})
