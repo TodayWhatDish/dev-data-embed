@@ -32,6 +32,15 @@ def create_question(
     commit(db, "customer_question")
 
 
+def count_since(db: Session, user_id: int, since: str) -> int:
+    """이 회원이 since(UTC 'YYYY-MM-DD HH:MM:SS') 이후 남긴 질문 수."""
+    return (
+        db.query(CustomerQuestion)
+        .filter(CustomerQuestion.user_id == user_id, CustomerQuestion.created_at >= since)
+        .count()
+    )
+
+
 def list_recent(db: Session, limit: int) -> list[dict]:
     """최근 질문부터 최대 limit개. 모양은 jsonl 시절 그대로(time 키) - 관리자 화면이 이 키를 읽는다."""
     rows = db.query(CustomerQuestion).order_by(CustomerQuestion.question_id.desc()).limit(limit).all()

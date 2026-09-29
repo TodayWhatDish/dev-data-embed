@@ -7,7 +7,7 @@
              다른 회원 구매 이력을 조회하는 경로가 생긴다.
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -17,6 +17,7 @@ from app.api.schemas import AskMeRequest, AskRequest
 from app.core.db import get_db
 from app.graph.graph import ask_stream
 from app.services.profile import primary_pet
+from app.services.questions import questions_left_today
 
 router = APIRouter()
 
@@ -32,7 +33,9 @@ def ask(body: AskRequest, db: Session = Depends(get_db)):
 # LLM 호출 두 번(답변+반증)이 붙는 경로라 비용 상한 겸 한도를 둔다
 @router.post("/ask/me", dependencies=[Depends(ask_limit)])
 def ask_me(body: AskMeRequest, user_id: int = Depends(get_current_user), db: Session = Depends(get_db)):
-    """일반 회원용. 로그인한 본인의 첫 번째 펫 프로필로 묻는다."""
+    """일반 회원용. 로그인한 본인의 첫 번째 펫 프로필로 묻는다. 하루 한도를 넘으면 429."""
+    if questions_left_today(db, user_id) == 0:
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "오늘 질문을 다 썼어요. 내일 다시 물어봐 주세요.")
     pet = primary_pet(db, user_id)
     lines = ask_stream(db, body.user_query, pet["pet_id"] if pet else None, user_id)
     return StreamingResponse(lines, media_type="application/x-ndjson")

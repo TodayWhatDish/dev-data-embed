@@ -206,6 +206,8 @@ LOGIN_LIMIT_SECONDS = 60
 # 질문: 한 번이 LLM 호출 2회(답변+반증)라 요금 기준으로 잡는다
 ASK_LIMIT_TIMES = 10
 ASK_LIMIT_SECONDS = 60
+# 회원 한 명이 하루(한국 시간 자정 기준)에 /ask/me 로 물을 수 있는 횟수. 화면의 QUOTA_MAX 와 맞춘다
+ASK_DAILY_MAX = 5
 
 # 고객 페이지 배경 이미지용 (app/api/routes/background.py)
 UNSPLASH_ACCESS_KEY = settings.unsplash_access_key
