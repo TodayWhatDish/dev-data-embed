@@ -3,6 +3,7 @@
 from sqlalchemy import CheckConstraint, Column, ForeignKey, Index, Integer, Text, text
 
 from app.core.db import Base
+from app.models import DATETIME_RE
 
 
 class Purchase(Base):
@@ -10,8 +11,9 @@ class Purchase(Base):
     __table_args__ = (
         CheckConstraint("quantity > 0", name="ck_purchase_quantity"),
         CheckConstraint("unit_price_krw >= 0", name="ck_purchase_unit_price_krw"),
-        CheckConstraint("age_month_at_purchase >= 0", name="ck_purchase_age_month_at_purchase"),
+        CheckConstraint("age_month_at_purchase BETWEEN 0 AND 360", name="ck_purchase_age_month_at_purchase"),
         CheckConstraint("size_at_purchase BETWEEN 1 AND 5", name="ck_purchase_size_at_purchase"),
+        CheckConstraint(f"purchased_at ~ {DATETIME_RE}", name="ck_purchase_purchased_at"),
         Index("idx_purchase_pet", "pet_id", "purchased_at"),
         Index("idx_purchase_product", "product_id", "purchased_at"),
     )
@@ -32,6 +34,7 @@ class Review(Base):
         CheckConstraint("rating BETWEEN 1 AND 5", name="ck_review_rating"),
         CheckConstraint("length(trim(body)) > 0", name="ck_review_body"),
         CheckConstraint("is_holdout IN (0, 1)", name="ck_review_is_holdout"),
+        CheckConstraint(f"reviewed_at ~ {DATETIME_RE}", name="ck_review_reviewed_at"),
     )
 
     purchase_id = Column(Integer, ForeignKey("purchase.purchase_id"), primary_key=True)
