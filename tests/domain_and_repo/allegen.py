@@ -1,6 +1,7 @@
 import logging
 
 from app.app_logger.logger import init_logger
+from app.core.db import new_session
 from app.domain.common import CommonMgr
 from app.repositories.common import get_allergens
 
@@ -44,10 +45,11 @@ logger = logging.getLogger()
 
 
 if __name__ == "__main__":
+    db = new_session()
     init_logger("test_allegen")
     mgr = CommonMgr.get_inst()
 
-    mgr.set_allergen_info(get_allergens())
+    mgr.set_allergen_info(get_allergens(db))
 
     root = mgr.get_allergen()
     for r in root:

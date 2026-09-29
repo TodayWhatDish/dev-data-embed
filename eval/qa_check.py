@@ -20,6 +20,7 @@ from sqlalchemy import Connection, Select, select
 
 sys.stdout.reconfigure(errors="replace")
 
+from app.core.db import new_session
 from app.models.chunk import Chunk
 from app.models.common import Allergen, AnimalCategory
 from app.models.product import (
@@ -120,7 +121,8 @@ def self_check(con: Connection) -> list[tuple]:
 def score_item(con: Connection, item: dict) -> dict:
     """문항 하나를 실제 배포 경로(searching.candidates)로 검색해 채점한다."""
     profile = item["profile"]
-    found = search_candidates(profile, item["question"], limit=K)
+    with new_session() as db:
+        found = search_candidates(db, profile, item["question"], limit=K)
     got = [row["product_id"] for row in found]
 
     wanted = expected_products(con, item)

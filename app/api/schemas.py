@@ -9,6 +9,8 @@ SearchResponse 모양으로 응답 만듦 → 그 응답이 다시 브라우저�
 JS가 그거 받아서 화면에 검색결과 뿌림
 """
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -83,6 +85,27 @@ class SignupRequest(BaseModel):
     pet_weight_kg: float | None = None
     pet_size: int | None = None
     pet_activity_level: int | None = None
+    pet_allergies: list[str] | None = None
+    diet_note: str | None = None
+    skin_note: str | None = None
+
+
+class CustomerUpdate(BaseModel):
+    """관리자 회원 수정 요청 바디. 준 필드만 바꾼다 — 전부 선택값.
+    pet_* · 설문 칸은 pet_id 로 고른 펫 것이다. 값 범위는 pet 테이블 CHECK 제약과 같다."""
+
+    name: str | None = Field(default=None, min_length=1)
+    email: str | None = Field(default=None, min_length=1)
+    phone: str | None = None
+    region: str | None = None
+    pet_id: int | None = None
+    pet_name: str | None = Field(default=None, min_length=1)
+    pet_gender: Literal["M", "F"] | None = None
+    pet_birth_date: str | None = None
+    pet_weight_kg: float | None = Field(default=None, gt=0)
+    pet_size: int | None = Field(default=None, ge=1, le=5)
+    pet_neutered: int | None = Field(default=None, ge=0, le=1)
+    pet_activity_level: int | None = Field(default=None, ge=1, le=3)
     pet_allergies: list[str] | None = None
     diet_note: str | None = None
     skin_note: str | None = None

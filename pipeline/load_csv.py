@@ -25,7 +25,7 @@ from pathlib import Path
 from sqlalchemy import insert, text
 
 # app/models/* 를 전부 import 해야 클래스들이 Base.metadata 에 등록된다.
-from app.models import common, pet, product, purchase, user  # noqa: F401
+from app.models import common, pet, product, purchase, question, user  # noqa: F401
 from app.core.config import MASTER_DIR, SEED_DIR
 from app.core.db import Base, engine
 

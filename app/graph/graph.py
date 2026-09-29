@@ -14,6 +14,7 @@ from typing import Iterator
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
+from sqlalchemy.orm import Session
 
 from app.graph.nodes import (
     check,
@@ -53,12 +54,18 @@ ask_graph = build_ask_graph()
 
 
 def ask_stream(
-    user_query: str, pet_id: int | None, user_id: int | None, profile_filters: dict | None = None
+    db: Session,
+    user_query: str,
+    pet_id: int | None,
+    user_id: int | None,
+    profile_filters: dict | None = None,
+    log_question: bool = True,
 ) -> Iterator[str]:
-    """그래프를 돌리며 노드가 쓴 이벤트를 NDJSON 한 줄씩 흘려보낸다."""
-    state = {"question": user_query, "pet_id": pet_id, "user_id": user_id, "profile_filters": profile_filters}
+    """그래프를 돌리며 노드가 쓴 이벤트를 NDJSON 한 줄씩 흘려보낸다. db 는 노드가 config 로 꺼내 쓴다."""
+    state = {"question": user_query, "pet_id": pet_id, "user_id": user_id, "profile_filters": profile_filters,
+             "log_question": log_question}
     try:
-        for event in ask_graph.stream(state, stream_mode="custom"):
+        for event in ask_graph.stream(state, {"configurable": {"db": db}}, stream_mode="custom"):
             yield json.dumps(event, ensure_ascii=False) + "\n"
     except Exception:
         logger.exception("ask 그래프 실패")

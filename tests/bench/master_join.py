@@ -28,10 +28,16 @@ init_logger("bench_master_join")
 # 로그 쓰는 시간이 측정값에 섞인다 - 재는 동안은 경고 위로만 남긴다
 logging.getLogger().setLevel(logging.WARNING)
 
+from sqlalchemy.orm import scoped_session
+
 from app.api.lifespan import load_domain_cache, load_schema_cache
-from app.core.db import fetch, fetch_tuple_one, fetch_tuples
+from app.core.db import SessionLocal, fetch, fetch_tuple_one, fetch_tuples
 from app.domain.common import CommonMgr
 from tests.bench.sqlbench import compare_fn
+
+# 여기 함수들은 master_join_workers/threads 가 여러 스레드에서 동시에 부른다. 세션은 스레드끼리
+# 공유하면 안 되므로 벤치에서만 스레드마다 제 세션을 주는 scoped_session 을 쓴다
+db = scoped_session(SessionLocal)
 
 PET_COLS = ["pet_id", "name", "animal_category_id", "size", "inactive_at"]
 
@@ -44,6 +50,7 @@ def a_join(pet_id):
     비교 기준선이 사라지면 이 파일이 뭘 재는지 알 수 없어져서 SQL 을 여기로 들고 왔다.
     """
     return fetch_tuple_one(
+        db,
         """
         SELECT ac.name_ko, p.size
           FROM pet AS p
@@ -55,7 +62,7 @@ def a_join(pet_id):
 
 def a_cached(pet_id):
     """id 만 읽고 이름은 메모리에서 찾는다. 조인이 사라진 자리에 dict 조회가 들어간다"""
-    rows = fetch("SELECT animal_category_id, size FROM pet WHERE pet_id = ?", (pet_id,))
+    rows = fetch(db, "SELECT animal_category_id, size FROM pet WHERE pet_id = ?", (pet_id,))
     if not rows:
         return None
     row = rows[0]
@@ -64,7 +71,7 @@ def a_cached(pet_id):
 
 def a_cached_raw(pet_id):
     """캐시는 그대로 쓰고 SQL 만 글자로 박는다. a_cached 와의 차이가 general_query 조립 비용이다"""
-    row = fetch_tuple_one("SELECT animal_category_id, size FROM pet WHERE pet_id = ?", (pet_id,))
+    row = fetch_tuple_one(db, "SELECT animal_category_id, size FROM pet WHERE pet_id = ?", (pet_id,))
     if row is None:
         return None
     return (CommonMgr.get_inst().get_animal_category(row[0])["name_ko"], row[1])
@@ -76,6 +83,7 @@ def b_join(pet_id):
     return sorted(
         name
         for (name,) in fetch_tuples(
+            db,
             "SELECT al.name_ko FROM pet_allergy AS pa "
             "JOIN allergen AS al ON al.allergen_id = pa.allergen_id WHERE pa.pet_id = ?",
             (pet_id,),
@@ -88,7 +96,7 @@ def b_cached(pet_id):
     allergen = CommonMgr.get_inst().get_allergen
     return sorted(
         allergen(row["allergen_id"])["name_ko"]
-        for row in fetch("SELECT allergen_id FROM pet_allergy WHERE pet_id = ?", (pet_id,))
+        for row in fetch(db, "SELECT allergen_id FROM pet_allergy WHERE pet_id = ?", (pet_id,))
     )
 
 
@@ -97,7 +105,7 @@ def b_cached_raw(pet_id):
     allergen = CommonMgr.get_inst().get_allergen
     return sorted(
         allergen(aid)["name_ko"]
-        for (aid,) in fetch_tuples("SELECT allergen_id FROM pet_allergy WHERE pet_id = ?", (pet_id,))
+        for (aid,) in fetch_tuples(db, "SELECT allergen_id FROM pet_allergy WHERE pet_id = ?", (pet_id,))
     )
 
 
@@ -108,6 +116,7 @@ def c_join_subquery(user_id):
     **지금 구현은 C4 다** - repositories 가 id 만 주고 domain.pet.attach_names 가 이름을 붙인다.
     """
     return fetch(
+        db,
         """
         SELECT p.pet_id, p.name, ac.name_ko AS animal_category, p.size,
                (SELECT STRING_AGG(al.name_ko, ',')
@@ -125,6 +134,7 @@ def c_join_subquery(user_id):
 def c_join_two_selects(user_id):
     """축종은 그대로 조인. 알레르기만 두 번째 SELECT 로 뺀다 (C1 과의 차이 = 관계 읽는 방식)"""
     pets = fetch(
+        db,
         """
         SELECT p.pet_id, p.name, ac.name_ko AS animal_category, p.size
           FROM pet AS p
@@ -137,6 +147,7 @@ def c_join_two_selects(user_id):
     return _attach(
         pets,
         fetch(
+            db,
             "SELECT pa.pet_id, al.name_ko FROM pet_allergy AS pa "
             "JOIN allergen AS al ON al.allergen_id = pa.allergen_id "
             f"WHERE pa.pet_id IN ({', '.join('?' for _ in pets)})",
@@ -162,6 +173,7 @@ def c_cached(user_id):
             "size": row["size"],
         }
         for row in fetch(
+            db,
             f"SELECT {', '.join(PET_COLS)} FROM pet WHERE user_id = ? ORDER BY pet_id ASC", (user_id,)
         )
         if row["inactive_at"] is None
@@ -175,6 +187,7 @@ def c_cached(user_id):
         [
             {"pet_id": row["pet_id"], "name_ko": cmgr.get_allergen(row["allergen_id"])["name_ko"]}
             for row in fetch(
+                db,
                 f"SELECT pet_id, allergen_id FROM pet_allergy WHERE pet_id IN ({', '.join('?' * len(ids))})",
                 ids,
             )
@@ -193,6 +206,7 @@ def c_cached_raw(user_id):
             "size": size,
         }
         for pid, name, acid, size in fetch_tuples(
+            db,
             "SELECT pet_id, name, animal_category_id, size FROM pet "
             "WHERE user_id = ? AND inactive_at IS NULL ORDER BY pet_id",
             (user_id,),
@@ -207,6 +221,7 @@ def c_cached_raw(user_id):
         [
             {"pet_id": pid, "name_ko": cmgr.get_allergen(aid)["name_ko"]}
             for pid, aid in fetch_tuples(
+                db,
                 f"SELECT pet_id, allergen_id FROM pet_allergy WHERE pet_id IN ({', '.join('?' * len(ids))})",
                 ids,
             )
@@ -231,6 +246,7 @@ def c_cached_one(user_id):
             "allergies": [cmgr.get_allergen(int(i))["name_ko"] for i in ids.split(",")] if ids else [],
         }
         for pid, name, acid, size, ids in fetch_tuples(
+            db,
             """
                 SELECT p.pet_id, p.name, p.animal_category_id, p.size,
                        (SELECT GROUP_CONCAT(pa.allergen_id)
@@ -270,12 +286,15 @@ if __name__ == "__main__":
     # 알레르기가 3개(중앙값)인 펫과 29개(최다)인 펫. 캐시 조회 횟수가 관계 행 수만큼 늘어나므로
     # 최다 쪽이 캐시에 제일 불리하다 - 거기서도 이기면 어디서든 이긴다
     (typical_pet,) = fetch_tuple_one(
+        db,
         "SELECT pet_id FROM pet_allergy GROUP BY pet_id HAVING count(*) = 3 LIMIT 1"
     )
     heavy_pet, heavy_n = fetch_tuple_one(
+        db,
         "SELECT pet_id, count(*) FROM pet_allergy GROUP BY pet_id ORDER BY 2 DESC LIMIT 1"
     )
     user_id, pet_n = fetch_tuple_one(
+        db,
         "SELECT user_id, count(*)"
         " FROM pet"
         " WHERE inactive_at IS NULL "

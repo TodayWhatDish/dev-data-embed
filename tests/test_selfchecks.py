@@ -29,6 +29,7 @@ SELFCHECKS = [
     "tests.services.db_threads",
     "tests.api.rate_limit",
     "tests.services.products",
+    "tests.services.question_log",
     "tests.eval.judges",
 ]
 

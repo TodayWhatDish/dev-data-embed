@@ -8,6 +8,7 @@ class AskState(TypedDict, total=False):
     pet_id: int | None
     user_id: int | None
     profile_filters: dict | None
+    log_question: bool        # False면 '질문' 탭 기록을 남기지 않는다 (관리자 /ask)
 
     tools: list[str]          # plan 이 채움: 부를 도구 이름들 (예: ["nutrition"])
     matches: list[dict]       # retrieve 가 채움: 검색된 후보 리뷰
