@@ -19,6 +19,7 @@ from app.domain.common import CommonMgr
 from app.repositories import products as product_repo
 from app.repositories.pet import add_pet_allergies, create_pet, save_pet_survey
 from app.repositories.users import create_user, find_user_by_email
+from app.services.products import CLIENT_FAULT
 from app.services.purchases import buy, write_review
 
 # animal_category_id 1 = '개'(common_schema.py 시드값). pet_species를 안 주거나 못 찾으면 이 값으로 대체한다.
@@ -79,7 +80,13 @@ def register(
         # (알러지 id 는 set 이라 pet_allergy PK 는 안 겹친다)
         if e.reason == "constraint_unique":
             raise Conflict("이미 가입된 이메일입니다.") from e
-        raise
+        # CHECK 위반(이메일 형식, 생년월일 범위 등)은 입력 탓이라 400 이다. 그대로 올리면 500 이 되고,
+        # 500 응답에는 CORS 헤더가 안 붙어 브라우저가 '서버에 연결할 수 없음'으로 본다
+        fault = CLIENT_FAULT.get(e.reason)
+        if fault is None:
+            raise  # 서버 버그 -> 500 + 트레이스백
+        exc_cls, msg = fault
+        raise exc_cls(msg) from e
 
     return user_id
 

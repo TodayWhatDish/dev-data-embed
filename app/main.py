@@ -12,6 +12,7 @@ FAST API 코드자체는 요청에 따른 함수 콜백만 정의할 뿐, 소켓
 """
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import FRONTEND_ORIGINS
@@ -32,12 +33,13 @@ init_logger()
 from app.api.lifespan import lifespan
 from app.api.routes.recommend import router as recommend_router
 
-from app.api.errors import app_error_handler
+from app.api.errors import app_error_handler, validation_error_handler
 
 
 
 app = FastAPI(lifespan=lifespan)
 app.add_exception_handler(AppError, app_error_handler)
+app.add_exception_handler(RequestValidationError, validation_error_handler)
 
 # dev-web(Next.js, 별도 저장소)이 다른 오리진에서 API를 부른다.
 # 허용 오리진은 app.core.config.FRONTEND_ORIGINS(env FRONTEND_ORIGINS)에서 온다 -

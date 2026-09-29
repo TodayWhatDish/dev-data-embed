@@ -9,10 +9,23 @@ SearchResponse 모양으로 응답 만듦 → 그 응답이 다시 브라우저�
 JS가 그거 받아서 화면에 검색결과 뿌림
 """
 
+import re
 from datetime import date, datetime, timezone
 from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, BeforeValidator, Field
+
+# user 테이블 ck_user_email 과 같은 식이다. DB 까지 가서 거절되면 어느 칸이 틀렸는지 못 알려준다
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _check_email(v: str) -> str:
+    if not EMAIL_RE.match(v):
+        raise ValueError("이메일 형식이 올바르지 않습니다. 예: name@example.com")
+    return v
+
+
+Email = Annotated[str, AfterValidator(_check_email)]
 
 BIRTH_DATE_MIN = date(1990, 1, 1)  # pet 테이블 ck_pet_birth_date 의 하한과 같다
 
@@ -99,7 +112,7 @@ class SignupRequest(BaseModel):
     gender는 pet 테이블 CHECK 제약과 같은 값('M'/'F')만 받는다.
     pet_allergies는 GET /allergens가 준 이름(name_ko) 그대로 - id는 서버가 CommonMgr로 알아서 바꾼다."""
 
-    email: str
+    email: Email
     password: str
     name: str
     phone: str | None = None
@@ -121,7 +134,7 @@ class CustomerUpdate(BaseModel):
     pet_* · 설문 칸은 pet_id 로 고른 펫 것이다. 값 범위는 pet 테이블 CHECK 제약과 같다."""
 
     name: str | None = Field(default=None, min_length=1)
-    email: str | None = Field(default=None, min_length=1)
+    email: Email | None = None
     phone: str | None = None
     region: str | None = None
     pet_id: int | None = None
