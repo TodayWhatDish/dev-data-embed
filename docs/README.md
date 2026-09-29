@@ -4,7 +4,6 @@
 
 ## 지금 참고할 것
 
-- **[`REFERENCES.md`](REFERENCES.md)** — API·인프라·계층 배선 작업 전에 먼저 읽는 참고 프로젝트 목록.
 - **[`schema/`](schema/README.md)** — 테이블별 스키마 설명 5파일 + [`TODO.md`](schema/TODO.md)
   (스키마가 강제 못 해서 앱이 책임져야 하는 규칙들).
 - **[`measurements.md`](measurements.md)** — 임베딩 모델별 채점 결과 기록 (날짜순 누적).
