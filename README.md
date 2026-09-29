@@ -38,7 +38,7 @@ AI가 그 안에서 추천하고 질문에 답합니다. 화면은 [dev-web](htt
 | **답변 반증** | 답변 모델과 **다른 모델**이 고객 정보 · 상품 자료 · 성분표와 대조해 정확도 채점 (자기평가 편향 회피) |
 | **고객 분석 · 판매 전략** | 구매 이력 · 유사 리뷰 · 판매 전략 제공. LLM이 인용한 근거 구매는 SQL로 대조 |
 | **회원 · 펫 · 구매** | 회원가입과 펫 등록을 한 트랜잭션으로 처리하고 구매 · 리뷰 기록 |
-| **품질 평가** | `python -m eval all` 한 줄로 recall@k · MRR · RAGAS · 형식 검사 |
+| **품질 평가** | `python -m eval all` 한 줄로 검색 품질(recall@k · MRR · hit@5)과 안전 지표(축종 · 알러지 위반) 채점 |
 
 ## 아키텍처
 
@@ -97,7 +97,7 @@ CSV에서 임베딩까지 오프라인으로 만들고, 서버는 결과를 읽�
 | Auth | PyJWT, bcrypt |
 | Database | Supabase Postgres, pgvector, SQLAlchemy 2.0, Alembic |
 | LLM · RAG | LangChain, LangGraph, OpenAI (답변 · 임베딩), Claude (반증), NumPy, tiktoken |
-| Evaluation | RAGAS, 골든셋 recall@k · MRR |
+| Evaluation | 골든셋 recall@k · MRR, 안전 지표(축종 · 알러지 위반) |
 | Infra | Railway (Docker), Supabase |
 | Quality | pytest, Ruff |
 
