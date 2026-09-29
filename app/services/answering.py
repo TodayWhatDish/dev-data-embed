@@ -50,7 +50,12 @@ def plan_tools(user_query: str) -> list[str]:
     return ["nutrition"] if decided.nutrition else []
 
 
-def verify(detail: dict[str, Any] | None, answer: str) -> dict[str, Any]:
+def verify(
+    detail: dict[str, Any] | None,
+    answer: str,
+    candidates: list[dict[str, Any]],
+    nutritions: dict[int, dict] | None = None,
+) -> dict[str, Any]:
     """1차: 문자열 대조(공짜, 즉시) - 펫 이름이 답변에 등장하는지만 본다.
     2차: 대조할 실제 고객 정보(detail)가 있으면, 질문이 뭐든 상관없이 항상 LLM 채점도 돌린다.
 
@@ -74,7 +79,9 @@ def verify(detail: dict[str, Any] | None, answer: str) -> dict[str, Any]:
 
     if detail:
         customer_context = build_customer_context(detail)
-        prompt = build_factcheck_prompt(customer_context, answer)
+        # 답변이 본 것과 같은 후보·성분표를 준다 - 그래야 상품 가격·수치를 지어냈는지도 잡는다
+        product_context = build_answer_context(candidates) + "\n[성분표]\n" + build_nutrition_context(candidates, nutritions)
+        prompt = build_factcheck_prompt(customer_context, answer, product_context)
         verifier = get_chat_verify().with_structured_output(FactCheck).with_retry(stop_after_attempt=3)
         judged: FactCheck = verifier.invoke(prompt)
         result.update(judged.model_dump())

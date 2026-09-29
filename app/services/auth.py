@@ -109,6 +109,10 @@ POC_REVIEWS = [
     (4, "알갱이가 작아서 먹기 편해 보여요. 재구매 생각 있어요."),
     (3, "처음엔 잘 먹다가 요즘은 조금 남겨요."),
 ]
+# 시연 계정 이름 - 시드 고객(pipeline/make_data/gen_seed.py)처럼 보이게 몇 개만 옮겨 왔다
+POC_SURNAMES = "김이박최정강조윤"
+POC_GIVEN = ["서연", "민준", "지우", "하은", "도윤", "서준", "수아", "예준"]
+POC_PET_NAMES = ["콩이", "보리", "두부", "망고", "모카", "호두", "구름", "라떼"]
 
 
 def poc_signup(db: Session) -> str:
@@ -119,8 +123,8 @@ def poc_signup(db: Session) -> str:
         db,
         f"poc-{secrets.token_hex(4)}@demo.local",
         secrets.token_urlsafe(16),
-        "시연 고객",
-        "콩이",
+        secrets.choice(POC_SURNAMES) + secrets.choice(POC_GIVEN),
+        secrets.choice(POC_PET_NAMES),
         region="서울",
         pet_species="개",
         pet_gender="F",
@@ -145,5 +149,5 @@ def poc_signup(db: Session) -> str:
     for product, (rating, body) in zip(
         secrets.SystemRandom().sample(products, len(POC_REVIEWS)), POC_REVIEWS
     ):
-        write_review(db, user_id, buy(db, user_id, product["product_id"]), rating, body)
+        write_review(db, user_id, buy(db, user_id, product["product_id"])["purchase_id"], rating, body)
     return create_access_token("user", str(user_id))

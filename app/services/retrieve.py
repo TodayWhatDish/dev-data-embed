@@ -4,8 +4,8 @@
 
 프로필 키를 기준으로 조각 점수를 반환하며, 사용자 쿼리 호출시 사용된다.
 
-DB 에는 repositories/embedding.py 를 통해서만 닿는다. services 에 SQL 이 있으면
-스키마가 바뀔 때 고칠 곳이 두 층으로 흩어진다.
+벡터 검색 SQL(search)과 색인 신선도 확인(check_freshness)은 예외로 여기서 직접 실행한다 -
+WHERE 를 FILTERS 로 조립해 끼워 넣는 구조라 repositories 로 옮기면 조립과 실행이 두 파일로 갈라진다.
 
 FILTERS 의 조건절은 SQL 조각이지만 여기 남는다. 실행하는 게 아니라 벡터 검색에
 넘길 WHERE 를 조립하는 것이고, 무엇으로 거를지는 검색 정책이라 services 의 일이다.
@@ -28,13 +28,13 @@ logger = logging.getLogger()
 # 프로필 키 -> SQL 조건절. 값이 들어온 키만 WHERE 에 붙는다. 자리표시자는 build_where()가
 # :p0, :p1 ... 로 채운다(포지션 하나당 ? 하나 - SQLAlchemy text()는 이름 바인딩만 받는다).
 # size_at_purchase 는 1~5 코드라 SIZE_CASE(repositories/vector.py)로 사람이 쓰는 말로 바꿔 비교한다.
-# 알러지는 pet_allergy 가 다대다라 EXISTS 로 "그 알러지가 등록돼 있는가"를 확인한다.
+# 알러지는 상품 원료 -> 알레르겐 매핑에 그 알레르겐이 하나라도 있으면 NOT EXISTS 로 뺀다.
 FILTERS = {
     "size_category": f"""
         {SIZE_CASE} = ?
     """,
-    # 사용자가 "소고기 알레르기"라고 입력하면, 이건 "소고기 알레르기 있는 개가 쓴 리뷰는 빼자"일 뿐 — 그 상품에 소고기가 들어있는지는 전혀 안 보기에 수정
-    # pet_allergy(리뷰어의 알레르기) 기준 → product_ingredient+ingredient_allergen(상품 원료의 알레르겐) 기준
+    # 예전엔 pet_allergy(리뷰를 쓴 펫의 알레르기) 기준이라 "소고기 알레르기 펫의 리뷰"만 빠지고
+    # 소고기가 든 상품은 그대로 나왔다. 지금은 상품 원료(product_ingredient + ingredient_allergen) 기준이다.
     "allergy": """
         NOT EXISTS (
             SELECT 1 FROM product_ingredient AS pi

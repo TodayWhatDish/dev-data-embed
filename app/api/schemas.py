@@ -9,9 +9,35 @@ SearchResponse 모양으로 응답 만듦 → 그 응답이 다시 브라우저�
 JS가 그거 받아서 화면에 검색결과 뿌림
 """
 
-from typing import Literal
+from datetime import date, datetime, timezone
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import AfterValidator, BaseModel, BeforeValidator, Field
+
+BIRTH_DATE_MIN = date(1990, 1, 1)  # pet 테이블 ck_pet_birth_date 의 하한과 같다
+
+
+def _check_birth_date(v: str) -> str:
+    """DB CHECK(ck_pet_birth_date)가 못 보는 두 가지를 여기서 거른다 - 달력에 없는 날(2021-02-30)과 오늘 이후.
+    DB 는 TEXT 를 정규식으로만 보고, now() 기준 조건은 CHECK 에 둘 수 없다."""
+    try:
+        d = date.fromisoformat(v)
+    except ValueError:
+        raise ValueError("생년월일은 YYYY-MM-DD 형식의 실제 날짜여야 합니다.") from None
+        
+    # DB 의 created_at 과 같은 UTC 기준이다. 한국 날짜로 비교하면 00~09시에 DB CHECK 와 어긋난다
+    today = datetime.now(timezone.utc).date()
+    if not BIRTH_DATE_MIN <= d <= today:
+        raise ValueError(f"생년월일은 {BIRTH_DATE_MIN} 부터 오늘까지만 받습니다.")
+    return d.isoformat()
+
+
+# 빈 문자열은 '미입력' 이다 - 그대로 두면 DB CHECK 형식 검사에 걸린다
+PetBirthDate = Annotated[
+    str | None,
+    BeforeValidator(lambda v: v or None),
+    AfterValidator(lambda v: v if v is None else _check_birth_date(v)),
+]
 
 
 class RecommendRequest(BaseModel):
@@ -81,8 +107,8 @@ class SignupRequest(BaseModel):
     pet_name: str
     pet_species: str | None = None
     pet_gender: str | None = None
-    pet_birth_date: str | None = None
-    pet_weight_kg: float | None = None
+    pet_birth_date: PetBirthDate = None
+    pet_weight_kg: float | None = Field(default=None, gt=0, le=150)
     pet_size: int | None = None
     pet_activity_level: int | None = None
     pet_allergies: list[str] | None = None
@@ -101,8 +127,8 @@ class CustomerUpdate(BaseModel):
     pet_id: int | None = None
     pet_name: str | None = Field(default=None, min_length=1)
     pet_gender: Literal["M", "F"] | None = None
-    pet_birth_date: str | None = None
-    pet_weight_kg: float | None = Field(default=None, gt=0)
+    pet_birth_date: PetBirthDate = None
+    pet_weight_kg: float | None = Field(default=None, gt=0, le=150)
     pet_size: int | None = Field(default=None, ge=1, le=5)
     pet_neutered: int | None = Field(default=None, ge=0, le=1)
     pet_activity_level: int | None = Field(default=None, ge=1, le=3)

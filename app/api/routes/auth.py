@@ -14,6 +14,7 @@ from app.domain.common import CommonMgr
 from app.services.auth import login, poc_signup, signup
 from app.services.customers import customer_detail
 from app.services.profile import list_pets
+from app.services.questions import questions_left_today
 
 router = APIRouter()
 
@@ -86,4 +87,5 @@ def my_profile(user_id: int = Depends(get_current_user), db: Session = Depends(g
     detail = customer_detail(db, user_id)
     if detail is None:
         raise HTTPException(status_code=404, detail="회원 정보를 찾을 수 없습니다.")
-    return detail
+    # 새로고침해도 질문 한도가 서버 기준으로 보이게 같이 준다
+    return {**detail, "questions_left": questions_left_today(db, user_id)}

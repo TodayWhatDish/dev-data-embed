@@ -10,9 +10,9 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user
 from app.api.schemas import RecommendRequest, RecommendResponse
 from app.core.db import get_db
-from app.services.profile import build_profile, pet_profile, primary_pet, survey_query_text
+from app.services.profile import build_profile, pet_profile, primary_pet, survey_notes, survey_queries
 from app.services.recommending import recommend
-from app.services.searching import candidates
+from app.services.searching import candidates, candidates_for_queries
 
 router = APIRouter()
 
@@ -40,5 +40,6 @@ def my_recommend(user_id: int = Depends(get_current_user), db: Session = Depends
 
     pet_id = pet["pet_id"]
     profile = pet_profile(db, pet_id)
-    query_text = survey_query_text(db, pet_id)
-    return {"query": query_text, "found": candidates(db, profile, query_text, limit=5)}
+    notes = survey_notes(db, pet_id)
+    # query 는 화면의 '이 조건으로 골랐어요' 칩용 - 실제 검색은 메모별 질의로 한다
+    return {"query": " ".join(notes), "found": candidates_for_queries(db, profile, survey_queries(notes), limit=5)}
