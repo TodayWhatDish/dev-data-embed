@@ -145,5 +145,5 @@ def poc_signup(db: Session) -> str:
     for product, (rating, body) in zip(
         secrets.SystemRandom().sample(products, len(POC_REVIEWS)), POC_REVIEWS
     ):
-        write_review(db, user_id, buy(db, user_id, product["product_id"]), rating, body)
+        write_review(db, user_id, buy(db, user_id, product["product_id"])["purchase_id"], rating, body)
     return create_access_token("user", str(user_id))

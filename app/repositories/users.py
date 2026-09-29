@@ -36,6 +36,17 @@ def create_user(
     return user.user_id
 
 
+def spend_credit(db: Session, user_id: int, amount: int) -> int | None:
+    """잔액이 충분할 때만 차감하고 남은 잔액을 돌려준다. 부족하면 None.
+    조건부 UPDATE 한 문장이라 동시에 눌러도 음수가 되지 않는다. 커밋은 부른 쪽이 한다."""
+    row = fetch_one(
+        db,
+        'UPDATE "user" SET credit_krw = credit_krw - %s WHERE user_id = %s AND credit_krw >= %s RETURNING credit_krw',
+        (amount, user_id, amount),
+    )
+    return row["credit_krw"] if row else None
+
+
 def list_users(db: Session) -> list[dict]:
     """관리자 화면 왼쪽 목록용. 고객 전체를 이름순으로.
 
@@ -62,7 +73,7 @@ def get_user_detail(db: Session, user_id: int) -> dict | None:
     user = fetch_one(
             db,
         """
-        SELECT user_id, name, email, phone, region, created_at, last_login_at
+        SELECT user_id, name, email, phone, region, credit_krw, created_at, last_login_at
         FROM "user" WHERE user_id = %s
     """,
         (user_id,),

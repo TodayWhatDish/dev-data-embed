@@ -15,6 +15,7 @@ class User(Base):
             "auth_provider IN ('google', 'firebase', 'kakao', 'apple', 'local')", name="ck_user_auth_provider"
         ),
         UniqueConstraint("auth_provider", "auth_uid", name="uq_user_auth"),
+        CheckConstraint("credit_krw >= 0", name="ck_user_credit_nonneg"),
     )
 
     user_id = Column(Integer, primary_key=True)
@@ -25,6 +26,8 @@ class User(Base):
     name = Column(Text, nullable=False)
     phone = Column(Text)
     region = Column(Text)
+    # 시연용 크레딧(원). 실제 결제 대신 구매 시 차감한다
+    credit_krw = Column(Integer, nullable=False, server_default=text("500000"))
     last_login_at = Column(Text)
     withdrawn_at = Column(Text)
     created_at = Column(Text, nullable=False, server_default=NOW)

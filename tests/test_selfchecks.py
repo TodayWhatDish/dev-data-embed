@@ -37,6 +37,7 @@ SELFCHECKS = [
 SLOW_SELFCHECKS = [
     "tests.services.smoke",
     "tests.services.signup_tx",
+    "tests.services.credit",
     # AutoTokenizer.from_pretrained 가 pytest 프로세스 안에서만 죽는 환경이 있다(access
     # violation) - `py -m tests.pipeline.chunking` 로 단독 실행하면 멀쩡하다. numpy/pyarrow/
     # tokenizers 네이티브 확장이 pytest 와 얽히는 문제로 보이며, 원인은 pipeline/prep/chunking.py
