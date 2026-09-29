@@ -10,6 +10,7 @@ get_embeddings() 가 돌려주는 SentenceTransformer 를 직접 .encode() 하�
 
 # provider='openai' 로 배포할 때는 sentence-transformers 가 설치조차 안 된다.
 # 최상단에서 import 하면 그것만으로 서버가 못 뜬다 - 실제로 필요한 자리(get_embeddings 안)에서만 부른다.
+from functools import lru_cache
 from typing import TYPE_CHECKING
 
 from app.core.config import (
@@ -119,6 +120,9 @@ def embed_documents(texts: list[str]) -> list[list[float]]:
     ).tolist()
 
 
+# 설문 질의는 로그인마다 같은 문장이 반복된다(POC 계정은 전부 같다). API 왕복이 추천 응답의 대부분이라 기억해 둔다.
+# 256개 x 1536차원 ≈ 10MB. 돌려준 리스트는 공유되므로 부르는 쪽이 고치면 안 된다.
+@lru_cache(maxsize=256)
 def embed_query(text: str) -> list[float]:
     """단일 쿼리를 벡터로 변환. 모델이 요구하는 질의 접두사를 붙인다.
 
