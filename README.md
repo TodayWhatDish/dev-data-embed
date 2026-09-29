@@ -17,6 +17,8 @@ RAG 서비스의 API 서버 · 데이터 파이프라인
 
 <sub>관리자 AI 분석 패널 — 답변 아래 빨간 글씨가 다른 모델의 반증 결과(정확도 · 근거)입니다.</sub>
 
+**[📊 성능 비교 리포트 → 토큰 −90% · recall@3 12.7→25.8% · 이미지 −77%](./docs/PERFORMANCE.md)**
+
 </div>
 
 <br/>
@@ -141,6 +143,7 @@ python -m eval all                  # --with-llm 으로 요금 드는 채점 포
 
 ## 더 보기
 
+- [성능 비교 리포트](./docs/PERFORMANCE.md) — 토큰 절감 · 검색 품질 · 임베딩 모델 선정 · 응답 속도 실측
 - [개발 규칙](./AGENTS.md) — 명령어 · 코드 스타일 · 계층 규칙
 - [설계 배경](./docs/design/GOAL.md) — 프로젝트 방향 · 요구사항, [DB 설계](./docs/design/DESIGN.md)
 - [스키마 레퍼런스](./docs/schema/README.md) — 테이블별 컬럼 · 인덱스
