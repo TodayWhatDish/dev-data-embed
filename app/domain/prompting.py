@@ -29,6 +29,8 @@ ANSWER_PROMPT = ChatPromptTemplate.from_messages(
             "[추천 후보]는 조건에 맞춰 검색된 상품/리뷰로 다른 고객이 쓴 것도 섞여 있다 - 이 고객의 구매가 아니다. "
             "이 고객의 과거 사실(구매 여부·횟수·추이 등)은 반드시 [고객 정보]만 근거로 답하고, [추천 후보]를 근거로 쓰지 않는다. "
             "상품 추천 요청은 [추천 후보]에서 골라 답한다. 상품명·가격·후기는 [추천 후보]에 있는 것만 쓴다. "
+            "[고객 정보]의 알러지 재료가 든 상품은 [추천 후보]에서 이미 빠져 있다 - 알러지 재료를 찾는 질문이면 "
+            "아이 알러지 때문에 권하지 않는다고 말하고 [추천 후보]에서 대안을 권한다. "
             "산책·목욕·행동·건강 같은 일반 반려동물 질문은 일반 상식으로 답하되 '일반적인 정보'임을 밝히고, "
             "질병이 의심되는 증상이면 동물병원 진료를 권한다. 관련 있으면 [추천 후보]에서 하나를 곁들인다. "
             "반려동물과 무관한 질문은 한 문장으로 사료·간식 상담만 돕는다고 안내한다. "
@@ -98,6 +100,12 @@ def build_customer_context(detail: dict[str, Any] | None) -> str:
         return "구매 이력 없음"
     # 이름이 있어야 '강나연씨의 ~' 처럼 이름으로 물어도 같은 고객으로 알아본다
     header = f"고객: {detail['name']}"
+    # 알러지가 없으면 '닭고기 간식 줘' 에 후보가 왜 비었는지 설명을 못 하고 "자료가 없다"고만 한다
+    for pet in detail.get("pets") or []:
+        header += (
+            f"\n반려동물: {pet['name']}({pet['animal_category']}) | 알러지: {pet.get('allergies') or '없음'}"
+            f" | 식성: {pet.get('diet_note') or '-'} | 피부: {pet.get('skin_note') or '-'}"
+        )
     purchases = detail["purchases"]
     if not purchases:
         return f"{header}\n구매 이력 없음"
@@ -158,21 +166,25 @@ def build_strategy_prompt(detail: dict[str, Any]) -> str:
 
 
 class FactCheck(BaseModel):
-    accuracy: float = Field(description="0~1 사이 숫자. 답변이 [고객 정보]의 사실과 일치하는 정도")
+    accuracy: float = Field(description="0~1 사이 숫자. 답변이 [고객 정보]·[상품 자료]의 사실과 일치하는 정도")
     note: str = Field(
-        description="이 점수를 매긴 근거. 답변의 어느 부분이 [고객 정보]의 어느 내용과 일치/불일치하는지 구체적으로 짚어서 설명한다"
+        description="이 점수를 매긴 근거. 답변의 어느 부분이 자료의 어느 내용과 일치/불일치하는지 구체적으로 짚어서 설명한다"
     )
 
 
-def build_factcheck_prompt(customer_context: str, answer: str) -> str:
-    """답변을 만든 모델과 별도 호출로 [고객 정보]와 대조한다 - 문자열 대조가 못 잡는 '재구매/평점 같은
-    과거 사실 주장'이 의심될 때만 answering._looks_suspicious()가 이 프롬프트를 태운다."""
+def build_factcheck_prompt(customer_context: str, answer: str, product_context: str) -> str:
+    """답변을 만든 모델과 별도 호출로, 답변이 받은 자료와 같은 자료에 대조한다.
+    상품 자료를 안 주면 채점 모델이 '고객 정보에 없는 상품'이라며 정상 추천을 0점 처리한다(2026-09-29 실측)."""
     return (
         f"[고객 정보]\n{customer_context}\n\n"
+        f"[상품 자료]\n{product_context}\n\n"
         f"[답변]\n{answer}\n\n"
-        f"위 [답변]이 [고객 정보]의 사실과 일치하는지 확인하라. "
+        f"위 [답변]이 자료의 사실과 일치하는지 확인하라. "
         f"[고객 정보]에 없는 이 고객의 사실(구매·펫 정보 등)을 답변이 사실처럼 말했다면 accuracy를 낮춰라. "
-        f"일반 반려동물 상식이나 상품 추천은 고객 사실이 아니므로 감점하지 않는다. "
+        f"상품명·가격·원료·성분 수치가 [상품 자료]와 다르거나 없는 상품이면 accuracy를 낮춰라. "
+        f"고객이 사지 않은 상품을 [상품 자료]에서 골라 추천하는 것은 정상이다. 일반 반려동물 상식도 감점하지 않는다. "
+        # 오리·계란·새우를 '닭고기 알러지 교차반응'이라며 정상 추천을 0.3~0.5로 깎았다(2026-09-29 실측)
+        f"알러지 재료가 든 상품은 DB 원료 매핑으로 [상품 자료]에서 이미 빠졌다 - 알러지 재료와 다른 원료(예: 닭고기 알러지에 오리·계란)는 감점하지 않는다. "
         f"note에는 채점 근거를 구체적으로 적어라."
     )
 

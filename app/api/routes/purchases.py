@@ -22,11 +22,10 @@ def my_purchases_route(user_id: int = Depends(get_current_user), db: Session = D
 
 @router.post("/me/purchases", status_code=201)
 def buy_route(payload: BuyRequest, user_id: int = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
-    """추천 카드에서 '구매하기' - 실제 purchase 행을 만든다. 
-    반려동물이 없으면 409, 없는 상품이면 404."""
+    """추천 카드에서 '구매하기' - 크레딧을 차감하고 purchase 행을 만든다.
+    반려동물이 없거나 크레딧이 부족하면 409, 없는 상품이면 404."""
 
-    purchase_id = buy(db, user_id, payload.product_id, payload.quantity)
-    return {"purchase_id": purchase_id}
+    return buy(db, user_id, payload.product_id, payload.quantity)
 
 
 @router.post("/me/purchases/{purchase_id}/review", status_code=201)

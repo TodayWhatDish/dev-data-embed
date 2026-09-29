@@ -1,6 +1,6 @@
 # Last Updated : 2026-09-06
 
-"""정형 필터(SQL)가 먼저 거르고 LLM은 그 후보 위에서만 판단"을 실행하는 자리.
+"""'정형 필터(SQL)가 먼저 거르고 LLM은 그 후보 위에서만 판단'을 실행하는 자리.
 이게 없으면 LLM에 상품 전체를 넘기게 돼서 토큰 낭비 + 축종/알러지 안 맞는 후보까지 섞여 들어감.
 
 DB 에는 repositories 를 통해서만 닿는다. 여기서 테이블 이름을 알 필요가 없다 —
@@ -13,7 +13,7 @@ from typing import Any
 from sqlalchemy.engine import Connection
 from sqlalchemy.orm import Session
 
-from app.core.config import PASSAGE_PREFIX
+from app.core.config import MATCH_RANGE, PASSAGE_PREFIX
 from app.domain.products import root_category_name
 from app.repositories import purchases as purchase_repo
 from app.services.customers import customer_detail
@@ -22,6 +22,12 @@ from app.services.retrieve import build_where, search
 from pipeline.vector_db import connect
 
 logger = logging.getLogger()
+
+
+def match_rate(similarity: float) -> float:
+    """코사인 유사도를 이 모델 기준 매칭률(0~1)로 편다. 구간은 config.EMBED_PROFILES 의 match_range."""
+    low, high = MATCH_RANGE
+    return min(max((similarity - low) / (high - low), 0.0), 1.0)
 
 
 def candidates(
@@ -66,7 +72,7 @@ def candidates(
                 "brand": product["brand"],
                 "price_krw": product["price_krw"],
                 "product_type": root_category_name(product["product_category_id"]),  # 사료/간식
-                "score": score,
+                "score": match_rate(score),
                 "review": review.removeprefix(PASSAGE_PREFIX),
             }
         )
@@ -76,6 +82,18 @@ def candidates(
         logger.warning(f"검색 {len(hits)}건 중 {dropped}건이 상품 조회에 실패해 빠졌다")
     logger.info(f"후보 {len(result)}건 반환 (검색 {len(hits)}건)")
     return result
+
+
+def candidates_for_queries(
+    db: Session, profiles: dict[str, Any], queries: list[str], limit: int = 5
+) -> list[dict[str, Any]]:
+    """질의마다 따로 찾고, 같은 상품은 가장 높은 매칭률 하나만 남겨 점수순으로 limit개."""
+    best: dict[int, dict[str, Any]] = {}
+    for query in queries:
+        for c in candidates(db, profiles, query, limit=limit):
+            if c["product_id"] not in best or c["score"] > best[c["product_id"]]["score"]:
+                best[c["product_id"]] = c
+    return sorted(best.values(), key=lambda c: c["score"], reverse=True)[:limit]
 
 
 def similar_reviews_for(db: Session, user_id: int, limit: int = 5) -> dict[str, Any]:

@@ -3,6 +3,7 @@
 from sqlalchemy import CheckConstraint, Column, Float, ForeignKey, Index, Integer, Text, text
 
 from app.core.db import Base
+from app.models import DATETIME_RE
 
 # sqlite 의 datetime('now') 대신 - 컬럼이 TEXT ISO-8601 이라 Postgres now() 를 같은 포맷 문자열로 캐스팅한다
 NOW = text("to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')")
@@ -29,18 +30,23 @@ class FeedingPurpose(Base):
 class Product(Base):
     __tablename__ = "product"
     __table_args__ = (
+        CheckConstraint("length(trim(brand)) > 0", name="ck_product_brand"),
+        CheckConstraint("length(trim(name)) > 0", name="ck_product_name"),
         CheckConstraint("food_form IN ('건식', '습식', '동결건조', '생식', '공용')", name="ck_product_food_form"),
         CheckConstraint("price_krw >= 0", name="ck_product_price_krw"),
         CheckConstraint("weight_g > 0", name="ck_product_weight_g"),
-        CheckConstraint("kcal_per_100g > 0", name="ck_product_kcal_per_100g"),
+        # 900 = 순수 지방의 100g 당 열량. 이보다 높은 사료는 물리적으로 없다
+        CheckConstraint("kcal_per_100g > 0 AND kcal_per_100g <= 900", name="ck_product_kcal_per_100g"),
         CheckConstraint("target_size_min BETWEEN 1 AND 5", name="ck_product_target_size_min"),
         CheckConstraint("target_size_max BETWEEN 1 AND 5", name="ck_product_target_size_max"),
         CheckConstraint("target_age_min_month >= 0", name="ck_product_target_age_min_month"),
-        CheckConstraint("target_age_max_month >= 0", name="ck_product_target_age_max_month"),
+        CheckConstraint("target_age_max_month BETWEEN 0 AND 1200", name="ck_product_target_age_max_month"),
         CheckConstraint("ingredients_verified IN (0, 1)", name="ck_product_ingredients_verified"),
         CheckConstraint("is_active IN (0, 1)", name="ck_product_is_active"),
         CheckConstraint("target_size_min <= target_size_max", name="ck_product_target_size_range"),
         CheckConstraint("target_age_min_month <= target_age_max_month", name="ck_product_target_age_range"),
+        CheckConstraint(f"created_at ~ {DATETIME_RE}", name="ck_product_created_at"),
+        CheckConstraint(f"updated_at ~ {DATETIME_RE} AND updated_at >= created_at", name="ck_product_updated_at"),
         Index("idx_product_filter", "product_category_id", "is_active"),
     )
 
@@ -82,6 +88,13 @@ class ProductNutrition(Base):
         CheckConstraint("calcium_pct BETWEEN 0 AND 100", name="ck_nutrition_calcium_pct"),
         CheckConstraint("phosphorus_pct BETWEEN 0 AND 100", name="ck_nutrition_phosphorus_pct"),
         CheckConstraint("sodium_pct BETWEEN 0 AND 100", name="ck_nutrition_sodium_pct"),
+        # 일반성분 5종은 한 사료를 나눈 몫이라 합이 100 을 못 넘는다. 칼슘/인/나트륨은 회분에 포함돼 빼고 더한다.
+        # 101: 라벨 값이 항목마다 반올림돼 합이 100 을 조금 넘을 수 있다
+        CheckConstraint(
+            "COALESCE(crude_protein_pct, 0) + COALESCE(crude_fat_pct, 0) + COALESCE(crude_fiber_pct, 0)"
+            " + COALESCE(crude_ash_pct, 0) + COALESCE(moisture_pct, 0) <= 101",
+            name="ck_nutrition_proximate_sum",
+        ),
     )
 
     product_id = Column(Integer, ForeignKey("product.product_id"), primary_key=True)

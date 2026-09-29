@@ -69,6 +69,9 @@ EMBED_PROFILES = {
         "batch_size": 128,
         "query_prefix": "",
         "passage_prefix": "",
+        # 코사인 유사도 → 매칭률 0~100% 로 펴는 구간(2026-09-29 실측). 무관한 질문의 1위가 ~0.30,
+        # 홀드아웃 실제 후기 270건의 1위 상위 10%가 ~0.59 - 모델을 바꾸면 다시 잰다.
+        "match_range": (0.30, 0.60),
     },
 }
 
@@ -132,6 +135,8 @@ EMBED_MAX_TOKENS = _profile["max_tokens"]
 EMBED_BATCH_SIZE = _profile["batch_size"]
 QUERY_PREFIX = _profile["query_prefix"]
 PASSAGE_PREFIX = _profile["passage_prefix"]
+# 구간을 안 잰 모델은 원래 유사도를 그대로 보여준다
+MATCH_RANGE = _profile.get("match_range", (0.0, 1.0))
 
 # provider='st' 일 때만 쓴다. API 모델은 남의 서버에서 도니 올릴 장치가 없다.
 EMBED_DEVICE = "cpu"
@@ -201,6 +206,8 @@ LOGIN_LIMIT_SECONDS = 60
 # 질문: 한 번이 LLM 호출 2회(답변+반증)라 요금 기준으로 잡는다
 ASK_LIMIT_TIMES = 10
 ASK_LIMIT_SECONDS = 60
+# 회원 한 명이 하루(한국 시간 자정 기준)에 /ask/me 로 물을 수 있는 횟수. 화면의 QUOTA_MAX 와 맞춘다
+ASK_DAILY_MAX = 5
 
 # 고객 페이지 배경 이미지용 (app/api/routes/background.py)
 UNSPLASH_ACCESS_KEY = settings.unsplash_access_key
