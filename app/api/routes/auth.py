@@ -7,12 +7,12 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.api.ratelimit import login_limit
-from app.api.schemas import AuthResponse, LoginRequest, SignupRequest
+from app.api.schemas import AuthResponse, CustomerUpdate, LoginRequest, SignupRequest
 from app.core.config import POC_ENABLED
 from app.core.db import get_db
 from app.domain.common import CommonMgr
 from app.services.auth import login, poc_signup, signup
-from app.services.customers import customer_detail
+from app.services.customers import customer_detail, update_customer
 from app.services.profile import list_pets
 from app.services.questions import questions_left_today
 
@@ -89,3 +89,13 @@ def my_profile(user_id: int = Depends(get_current_user), db: Session = Depends(g
         raise HTTPException(status_code=404, detail="회원 정보를 찾을 수 없습니다.")
     # 새로고침해도 질문 한도가 서버 기준으로 보이게 같이 준다
     return {**detail, "questions_left": questions_left_today(db, user_id)}
+
+
+@router.patch("/me/profile")
+def update_my_profile(patch: CustomerUpdate, user_id: int = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    """마이페이지: 본인 계정/펫 정보 수정. user_id 는 토큰에서만 가져온다 - 남의 정보는 못 고친다
+    (update_customer 가 user_id/pet_id 둘로 스코프해 남의 펫도 막는다). 관리자 PATCH 와 같은 서비스를 쓴다.
+    이메일은 로그인 id 라 본인 수정 대상에서 뺀다 - 보내도 무시한다."""
+    values = patch.model_dump(exclude_unset=True)
+    values.pop("email", None)
+    return update_customer(db, user_id, values)
